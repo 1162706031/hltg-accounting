@@ -460,8 +460,8 @@ CREATE TABLE party_reconciliation (
     payment_method VARCHAR(20)  DEFAULT NULL COMMENT '付款方式: 电汇/电承/现金',
 
     -- 发票信息
-    invoice_status ENUM('uninvoiced','invoiced') DEFAULT 'uninvoiced'
-                   COMMENT 'uninvoiced=未开票 invoiced=已开票',
+    invoice_status ENUM('uninvoiced','invoiced','no_invoice_needed') DEFAULT 'uninvoiced'
+                   COMMENT 'uninvoiced=未开票 invoiced=已开票 no_invoice_needed=无需开票',
     invoice_date  DATE          DEFAULT NULL COMMENT '开票日期',
     invoice_amount DECIMAL(12,2) DEFAULT NULL COMMENT '开票金额',
 
