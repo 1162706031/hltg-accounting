@@ -96,6 +96,10 @@ CREATE TABLE smelting_order (
     yield_pct         DECIMAL(5,2)  DEFAULT NULL COMMENT '冶炼成锭率 %',
     unit_price        DECIMAL(10,2) DEFAULT NULL COMMENT '加工单价 (元/吨)',
     processing_amount DECIMAL(12,2) DEFAULT NULL COMMENT '加工金额 (元)',
+    tax_rate          DECIMAL(5,2)  DEFAULT 13.00 COMMENT '税率(%)',
+    tax_amount        DECIMAL(12,2) DEFAULT NULL COMMENT '税额',
+    subtotal          DECIMAL(12,2) DEFAULT NULL COMMENT '小计(税前)',
+    total_amount      DECIMAL(12,2) DEFAULT NULL COMMENT '合计(含税)',
     status            ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
                       COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
     notes             TEXT          DEFAULT NULL,
@@ -170,6 +174,10 @@ CREATE TABLE outsource_order (
     -- 加工费用
     unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '加工单价 (元/吨)',
     amount        DECIMAL(12,2) DEFAULT NULL COMMENT '加工金额 (元)',
+    tax_rate      DECIMAL(5,2)  DEFAULT 13.00 COMMENT '税率(%)',
+    tax_amount    DECIMAL(12,2) DEFAULT NULL COMMENT '税额',
+    subtotal      DECIMAL(12,2) DEFAULT NULL COMMENT '小计(税前)',
+    total_amount  DECIMAL(12,2) DEFAULT NULL COMMENT '合计(含税)',
 
     -- 成材率
     yield_rate    DECIMAL(5,4)  DEFAULT NULL COMMENT '成材率 — 0.77 = 77%',
