@@ -369,10 +369,6 @@ CREATE TABLE inventory (
     current_pieces  INT           DEFAULT 0 COMMENT '当前支数',
     current_weight  DECIMAL(12,3) DEFAULT 0 COMMENT '当前重量 (吨/kg)',
 
-    -- 单价金额
-    unit_price      DECIMAL(10,2) DEFAULT NULL,
-    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = 重量 × 单价',
-
     notes           TEXT          DEFAULT NULL,
     created_by      BIGINT UNSIGNED DEFAULT NULL,
     created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP,
