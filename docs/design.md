@@ -318,26 +318,199 @@ item  ──1:N── smelting_inbound | alloy_addition | processing_outbound
 ### 4.0 整体布局
 
 ```
-┌─────────────────────────────────────────────┐
-│  Sidebar                │  Header (用户名/角色/退出) │
-│  ─────────              │  ────────────────────────── │
-│  📊 工作台              │                              │
-│  👥 往来单位            │   内容区                     │
-│  📦 物品管理            │   (每个页面)                 │
-│  📋 冶炼加工            │                              │
-│  🔧 外协加工            │                              │
-│  🛒 采购管理            │                              │
-│  💰 销售管理            │                              │
-│  📦 库房管理            │                              │
-│  📄 用户对账            │                              │
-│  💳 财务中心            │                              │
-│  ─────────────          │                              │
-│  ⚙️ 系统设置            │  (admin 可见)                │
-│  👤 用户管理            │  (admin 可见)                │
-│  📜 操作日志            │  (admin 可见)                │
-│  📋 审核中心            │  (reviewer/admin 可见)       │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Sidebar                │  Header (用户名/角色/退出)               │
+│  ─────────              │  ──────────────────────────────────────  │
+│  📊 工作台              │  ┌───────────────────────────────────┐  │
+│  👥 往来单位            │  │ 📊 工作台 │ 📋 冶炼#3000001 │ ...  │  │  ← Tab Bar
+│  📦 物品管理            │  └───────────────────────────────────┘  │
+│  📋 冶炼加工            │  ──────────────────────────────────────  │
+│  🔧 外协加工            │                                          │
+│  🛒 采购管理            │   内容区                                 │
+│  💰 销售管理            │   (当前激活 Tab 的页面)                   │
+│  📦 库房管理            │                                          │
+│  📄 用户对账            │                                          │
+│  💳 财务中心            │                                          │
+│  ─────────────          │                                          │
+│  ⚙️ 系统设置            │  (admin 可见)                            │
+│  👤 用户管理            │  (admin 可见)                            │
+│  📜 操作日志            │  (admin 可见)                            │
+│  📋 审核中心            │  (reviewer/admin 可见)                   │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+### 4.0c 多 Tab 窗口栏设计
+
+> **核心体验**: 类似 VSCode 的多标签页系统。用户可以同时打开多个页面（如冶炼详情、库存、用户对账），在 Tab 之间快速切换，无需反复导航。关闭 Tab 重新打开时恢复上次状态。
+
+**Tab Bar 位置**: Header 下方，内容区上方，横跨整个右侧区域。
+
+**Tab 外观**:
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📊 工作台 │ 📋 冶炼#3000001 ● │ 📦 库存 │ 📄 对账(富烽) │  ✕ 全部│
+└──────────────────────────────────────────────────────────────────┘
+```
+- 每个 Tab 显示：图标 + 页面简称 + 关键标识（如批次号、单位名）
+- 当前激活 Tab 高亮（蓝色底/下划线）
+- Tab 右侧有 ✕ 关闭按钮（hover 显示）
+- 末位固定「✕ 全部关闭」按钮
+- 有未保存修改的 Tab 显示 ● 标记（dirty indicator）
+- Tab 过多时水平滚动，最左/右侧出现 ◀ ▶ 箭头
+
+**Tab 行为**:
+
+| 操作 | 行为 |
+|------|------|
+| 点击侧边栏菜单 | 已有该页 Tab → 切换到它；无 → 新建 Tab 并激活 |
+| 点击列表中的「详情」 | 新建 Tab（如 `冶炼#3000001`），不覆盖列表 Tab |
+| 点击「✕」关闭 Tab | 有未保存修改 → 弹窗确认「有未保存的修改，确定关闭？」；无修改 → 直接关闭 |
+| 关闭最后一个 Tab | 自动跳转到工作台 Tab |
+| 刷新页面 (F5) | 恢复上次打开的所有 Tab 及路由参数（URL 驱动） |
+| 浏览器前进/后退 | 切换激活的 Tab（不关闭/新建 Tab） |
+
+**Tab 路由设计**:
+
+每个 Tab 对应一个 URL 路由。当前激活 Tab 的路由 = 浏览器地址栏 URL。所有打开的 Tab 列表存储在 URL hash 或 query 中：
+
+```
+URL 结构: /smelting/3000001?tabs=workbench,smelting/3000001,inventory,reconciliation/5
+                                        ↑ 当前激活         ↑ 所有打开的 Tab
+```
+
+刷新页面时从 URL 恢复全部 Tab。
+
+**不同页面类型的 Tab 行为**:
+
+| 页面类型 | 新建 Tab? | Tab 标签示例 | 说明 |
+|---------|:---:|------|------|
+| 工作台 `/` | 复用（始终唯一） | 📊 工作台 | 整个系统只有一个工作台 Tab |
+| 列表页 `/smelting`、`/outsource`... | 复用（始终唯一） | 📋 冶炼加工 | 每种列表页只有一个 Tab，筛选/分页状态保留在 Tab 内 |
+| 详情页 `/smelting/:id` | **每次新建** | 📋 冶炼#3000001 | 同一批次已打开 → 切换到已有 Tab，不同批次 → 新建 |
+| 物品管理 `/items` | 复用 | 📦 物品管理 | 唯一 |
+| 财务中心 `/finance` | 复用 | 💳 财务中心 | 唯一 |
+
+**Tab 内状态保留**:
+
+每个 Tab 维护独立的本地状态：
+- 列表页: 筛选条件、排序、分页页码、搜索关键词、选中行
+- 详情页: 表单输入值、展开/折叠的子表、Modal 开关
+- 财务中心: 当前激活的子 Tab、筛选条件
+
+> 使用 React 的 `<KeepAlive>` 或 `<Outlet>` + `display:none` 实现 Tab 切换时保留 DOM 和状态。
+
+**数据一致性保证**:
+
+这是最关键的部分 — 同一数据在多个 Tab 中显示时，修改后所有 Tab 必须同步。
+
+```
+Tab A: 冶炼#3000001 详情 (正在编辑)
+Tab B: 库存列表 (显示 H13 库存)
+Tab C: 用户对账 (显示冶炼#3000001 的应收)
+```
+
+当 Tab A 保存/提交审核后：
+
+1. **React Query 自动失效**: `useMutation` 的 `onSuccess` 中调用 `queryClient.invalidateQueries()`
+2. **跨 Tab 同步**: React Query 的缓存是全局单例，Tab B 的 `useQuery(['inventory'])` 和 Tab C 的 `useQuery(['reconciliation'])` 在同一 QueryClient 中 → 自动 refetch
+3. **乐观更新**: 库存扣减等操作使用 `onMutate` 乐观更新 UI，后端确认后覆盖
+
+| 场景 | 触发 Tab | 影响的其他 Tab | 同步机制 |
+|------|:------:|------|------|
+| 冶炼审核通过 (扣库存) | 冶炼详情 | 库存列表、库存 Tab | `invalidateQueries(['inventory'])` |
+| 冶炼标记完成 (出钢入库) | 冶炼详情 | 库存列表、库存 Tab | `invalidateQueries(['inventory'])` |
+| 库存手动出库 | 库存 Tab | 所有引用该物品的详情页 | `invalidateQueries(['inventory', itemId])` |
+| 对账行新建/编辑/删除 | 用户对账 | 往来单位余额、财务中心 | `invalidateQueries(['reconciliation'])` + `['finance/balance']` |
+| 修改物品名称 | 物品管理 | 所有引用该物品的 Tab | `invalidateQueries(['item'])` + 所有使用 item 的 query |
+| 往来单位编辑 | 往来单位 | 所有引用该单位的详情页 | `invalidateQueries(['party'])` |
+
+**具体实现**:
+
+```typescript
+// TabContext.tsx — 管理所有打开的 Tab
+interface Tab {
+  id: string;           // 唯一标识 "smelting/3000001"
+  route: string;        // 路由路径 "/smelting/3000001"
+  label: string;        // 显示标签 "冶炼#3000001"
+  icon: string;         // 图标
+  dirty: boolean;       // 是否有未保存修改
+  pinned: boolean;      // 是否固定 (工作台始终固定)
+}
+
+interface TabContextType {
+  tabs: Tab[];
+  activeTabId: string | null;
+  openTab: (tab: Omit<Tab, 'dirty'>) => void;  // 打开或切换到 Tab
+  closeTab: (tabId: string) => boolean;         // 返回 false = 被用户取消
+  closeAllTabs: () => void;
+  setActiveTab: (tabId: string) => void;
+  setDirty: (tabId: string, dirty: boolean) => void;
+  closeOtherTabs: (tabId: string) => void;
+}
+```
+
+**dirty 标记** — 防止误关闭:
+
+详情页表单修改后 → `setDirty(tabId, true)` → Tab 标签显示 ● → 关闭时弹窗确认。保存成功后 → `setDirty(tabId, false)`。
+
+```
+┌──────────────────────────────────────────┐
+│  确认关闭                                 │
+│  ─────────────────────────────────────── │
+│  冶炼#3000001 有未保存的修改，             │
+│  关闭后修改将丢失。                        │
+│                                          │
+│  [不保存，直接关闭]  [取消]               │
+└──────────────────────────────────────────┘
+```
+
+**右键菜单** (在 Tab 上右键):
+
+```
+┌─────────────────┐
+│  关闭            │
+│  关闭其他         │
+│  关闭右侧所有     │
+│  ───────────     │
+│  固定 / 取消固定  │  ← 固定后 ✕ 按钮隐藏
+└─────────────────┘
+```
+
+**Tab Bar 组件结构**:
+
+```typescript
+// src/components/TabBar.tsx
+<TabBar>
+  {tabs.map(tab => (
+    <Tab
+      key={tab.id}
+      active={tab.id === activeTabId}
+      dirty={tab.dirty}
+      pinned={tab.pinned}
+      onClose={() => closeTab(tab.id)}
+      onClick={() => setActiveTab(tab.id)}
+      onContextMenu={(e) => showContextMenu(e, tab)}
+    >
+      {tab.icon} {tab.label} {tab.dirty && '●'}
+    </Tab>
+  ))}
+  <CloseAllButton onClick={closeAllTabs} />
+</TabBar>
+```
+
+**URL 持久化**:
+
+```
+# 当前 URL 示例:
+/smelting/3000001?tabs=workbench,smelting,smelting%2F3000001,inventory
+
+# 解析:
+# active: /smelting/3000001 (地址栏路径)
+# tabs: 工作台, 冶炼列表, 冶炼#3000001, 库存
+# 刷新后: 恢复 4 个 Tab，激活冶炼#3000001
+```
+
+> URL 中的 `tabs` 参数通过 `history.replaceState` 静默更新，不产生浏览器历史记录。只有用户主动切换 Tab 才 push 历史记录。
 
 ### 4.0b 批次号自动生成规则
 
@@ -1928,6 +2101,7 @@ Base URL: /api/v1
 全局状态 (Context/Zustand):
   - currentUser          (当前登录用户)
   - sidebarCollapsed     (侧边栏折叠)
+  - tabContext           (TabBar — 打开的所有标签页、当前激活、dirty 标记)
 
 服务端状态 (React Query):
   - 所有列表/详情数据使用 useQuery
@@ -2598,8 +2772,9 @@ frontend/src/
 ├── api/
 │   └── client.ts              # axios 封装
 ├── components/
-│   ├── AppLayout.tsx          # 主布局(侧边栏+Header)
+│   ├── AppLayout.tsx          # 主布局(侧边栏+Header+TabBar)
 │   ├── RequireAuth.tsx        # 权限守卫
+│   ├── TabBar.tsx             # 多 Tab 窗口栏
 │   ├── WarehouseSelector.tsx  # 仓库选择器(复用组件)
 │   └── AuditPanel.tsx         # 审核面板(复用组件)
 ├── pages/
@@ -2621,6 +2796,7 @@ frontend/src/
 │   └── OperationLogs.tsx      # 操作日志
 └── utils/
     └── AuthContext.tsx         # 认证上下文
+    └── TabContext.tsx          # Tab 状态管理
 ```
 
 ## 附录 D: 移动端扩展规划 (优先级: 最低 — 远期)
