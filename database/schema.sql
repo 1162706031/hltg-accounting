@@ -184,8 +184,8 @@ CREATE TABLE outsource_order (
     saw_head_ton  DECIMAL(10,3) DEFAULT NULL COMMENT '切锯头 (吨)',
     loss_ton      DECIMAL(10,3) DEFAULT NULL COMMENT '损耗 (吨)',
 
-    status        ENUM('draft','pending_review','approved','rejected') NOT NULL DEFAULT 'draft'
-                  COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 rejected=驳回',
+    status        ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
+                  COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
     notes         TEXT          DEFAULT NULL,
     created_by    BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by    BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -294,8 +294,8 @@ CREATE TABLE sales_order (
     pieces          INT           DEFAULT NULL,
     unit_price      DECIMAL(10,2) DEFAULT 0 COMMENT '单价 (元/吨)',
     amount          DECIMAL(12,2) DEFAULT 0 COMMENT '金额 (元)',
-    status          ENUM('draft','pending_review','approved','rejected') NOT NULL DEFAULT 'draft'
-                    COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 rejected=驳回',
+    status          ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
+                    COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
     notes           TEXT          DEFAULT NULL,
     created_by      BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by      BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -362,9 +362,7 @@ CREATE TABLE invoice (
 -- 当前库存（成品/半成品/合金 统一管理）
 CREATE TABLE inventory (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    item_type       ENUM('product','semi_finished','alloy') NOT NULL
-                    COMMENT 'product=成品 semi_finished=半成品 alloy=合金',
-    item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种/原料/合金)',
+    item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种/原料/合金) — 物品类型通过 JOIN item.item_type 读取，不在此表冗余',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 板子 / 圆钢150 / 630',
     unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位',
 
@@ -382,15 +380,14 @@ CREATE TABLE inventory (
     created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    UNIQUE KEY uk_item (item_type, item_id, spec),
-    INDEX idx_type (item_type),
+    UNIQUE KEY uk_item (item_id, spec),
     INDEX idx_owner (owner_type, owner_id),
     INDEX idx_item (item_id),
 
     CONSTRAINT fk_inv_item    FOREIGN KEY (item_id)    REFERENCES item(id),
     CONSTRAINT fk_inv_owner   FOREIGN KEY (owner_id)   REFERENCES party(id),
     CONSTRAINT fk_inv_created FOREIGN KEY (created_by) REFERENCES user(id)
-) ENGINE=InnoDB COMMENT='统一库存 — 成品/半成品/合金';
+) ENGINE=InnoDB COMMENT='统一库存 — 物品类型通过 JOIN item.item_type 读取，不冗余存储';
 
 
 -- 库存变动日志（不可修改，每次库存CRUD自动生成）
@@ -529,7 +526,7 @@ CREATE OR REPLACE VIEW v_party_balance AS
 SELECT
     p.id          AS party_id,
     p.name        AS party_name,
-    p.type        AS party_type,
+    CONCAT_WS(',', IF(p.is_customer,'customer',NULL), IF(p.is_supplier,'supplier',NULL), IF(p.is_processor,'processor',NULL)) AS party_type,
     'smelting_order' AS source_type,
     so.id         AS source_id,
     so.batch_no,
@@ -545,7 +542,7 @@ LEFT JOIN alloy_addition aa ON aa.order_id = so.id
 LEFT JOIN payment pay     ON pay.ref_type = 'smelting_order' AND pay.ref_id = so.id AND pay.direction = 'pay'
 WHERE so.order_type = 'ext_smelting'
   AND so.status IN ('approved','in_progress','completed')
-GROUP BY p.id, p.name, p.type, so.id, so.batch_no
+GROUP BY p.id, p.name, party_type, so.id, so.batch_no
 
 UNION ALL
 
@@ -559,7 +556,7 @@ SELECT
 FROM party p
 JOIN outsource_order oo  ON oo.party_id = p.id AND oo.status IN ('approved','in_progress','completed')
 LEFT JOIN payment pay     ON pay.ref_type = 'outsource_order' AND pay.ref_id = oo.id AND pay.direction = 'pay'
-GROUP BY p.id, p.name, p.type, oo.id, oo.batch_no, oo.amount
+GROUP BY p.id, p.name, party_type, oo.id, oo.batch_no, oo.amount
 
 UNION ALL
 
@@ -573,7 +570,7 @@ SELECT
 FROM party p
 JOIN procurement_order po ON po.party_id = p.id AND po.status IN ('approved','in_progress','completed')
 LEFT JOIN payment pay     ON pay.ref_type = 'procurement_order' AND pay.ref_id = po.id AND pay.direction = 'pay'
-GROUP BY p.id, p.name, p.type, po.id, po.batch_no, po.amount
+GROUP BY p.id, p.name, party_type, po.id, po.batch_no, po.amount
 
 UNION ALL
 
@@ -587,7 +584,7 @@ SELECT
 FROM party p
 JOIN sales_order so2    ON so2.party_id = p.id AND so2.status IN ('approved','in_progress','completed')
 LEFT JOIN payment pay   ON pay.ref_type = 'sales_order' AND pay.ref_id = so2.id AND pay.direction = 'receive'
-GROUP BY p.id, p.name, p.type, so2.id, so2.batch_no, so2.amount;
+GROUP BY p.id, p.name, party_type, so2.id, so2.batch_no, so2.amount;
 
 
 -- 9.2 加工批次汇总视图

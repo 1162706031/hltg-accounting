@@ -179,7 +179,7 @@
 
 ---
 
-## 3. 技术选型
+## 2. 技术选型
 
 ### 2.1 建议方案
 
@@ -300,7 +300,7 @@ party ──1:N── smelting_order ──1:N── smelting_inbound
        │                          └──1:N── processing_inbound
        ├──1:N── procurement_order
        ├──1:N── sales_order
-       └──1:N── processing_recon
+       └──1:N── party_reconciliation
 
 payment ──多态── (smelting_order | outsource_order | procurement_order | sales_order)
 invoice ──多态── (同上)
@@ -941,7 +941,7 @@ def generate_batch_no(prefix: str, digits: int) -> str:
 │  批次号:    [自动生成, 不可编辑]    │
 │  供应商:    [____▾]  (is_supplier) │
 │  购料日期:  [____]                 │
-│  材料名称:  [____▾]  (material表)  │
+│  材料名称:  [____▾]  (item表)      │
 │  规格/品位: [____]                 │
 │  数量:      [____]  单位: [吨▾]    │
 │  单价:      [____]  金额: [auto]   │
@@ -2263,7 +2263,7 @@ hltg-accounting/
 | ④ | 外协车光加工 | `/outsource` (type=turning) | outsource_order |
 | ⑤ | 外购原材料(固定) | `/procurement` | procurement_order |
 | ⑥ | 产品销售 | `/sales` | sales_order |
-| ⑦ | 库房管理 | `/inventory` | product_inventory + alloy_inventory |
+| ⑦ | 库房管理 | `/inventory` | inventory |
 | ⑧ | 外协退火加工 | `/outsource` (type=annealing) | outsource_order |
 | ⑨ | 本厂冶炼加工 | `/smelting` (type=inhouse) | smelting_order |
 | ⑩ | 散户采购 | `/procurement` | procurement_order (同⑤，无区别) |
