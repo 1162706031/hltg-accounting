@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作日志 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+  .page-header .admin-badge {
+    background: #e8d4c0; color: #8a5a2a;
+    margin-left: 6px;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+  .sb-item.admin.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+  .btn-small {
+    padding: 3px 10px; border: 1px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 11px; color: #666; cursor: default;
+  }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  .filters {
+    display: flex; gap: 8px; align-items: center;
+    padding: 6px 10px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #888; }
+  .dropdown {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 11px; color: #777;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .date-input {
+    width: 100px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 11px; color: #bbb;
+  }
+  .search-input {
+    width: 180px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px; margin-left: auto;
+  }
+
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 8px 10px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 7px 10px; border-bottom: 1px solid #eee;
+    color: #777; vertical-align: top;
+  }
+  .view-link {
+    color: #4a90d9; text-decoration: underline; cursor: default;
+    font-size: 11px;
+  }
+  .op-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; border: 1px solid #ccc; background: #f5f5f5;
+  }
+  .op-create { background: #d4ead4; color: #3a7a3a; }
+  .op-update { background: #d6e4f0; color: #2a5a8a; }
+  .op-submit { background: #fce4c8; color: #aa6a20; }
+  .op-approve { background: #d4eceb; color: #2a7a6a; }
+  .op-delete { background: #f0d0d0; color: #a44; }
+  .op-export { background: #e8e0f0; color: #6a4a8a; }
+
+  .summary-cell {
+    font-size: 11px; line-height: 1.5;
+  }
+  .summary-cell .secondary {
+    font-size: 10px; color: #aaa;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.05);
+    display: flex; align-items: flex-start; justify-content: flex-end;
+    pointer-events: none;
+  }
+  .modal {
+    width: 380px; margin: 60px 16px 0 0;
+    background: #fff; border: 2px dashed #999;
+    border-radius: 6px; padding: 16px;
+    pointer-events: auto;
+  }
+  .modal-label {
+    font-size: 10px; color: #999; position: relative; top: -8px;
+    background: #f0f0f0; padding: 1px 5px; border-radius: 2px;
+  }
+  .modal-title {
+    font-size: 13px; font-weight: 600; color: #555;
+    border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .detail-box {
+    background: #fafafa; border: 1px solid #ddd;
+    border-radius: 4px; padding: 10px; margin-bottom: 12px;
+    font-size: 11px; color: #666; line-height: 1.6;
+  }
+  .json-block {
+    background: #2d2d2d; color: #e0e0e0;
+    border-radius: 4px; padding: 10px 12px;
+    font-family: monospace; font-size: 11px;
+    line-height: 1.6; margin-top: 6px;
+    white-space: pre;
+  }
+  .json-block .key { color: #9cdcfe; }
+  .json-block .string { color: #ce9178; }
+  .json-block .number { color: #b5cea8; }
+  .modal-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    操作日志 <span>/operation-logs</span><span class="admin-badge">admin only</span>
+  </div>
+
+  <div class="wrapper" style="position:relative;">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">📊 工作台</div>
+      <div class="sb-item">👥 往来单位</div>
+      <div class="sb-item">📦 物品管理</div>
+      <div class="sb-item">📋 冶炼加工</div>
+      <div class="sb-item">🔧 外协加工</div>
+      <div class="sb-item">🛒 采购管理</div>
+      <div class="sb-item">💰 销售管理</div>
+      <div class="sb-item">📦 库房管理</div>
+      <div class="sb-item">📄 用户对账</div>
+      <div class="sb-item">💳 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">⚙️ 系统设置</div>
+      <div class="sb-item admin">👤 用户管理</div>
+      <div class="sb-item admin active">📜 操作日志</div>
+      <div class="sb-item admin">📋 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: admin</span>
+        <span class="header-item">角色: 管理员</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">📜 操作日志 <span class="tab-close">✕</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- notice: read-only -->
+        <div style="padding:6px 10px;background:#fcf8e4;border:1px solid #e8d888;border-radius:3px;font-size:11px;color:#888;">
+          ⚠ 只读页面 — 记录系统中所有数据变更操作 (增删改审), 不可修改/不可删除。日志按月分区, 保留 12 个月。
+        </div>
+
+        <!-- toolbar: no action buttons, just label -->
+        <div class="toolbar">
+          <span style="font-size:10px;color:#aaa;">无增删改操作</span>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">时间:</span>
+          <div class="date-input">____</div>
+          <span style="font-size:11px;color:#aaa;">~</span>
+          <div class="date-input">____</div>
+          <span class="filter-label">操作人:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">张三 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">李四 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">王五 ▾</div>
+          <span class="filter-label">操作:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">新增 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">修改 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">删除 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">审核 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">导出 ▾</div>
+          <span class="filter-label">对象:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">冶炼 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">外协 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">采购 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">销售 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">库存 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">物品 ▾</div>
+          <div class="search-input">
+            <span style="font-size:11px;color:#bbb;">🔍 批次号/物品/单位...</span>
+          </div>
+          <span style="font-size:10px;color:#aaa;">搜索</span>
+        </div>
+
+        <!-- table: 7 cols -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>操作人</th>
+                  <th>操作</th>
+                  <th>对象</th>
+                  <th>摘要</th>
+                  <th>变更详情</th>
+                  <th style="width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="white-space:nowrap;">06-09<br>14:30</td>
+                  <td>张三</td>
+                  <td><span class="op-tag op-create">新增</span></td>
+                  <td>冶炼</td>
+                  <td class="summary-cell">
+                    创建外来冶炼 #3000006
+                    <div class="secondary">客户: 富烽</div>
+                  </td>
+                  <td><span class="view-link">[查看]</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;">06-09<br>14:35</td>
+                  <td>张三</td>
+                  <td><span class="op-tag op-update">修改</span></td>
+                  <td>冶炼</td>
+                  <td class="summary-cell">
+                    编辑 #3000006 出钢明细
+                    <div class="secondary">新增出钢行: H13/630</div>
+                  </td>
+                  <td><span class="view-link">[查看]</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;">06-09<br>14:40</td>
+                  <td>张三</td>
+                  <td><span class="op-tag op-submit">提交审核</span></td>
+                  <td>冶炼</td>
+                  <td class="summary-cell">
+                    #3000006 提交审核
+                    <div class="secondary">状态: 草稿 → 待审核</div>
+                  </td>
+                  <td><span class="view-link">[查看]</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;">06-09<br>15:00</td>
+                  <td>李四</td>
+                  <td><span class="op-tag op-approve">审核通过</span></td>
+                  <td>冶炼</td>
+                  <td class="summary-cell">
+                    #3000006 审核通过
+                    <div class="secondary">状态: 待审核 → 已审核</div>
+                  </td>
+                  <td><span class="view-link">[查看]</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;">06-09<br>15:10</td>
+                  <td>王五</td>
+                  <td><span class="op-tag op-delete">删除</span></td>
+                  <td>物品</td>
+                  <td class="summary-cell">
+                    删除物品: 测试钢种X
+                    <div class="secondary">(未被引用)</div>
+                  </td>
+                  <td><span class="view-link">[查看]</span></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-size:9px;color:#aaa;">
+          操作色标:
+          <span class="op-tag op-create">新增</span>
+          <span class="op-tag op-update">修改</span>
+          <span class="op-tag op-submit">提交审核</span>
+          <span class="op-tag op-approve">审核通过</span>
+          <span class="op-tag op-delete">删除</span>
+          <span class="op-tag op-export">导出</span>
+          &nbsp; 日志在中间件自动写入, detail 字段存 JSON, 前端弹性展示
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+    <!-- MODAL: 变更详情弹窗 -->
+    <div class="modal-overlay">
+      <div class="modal">
+        <span class="modal-label">变更详情弹窗 (虚线边框)</span>
+        <div class="modal-title">变更详情 — #3000006 出钢明细</div>
+
+        <div class="detail-box">
+          <div style="margin-bottom:4px;">操作人: 张三 &nbsp; 时间: 2026-06-09 14:35:22</div>
+          <div style="margin-bottom:8px;">IP: 192.168.1.100</div>
+          <div style="font-weight:600;margin-bottom:4px;">变更内容:</div>
+          <div class="json-block">
+<span class="key">"action"</span>: <span class="string">"UPDATE"</span>,
+<span class="key">"table"</span>: <span class="string">"smelting_outbound"</span>,
+<span class="key">"changes"</span>: [
+  {
+    <span class="key">"field"</span>: <span class="string">"item"</span>,
+    <span class="key">"new"</span>: <span class="string">"H13母棒 / 630"</span>
+  },
+  {
+    <span class="key">"field"</span>: <span class="string">"heat_number"</span>,
+    <span class="key">"new"</span>: <span class="string">"3-60-63"</span>
+  },
+  {
+    <span class="key">"field"</span>: <span class="string">"weight_ton"</span>,
+    <span class="key">"new"</span>: <span class="number">7.311</span>
+  },
+  {
+    <span class="key">"field"</span>: <span class="string">"pcs"</span>,
+    <span class="key">"new"</span>: <span class="number">16</span>
+  }
+]</div>
+        </div>
+
+        <div class="modal-actions">
+          <div class="btn btn-small" style="background:#eee;">关闭</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

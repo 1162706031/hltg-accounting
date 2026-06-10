@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外协加工详情 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 1360px; position: relative; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    overflow-y: auto; display: flex;
+  }
+
+  /* Main form column */
+  .main-form {
+    flex: 1; padding: 10px 12px; display: flex; flex-direction: column;
+    gap: 8px; min-width: 0;
+  }
+
+  /* Modal side panel */
+  .modal-panel {
+    width: 270px; min-width: 270px;
+    border-left: 2px dashed #ccc;
+    padding: 10px; display: flex; flex-direction: column;
+    gap: 8px; overflow-y: auto;
+    background: #fcfcfc;
+  }
+  .modal-panel-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 2px 0; border-bottom: 1px dashed #ddd; margin-bottom: 4px;
+  }
+
+  /* Shared */
+  .section {
+    border: 2px solid #ddd; border-radius: 4px;
+    padding: 10px 12px; background: #fff;
+  }
+  .section-title {
+    font-size: 12px; font-weight: 600; color: #555;
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid #eee;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-title .badge {
+    font-size: 10px; font-weight: 400; color: #888;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+    white-space: nowrap;
+  }
+  .btn.small { padding: 3px 8px; font-size: 10px; border-width: 1px; }
+  .btn.primary { background: #c0d6e8; border-color: #6a90b8; color: #2a5a8a; }
+  .btn.success { background: #c0e0c8; border-color: #6ab87a; color: #2a6a3a; }
+  .btn.danger { background: #e8c0c0; border-color: #c87070; color: #8a4040; }
+  .btn.warn { background: #e8d8b0; border-color: #c8a860; color: #7a6a20; }
+
+  /* Page title */
+  .page-title {
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 8px; border-bottom: 1px solid #eee;
+  }
+  .back-link { font-size: 12px; color: #4a90d9; cursor: default; }
+  .page-title h2 { font-size: 15px; color: #444; font-weight: 600; }
+  .status-tag {
+    display: inline-block; padding: 2px 10px; border-radius: 3px;
+    font-size: 11px; border: 1px solid #ccc; white-space: nowrap;
+  }
+  .s-draft    { background: #eee; color: #888; border-color: #ccc; }
+  .s-pending  { background: #fef0d0; color: #aa6a20; border-color: #e8c870; }
+  .s-approved { background: #d6e4f0; color: #2a5a8a; border-color: #9ab8d4; }
+  .s-progress { background: #d4eceb; color: #2a7a6a; border-color: #9accc4; }
+  .s-done     { background: #d4ead4; color: #3a7a3a; border-color: #9ac49a; }
+  .s-rejected { background: #fce4e4; color: #aa4040; border-color: #e8a0a0; }
+
+  /* Review section */
+  .review-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4px 20px; font-size: 11px; color: #666;
+  }
+  .review-actions {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 6px; padding-top: 6px; border-top: 1px dashed #ddd;
+  }
+  .reject-reason {
+    display: flex; gap: 6px; align-items: center; flex: 1;
+  }
+  .reject-input {
+    flex: 1; height: 26px; border: 2px solid #e8a0a0;
+    background: #fff5f5; border-radius: 3px;
+  }
+
+  /* Field grid */
+  .field-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px 16px; font-size: 11px;
+  }
+  .field-grid.col2 { grid-template-columns: repeat(2, 1fr); }
+  .field-item { display: flex; flex-direction: column; gap: 2px; }
+  .field-label { font-size: 11px; color: #888; }
+  .field-value {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 12px; color: #555;
+    display: flex; align-items: center;
+  }
+  .field-value.ro { background: #f5f5f5; color: #999; }
+
+  /* Sub-table */
+  .sub-table {
+    border: 1px solid #ddd; border-radius: 3px;
+    display: flex; flex-direction: column;
+  }
+  .sub-table-title {
+    font-size: 11px; font-weight: 600; color: #666;
+    padding: 6px 10px; background: #f8f8f8;
+    border-bottom: 1px solid #ddd;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sub-table table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  .sub-table th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 5px 6px; border-bottom: 1px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  .sub-table td {
+    padding: 4px 6px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .sub-table-total {
+    padding: 5px 10px; font-size: 11px; color: #555;
+    background: #fafafa; border-top: 1px solid #ddd;
+    font-weight: 600;
+  }
+  .del-link { color: #cc4444; font-size: 11px; cursor: default; }
+
+  /* Fee summary */
+  .fee-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4px 20px; font-size: 11px;
+  }
+  .fee-row {
+    display: flex; align-items: center; gap: 8px; padding: 3px 0;
+  }
+  .fee-label { color: #888; width: 80px; text-align: right; }
+  .fee-value {
+    width: 140px; height: 24px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+  }
+  .fee-divider { border-top: 1px dashed #ccc; margin: 4px 0; }
+  .fee-total {
+    border-top: 2px solid #999; padding-top: 4px;
+    font-weight: 700; font-size: 12px; color: #444;
+  }
+
+  /* Bottom buttons */
+  .bottom-actions {
+    display: flex; gap: 8px; padding-top: 8px;
+    border-top: 1px solid #eee; flex-wrap: wrap;
+  }
+
+  /* Process diff table */
+  .diff-table {
+    border: 1px dashed #999; border-radius: 3px;
+    overflow: hidden;
+  }
+  .diff-table table {
+    width: 100%; border-collapse: collapse; font-size: 10px;
+  }
+  .diff-table th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 4px 8px; border-bottom: 1px solid #ccc; text-align: center;
+  }
+  .diff-table td {
+    padding: 3px 8px; border-bottom: 1px solid #eee;
+    color: #666; text-align: center;
+  }
+  .check { color: #4a9a4a; }
+  .cross { color: #aaa; }
+
+  /* Modal cards */
+  .modal-card {
+    border: 2px dashed #999; border-radius: 5px;
+    padding: 10px; background: #fafafa;
+  }
+  .modal-card-label {
+    font-size: 9px; color: #aaa; background: #f0f0f0;
+    padding: 1px 5px; border-radius: 2px; margin-bottom: 4px;
+    display: inline-block;
+  }
+  .modal-card-title {
+    font-size: 12px; font-weight: 600; color: #666;
+    border-bottom: 1px dashed #ddd; padding-bottom: 6px; margin-bottom: 8px;
+  }
+  .modal-card .m-field {
+    margin-bottom: 5px;
+  }
+  .modal-card .m-label {
+    font-size: 10px; color: #999; margin-bottom: 1px;
+  }
+  .modal-card .m-input {
+    width: 100%; height: 22px; border: 1px dashed #bbb;
+    background: #f8f8f8; border-radius: 2px;
+  }
+  .modal-card .m-note {
+    font-size: 9px; color: #aaa; margin-top: 6px;
+    padding-top: 4px; border-top: 1px dashed #eee;
+  }
+
+  /* Annotations */
+  .anno {
+    font-size: 10px; color: #aaa; background: #f5f5f5;
+    padding: 1px 5px; border-radius: 2px; display: inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    外协加工详情 <span>/outsource/:id</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">&#x1F4CA; 工作台</div>
+      <div class="sb-item">&#x1F465; 往来单位</div>
+      <div class="sb-item">&#x1F4E6; 物品管理</div>
+      <div class="sb-item">&#x1F4CB; 冶炼加工</div>
+      <div class="sb-item active">&#x1F527; 外协加工</div>
+      <div class="sb-item">&#x1F6D2; 采购管理</div>
+      <div class="sb-item">&#x1F4B0; 销售管理</div>
+      <div class="sb-item">&#x1F4E6; 库房管理</div>
+      <div class="sb-item">&#x1F4C4; 用户对账</div>
+      <div class="sb-item">&#x1F4B3; 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">&#x2699;&#xFE0F; 系统设置</div>
+      <div class="sb-item admin">&#x1F464; 用户管理</div>
+      <div class="sb-item admin">&#x1F4DC; 操作日志</div>
+      <div class="sb-item admin">&#x1F4CB; 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">&#x1F527; 锻造#2000001 <span class="tab-close">&#x2715;</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- === MAIN FORM === -->
+        <div class="main-form">
+
+          <!-- Page title -->
+          <div class="page-title">
+            <span class="back-link">&#x2190; 返回</span>
+            <h2>外协锻造加工单 #2000001</h2>
+            <span class="status-tag s-progress">进行中</span>
+            <span class="anno" style="margin-left:auto;">批次头区域</span>
+          </div>
+
+          <!-- 审核信息区 -->
+          <div class="section">
+            <div class="section-title">
+              审核信息
+              <span class="badge">reviewer/admin 可见</span>
+            </div>
+            <div class="review-grid">
+              <span>录入人: 张三</span>
+              <span>录入时间: 2024-04-28 09:00</span>
+              <span>审核人: 李四</span>
+              <span>审核时间: 2024-04-29 10:30</span>
+              <span>审核状态: &#x23F3; 待审核</span>
+            </div>
+            <div class="review-actions">
+              <div class="btn success small">&#x2713; 审核通过</div>
+              <div class="btn danger small">&#x2717; 驳回</div>
+              <div class="reject-reason">
+                <span style="font-size:10px;color:#888;">驳回原因:</span>
+                <div class="reject-input"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 批次信息区 -->
+          <div class="section">
+            <div class="section-title">
+              批次信息
+              <span class="badge">批次号自动生成不可编辑</span>
+            </div>
+            <div class="field-grid">
+              <div class="field-item">
+                <span class="field-label">批次号</span>
+                <div class="field-value ro">2000001 (自动)</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">工艺</span>
+                <div class="field-value">锻造 &#x25BE;</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">外协厂</span>
+                <div class="field-value">XSL鑫兴 &#x25BE;</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">加工单价 (元/吨)</span>
+                <div class="field-value">____</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">加工总金额 (元)</span>
+                <div class="field-value ro" style="color:#4a90d9;">自动计算</div>
+              </div>
+              <div class="field-item"></div>
+              <div class="field-item">
+                <span class="field-label">成材率 (%)</span>
+                <div class="field-value ro" style="color:#4a90d9;">77 (自动计算)</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">切锯头 (吨)</span>
+                <div class="field-value">1.684</div>
+              </div>
+              <div class="field-item">
+                <span class="field-label">损耗 (吨)</span>
+                <div class="field-value">5.0</div>
+              </div>
+            </div>
+
+            <!-- Process field difference table -->
+            <div class="diff-table" style="margin-top:10px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>字段</th>
+                    <th>锻造</th>
+                    <th>电渣</th>
+                    <th>车光</th>
+                    <th>退火</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>成材率</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                  </tr>
+                  <tr>
+                    <td>切锯头</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                  </tr>
+                  <tr>
+                    <td>损耗</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="cross">&mdash;</td>
+                  </tr>
+                  <tr>
+                    <td>加工单价/金额</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="check">&#x2714;</td>
+                    <td class="check">&#x2714;</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="padding:3px 8px;font-size:9px;color:#aaa;">
+                前端根据 process_type 动态显示/隐藏字段
+              </div>
+            </div>
+          </div>
+
+          <!-- 发出明细子表 -->
+          <div class="section" style="padding:8px 10px;">
+            <div class="sub-table-title">
+              <span>发出明细</span>
+              <div class="btn small">+ 添加发出</div>
+            </div>
+            <div class="sub-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:24px;">#</th>
+                    <th>日期</th>
+                    <th>钢种/规格</th>
+                    <th>重量</th>
+                    <th>支数</th>
+                    <th>备注</th>
+                    <th>归属</th>
+                    <th style="width:36px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td><td>2024-04-30</td><td>H13锭 / 630*7..</td>
+                    <td>13.172</td><td>14</td><td>委加工</td><td>本厂</td>
+                    <td class="del-link">删除</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="sub-table-total">发出总计: 13.172 吨 / 14 支 &#x2192; 库存已扣减</div>
+            </div>
+          </div>
+
+          <!-- 回厂明细子表 -->
+          <div class="section" style="padding:8px 10px;">
+            <div class="sub-table-title">
+              <span>回厂明细</span>
+              <div class="btn small">+ 添加回厂</div>
+            </div>
+            <div class="sub-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:24px;">#</th>
+                    <th>日期</th>
+                    <th>钢种/规格</th>
+                    <th>重量</th>
+                    <th>支数</th>
+                    <th>备注</th>
+                    <th>归属</th>
+                    <th style="width:36px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td><td>2024-05-09</td><td>H13剥皮元 / x x x</td>
+                    <td>10.146</td><td>14</td><td></td><td>本厂</td>
+                    <td class="del-link">删除</td>
+                  </tr>
+                  <tr>
+                    <td>2</td><td>2024-05-09</td><td>H13剥皮元 / 130*1..</td>
+                    <td>0.370</td><td>2</td><td></td><td>本厂</td>
+                    <td class="del-link">删除</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="sub-table-total">回厂总计: 10.516 吨 / 16 支 &#x2192; 入库自动生成</div>
+            </div>
+          </div>
+
+          <!-- 费用汇总区 -->
+          <div class="section">
+            <div class="section-title">费用汇总 <span class="anno">只汇总有价格的项目</span></div>
+            <div class="fee-grid">
+              <div class="fee-row">
+                <span class="fee-label">发出总价:</span>
+                <div class="fee-value"></div>
+                <span style="font-size:10px;color:#aaa;">&#x3A3; 发出用量 &#xD7; 单价</span>
+              </div>
+              <div class="fee-row">
+                <span class="fee-label">回厂总价:</span>
+                <div class="fee-value"></div>
+                <span style="font-size:10px;color:#aaa;">&#x3A3; 回厂重量 &#xD7; 单价</span>
+              </div>
+              <div class="fee-row">
+                <span class="fee-label">加工金额:</span>
+                <div class="fee-value"></div>
+                <span style="font-size:10px;color:#aaa;">加工单价 &#xD7; 发出总重</span>
+              </div>
+            </div>
+            <div class="fee-divider"></div>
+            <div class="fee-row">
+              <span class="fee-label">小计:</span>
+              <div class="fee-value" style="background:#f5f5f5;color:#999;">有价格项自动求和</div>
+            </div>
+            <div class="fee-row">
+              <span class="fee-label">税率(%):</span>
+              <div class="fee-value" style="width:60px;">13</div>
+              <span style="font-size:10px;color:#aaa;">默认 13, 可调</span>
+            </div>
+            <div class="fee-row">
+              <span class="fee-label">税额:</span>
+              <div class="fee-value" style="background:#f5f5f5;color:#999;">小计 &#xD7; 税率%</div>
+            </div>
+            <div class="fee-row fee-total">
+              <span class="fee-label">合计(含税):</span>
+              <div class="fee-value" style="border-width:2px;border-color:#999;">小计 + 税额</div>
+            </div>
+          </div>
+
+          <!-- Bottom buttons -->
+          <div class="bottom-actions">
+            <div class="btn primary">保存</div>
+            <div class="btn success">提交审核</div>
+            <div class="btn warn">标记进行中</div>
+            <div class="btn">标记完成</div>
+            <div class="btn">导出Excel</div>
+            <span class="anno" style="margin-left:auto;">操作按钮栏</span>
+          </div>
+
+        </div><!-- /main-form -->
+
+        <!-- === MODAL PANEL (dashed) === -->
+        <div class="modal-panel">
+          <div class="modal-panel-label">Modal 弹窗预览 (虚线边框)</div>
+
+          <!-- Modal 1: 添加发出 -->
+          <div class="modal-card">
+            <span class="modal-card-label">Modal 1</span>
+            <div class="modal-card-title">添加发出 &mdash; 从本厂仓库选</div>
+            <div class="m-field">
+              <div class="m-label">搜索: 钢种/规格... &nbsp; 类型: [全部&#x25BE;] 归属: [本厂&#x25BE;]</div>
+            </div>
+            <div class="m-field">
+              <div class="m-label">可选库存 (勾选&#x2192;输入支数+重量)</div>
+              <div style="border:1px dashed #ddd;border-radius:2px;padding:4px;font-size:9px;color:#aaa;">
+                &#x2610; H13锭 / 630*7 / 14支/13.172吨<br>
+                &#x2610; H13母棒 / 630 / 3支/3.632吨<br>
+                &#x2610; CrWMn / 150 / 10支/5.184吨
+              </div>
+            </div>
+            <div class="m-field">
+              <div class="m-label">已选物料</div>
+              <div style="border:1px dashed #ddd;border-radius:2px;padding:4px;font-size:9px;color:#aaa;">
+                1. H13锭 | 发出支[__] | 发出重[__] | 单价[__]
+              </div>
+            </div>
+            <div class="m-note">&#x26A0; 用量 &#x2264; 库存余量 &nbsp;|&nbsp; 单价可选<br>&#x26A0; 备注: [委加工___]</div>
+          </div>
+
+          <!-- Modal 2: 添加回厂 -->
+          <div class="modal-card">
+            <span class="modal-card-label">Modal 2</span>
+            <div class="modal-card-title">添加回厂 &mdash; 目录选/手动</div>
+            <div class="m-field">
+              <div class="m-label">从物品目录选 (勾选&#x2192;填重量+支数)</div>
+              <div style="border:1px dashed #ddd;border-radius:2px;padding:4px;font-size:9px;color:#aaa;">
+                &#x2610; H13剥皮元 / x x x<br>
+                &#x2610; H13剥皮元 / 130*1..<br>
+                &#x2610; DC53剥皮元 / 300
+              </div>
+            </div>
+            <div class="m-field">
+              <div class="m-label">手动输入 (不在目录中)</div>
+              <div class="m-input"></div>
+            </div>
+            <div class="m-field">
+              <div class="m-label">已选回厂</div>
+              <div style="border:1px dashed #ddd;border-radius:2px;padding:4px;font-size:9px;color:#aaa;">
+                1. H13剥皮元 | 重[__] | 支数[__] | 单价[__] | 来源: 目录
+              </div>
+            </div>
+            <div class="m-note">&#x26A0; 手动输入物品确认时自动入 item 表<br>&#x26A0; 回厂暂不入库，完成时自动入本厂</div>
+          </div>
+
+        </div><!-- /modal-panel -->
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

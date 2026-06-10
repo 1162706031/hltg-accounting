@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外协加工列表 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  .filters {
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 10px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #888; }
+  .dropdown {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 11px; color: #777;
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .search-input {
+    width: 180px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+  }
+  .date-input {
+    width: 90px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+  }
+
+  /* table */
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 7px 6px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 6px 6px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .edit-link { color: #4a90d9; text-decoration: underline; cursor: default; }
+  .batch-link { color: #2a5a8a; font-weight: 600; cursor: default; }
+
+  .status-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; border: 1px solid #ccc; white-space: nowrap;
+  }
+  .s-draft    { background: #eee; color: #888; border-color: #ccc; }
+  .s-pending  { background: #fef0d0; color: #aa6a20; border-color: #e8c870; }
+  .s-approved { background: #d6e4f0; color: #2a5a8a; border-color: #9ab8d4; }
+  .s-progress { background: #d4eceb; color: #2a7a6a; border-color: #9accc4; }
+  .s-done     { background: #d4ead4; color: #3a7a3a; border-color: #9ac49a; }
+  .s-rejected { background: #fce4e4; color: #aa4040; border-color: #e8a0a0; }
+
+  .process-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; border: 1px solid #ccc; background: #f0f0f0;
+  }
+  .dash { color: #bbb; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    外协加工列表 <span>/outsource</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">&#x1F4CA; 工作台</div>
+      <div class="sb-item">&#x1F465; 往来单位</div>
+      <div class="sb-item">&#x1F4E6; 物品管理</div>
+      <div class="sb-item">&#x1F4CB; 冶炼加工</div>
+      <div class="sb-item active">&#x1F527; 外协加工</div>
+      <div class="sb-item">&#x1F6D2; 采购管理</div>
+      <div class="sb-item">&#x1F4B0; 销售管理</div>
+      <div class="sb-item">&#x1F4E6; 库房管理</div>
+      <div class="sb-item">&#x1F4C4; 用户对账</div>
+      <div class="sb-item">&#x1F4B3; 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">&#x2699;&#xFE0F; 系统设置</div>
+      <div class="sb-item admin">&#x1F464; 用户管理</div>
+      <div class="sb-item admin">&#x1F4DC; 操作日志</div>
+      <div class="sb-item admin">&#x1F4CB; 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">&#x1F527; 外协加工 <span class="tab-close">&#x2715;</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <div class="btn">+ 新建外协批次</div>
+          <div class="btn">批量删除</div>
+          <span style="font-size:10px;color:#aaa;margin-left:8px;">工具栏</span>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">工艺:</span>
+          <div class="dropdown">全部 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">锻造 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">电渣 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">车光 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">退火 &#x25BE;</div>
+          <span class="filter-label" style="margin-left:2px;">状态:</span>
+          <div class="dropdown">全部 &#x25BE;</div>
+          <span class="filter-label" style="margin-left:2px;">外协厂:</span>
+          <div class="dropdown">全部 &#x25BE;</div>
+          <div class="search-input" style="margin-left:auto;">
+            <span style="font-size:11px;color:#bbb;">&#x1F50D; 批次号/钢种/外协厂...</span>
+          </div>
+          <span class="filter-label">日期:</span>
+          <div class="date-input">
+            <span style="font-size:11px;color:#bbb;">____</span>
+          </div>
+          <span style="color:#aaa;">~</span>
+          <div class="date-input">
+            <span style="font-size:11px;color:#bbb;">____</span>
+          </div>
+        </div>
+
+        <!-- table -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:24px;">&#x2610;</th>
+                  <th>批次</th>
+                  <th>工艺</th>
+                  <th>外协厂</th>
+                  <th>发出日</th>
+                  <th>回厂日</th>
+                  <th>发出总重</th>
+                  <th>回厂总重</th>
+                  <th>成材率</th>
+                  <th>切锯头</th>
+                  <th>损耗</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">2000001</td>
+                  <td><span class="process-tag">锻造</span></td>
+                  <td>XSL鑫兴</td>
+                  <td>04-30</td>
+                  <td>05-09</td>
+                  <td>13.172</td>
+                  <td>10.516</td>
+                  <td>79.8%</td>
+                  <td>1.684</td>
+                  <td>5.0</td>
+                  <td><span class="status-tag s-done">已完成</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">2000002</td>
+                  <td><span class="process-tag">锻造</span></td>
+                  <td>XSL鑫兴</td>
+                  <td>06-03</td>
+                  <td>06-22</td>
+                  <td>7.514</td>
+                  <td>6.454</td>
+                  <td>85.9%</td>
+                  <td>0.864</td>
+                  <td>2.7</td>
+                  <td><span class="status-tag s-approved">已审核</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">4000001</td>
+                  <td><span class="process-tag">电渣</span></td>
+                  <td>海栋</td>
+                  <td>03-15</td>
+                  <td>04-08</td>
+                  <td>28.726</td>
+                  <td>28.644</td>
+                  <td class="dash">&mdash;</td>
+                  <td class="dash">&mdash;</td>
+                  <td class="dash">&mdash;</td>
+                  <td><span class="status-tag s-done">已完成</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">5000001</td>
+                  <td><span class="process-tag">车光</span></td>
+                  <td>园大</td>
+                  <td>02-27</td>
+                  <td>02-28</td>
+                  <td>3.128</td>
+                  <td>2.748</td>
+                  <td>87.9%</td>
+                  <td>0.398</td>
+                  <td class="dash">&mdash;</td>
+                  <td><span class="status-tag s-done">已完成</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">T0001</td>
+                  <td><span class="process-tag">退火</span></td>
+                  <td>荣畅</td>
+                  <td>07-24</td>
+                  <td>08-02</td>
+                  <td>9.030</td>
+                  <td>9.030</td>
+                  <td class="dash">&mdash;</td>
+                  <td class="dash">&mdash;</td>
+                  <td class="dash">&mdash;</td>
+                  <td><span class="status-tag s-pending">待审核</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:6px 10px;font-size:11px;color:#aaa;background:#fafafa;border-top:1px solid #eee;">
+            共 5 条 (示例) &nbsp;|&nbsp; 第 1/1 页 &nbsp;|&nbsp; &#x25C0; &#x25B6;
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

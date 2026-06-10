@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>库房管理 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+  .btn-small {
+    padding: 3px 8px; border: 1px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 11px; color: #666; cursor: default;
+  }
+  .btn-danger {
+    background: #f0d0d0; border-color: #c88; color: #a44;
+  }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  /* SUB TABS */
+  .sub-tabs {
+    display: flex; gap: 0; border-bottom: 2px solid #ccc;
+    margin-bottom: 2px;
+  }
+  .sub-tab {
+    padding: 5px 16px; font-size: 12px; color: #777;
+    background: #f2f2f2; border: 1px solid #ddd; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    margin-right: 2px;
+  }
+  .sub-tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border: 2px solid #ccc; border-bottom: 2px solid #fff;
+    margin-bottom: -2px; position: relative; z-index: 1;
+  }
+
+  .filters {
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 10px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #888; }
+  .dropdown {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 11px; color: #777;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .date-input {
+    width: 100px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 11px; color: #bbb;
+  }
+  .search-input {
+    width: 180px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px; margin-left: auto;
+  }
+
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 8px 10px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 7px 10px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .edit-link { color: #4a90d9; text-decoration: underline; cursor: default; }
+  .type-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 11px; border: 1px solid #ccc;
+  }
+  .text-mono { font-family: monospace; font-weight: 600; color: #555; }
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+
+  .log-type-in { color: #3a7a3a; }
+  .log-type-out { color: #cc4444; }
+  .log-type-adjust { color: #aa6a20; }
+  .log-type-init { color: #999; }
+  .delta-neg { color: #cc4444; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.05);
+    display: flex; align-items: flex-start; justify-content: flex-end;
+    pointer-events: none;
+  }
+  .modal-col {
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 20px 12px 0 0; pointer-events: auto;
+  }
+  .modal {
+    width: 320px;
+    background: #fff; border: 2px dashed #999;
+    border-radius: 6px; padding: 14px;
+    pointer-events: auto;
+  }
+  .modal-label {
+    font-size: 9px; color: #999; position: relative; top: -6px;
+    background: #f0f0f0; padding: 1px 5px; border-radius: 2px;
+  }
+  .modal-title {
+    font-size: 13px; font-weight: 600; color: #555;
+    border-bottom: 1px dashed #ccc; padding-bottom: 6px; margin-bottom: 8px;
+  }
+  .field-row { margin-bottom: 6px; }
+  .field-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+  .field {
+    width: 100%; height: 26px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+  }
+  .field-readonly {
+    width: 100%; height: 26px; border: 2px solid #ddd;
+    background: #f5f5f5; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 10px; color: #aaa;
+  }
+  .field-row-inline {
+    display: flex; gap: 8px;
+  }
+  .field-row-inline > div { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 6px; justify-content: flex-end;
+    margin-top: 10px;
+  }
+  .info-box {
+    background: #fafafa; border: 1px solid #ddd;
+    border-radius: 3px; padding: 6px 8px; font-size: 10px; color: #777;
+    margin-bottom: 8px;
+  }
+  .radio {
+    width: 12px; height: 12px; border: 2px solid #aaa;
+    border-radius: 50%; display: inline-block; vertical-align: middle;
+    margin-right: 3px;
+  }
+  .section-divider {
+    border: none; border-top: 1px dashed #ddd;
+    margin: 10px 0;
+  }
+
+  /* Tab 2 content */
+  .tab2-content {
+    border: 2px dashed #ddd; border-radius: 4px;
+    padding: 8px; margin-top: 8px;
+  }
+  .tab2-label {
+    font-size: 10px; color: #aaa; margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    库房管理 <span>/inventory</span>
+  </div>
+
+  <div class="wrapper" style="position:relative;">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">📊 工作台</div>
+      <div class="sb-item">👥 往来单位</div>
+      <div class="sb-item">📦 物品管理</div>
+      <div class="sb-item">📋 冶炼加工</div>
+      <div class="sb-item">🔧 外协加工</div>
+      <div class="sb-item">🛒 采购管理</div>
+      <div class="sb-item">💰 销售管理</div>
+      <div class="sb-item active">📦 库房管理</div>
+      <div class="sb-item">📄 用户对账</div>
+      <div class="sb-item">💳 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">⚙️ 系统设置</div>
+      <div class="sb-item admin">👤 用户管理</div>
+      <div class="sb-item admin">📜 操作日志</div>
+      <div class="sb-item admin">📋 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">📦 库房管理 <span class="tab-close">✕</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- SUB TABS -->
+        <div class="sub-tabs">
+          <div class="sub-tab active">当前库存</div>
+          <div class="sub-tab">变动记录</div>
+          <span style="font-size:10px;color:#aaa;margin-left:auto;align-self:center;">页面内子 Tab</span>
+        </div>
+
+        <!-- ===== Tab 1: 当前库存 ===== -->
+        <div style="font-size:10px;color:#aaa;margin-bottom:-6px;">▼ 当前库存 Tab (可增删改)</div>
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <div class="btn">+ 入库</div>
+          <div class="btn">- 出库</div>
+          <div class="btn btn-small">盘点调整</div>
+          <div class="btn btn-danger">批量删除</div>
+          <span style="font-size:10px;color:#aaa;margin-left:8px;">工具栏</span>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">类型:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">成品 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">半成品 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">合金 ▾</div>
+          <span class="filter-label">归属:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">本厂 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">客户 ▾</div>
+          <div class="search-input">
+            <span style="font-size:11px;color:#bbb;">🔍 钢种/材料...</span>
+          </div>
+          <span style="font-size:10px;color:#aaa;">搜索</span>
+        </div>
+
+        <!-- table: 当前库存 -->
+        <div class="table-area" style="flex: none; height: 200px;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:26px;">☐</th>
+                  <th>类型</th>
+                  <th>钢种/材料</th>
+                  <th>规格</th>
+                  <th>归属</th>
+                  <th>客户</th>
+                  <th class="text-center">支数</th>
+                  <th class="text-right">重量</th>
+                  <th class="text-right">单价</th>
+                  <th class="text-right">金额</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>☐</td>
+                  <td><span class="type-tag" style="background:#d4ead4;color:#3a7a3a;">成品</span></td>
+                  <td>2Cr14Ni</td><td>板子</td>
+                  <td>本厂</td><td>—</td>
+                  <td class="text-center">0</td>
+                  <td class="text-right">0.186</td>
+                  <td class="text-right">—</td><td class="text-right">—</td>
+                  <td class="edit-link">出库</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td><span class="type-tag" style="background:#d4eceb;color:#2a7a6a;">半成品</span></td>
+                  <td>H13</td><td>630</td>
+                  <td>本厂</td><td>—</td>
+                  <td class="text-center">3</td>
+                  <td class="text-right">3.632</td>
+                  <td class="text-right">—</td><td class="text-right">—</td>
+                  <td class="edit-link">出库</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td><span class="type-tag" style="background:#e8e0d0;color:#8a6a3a;">原料</span></td>
+                  <td>1.2888</td><td>块+花</td>
+                  <td>客户</td><td>富烽</td>
+                  <td class="text-center">—</td>
+                  <td class="text-right">5.884</td>
+                  <td class="text-right">—</td><td class="text-right">—</td>
+                  <td class="edit-link">出库</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td><span class="type-tag" style="background:#fce4c8;color:#aa6a20;">合金</span></td>
+                  <td>钼铁60%</td><td>—</td>
+                  <td>本厂</td><td>—</td>
+                  <td class="text-center">—</td>
+                  <td class="text-right">134.4</td>
+                  <td class="text-right">—</td><td class="text-right">—</td>
+                  <td class="edit-link">出库</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===== Tab 2: 变动记录 (只读) ===== -->
+        <div style="font-size:10px;color:#aaa;margin-top:2px;">▼ 变动记录 Tab (只读)</div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">日期:</span>
+          <div class="date-input">____</div>
+          <span style="font-size:11px;color:#aaa;">~</span>
+          <div class="date-input">____</div>
+          <span class="filter-label">类型:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">入库 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">出库 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">调整 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">初始 ▾</div>
+          <div class="search-input">
+            <span style="font-size:11px;color:#bbb;">🔍 物品搜索...</span>
+          </div>
+          <span style="font-size:10px;color:#aaa;">搜索</span>
+          <span style="font-size:9px;color:#c88;margin-left:8px;">只读, 不可编辑/删除</span>
+        </div>
+
+        <!-- table: 变动记录 -->
+        <div class="table-area" style="flex: none; height: 210px;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:26px;">☐</th>
+                  <th>日期</th>
+                  <th>类型</th>
+                  <th>物品</th>
+                  <th>规格</th>
+                  <th class="text-center">变化支数</th>
+                  <th class="text-right">变化重量</th>
+                  <th class="text-center">前支数</th>
+                  <th class="text-right">前重量</th>
+                  <th class="text-center">后支数</th>
+                  <th class="text-right">后重量</th>
+                  <th>操作人</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>☐</td>
+                  <td>07-12</td>
+                  <td class="log-type-out">出库</td>
+                  <td>2Cr14Ni</td><td>板子</td>
+                  <td class="text-center delta-neg">-76</td>
+                  <td class="text-right delta-neg">-14.29</td>
+                  <td class="text-center">76</td><td class="text-right">14.477</td>
+                  <td class="text-center">0</td><td class="text-right">0.186</td>
+                  <td>张三</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td>08-02</td>
+                  <td class="log-type-out">出库</td>
+                  <td>3Cr13</td><td>板子</td>
+                  <td class="text-center delta-neg">-46</td>
+                  <td class="text-right delta-neg">-4.308</td>
+                  <td class="text-center">46</td><td class="text-right">4.706</td>
+                  <td class="text-center">0</td><td class="text-right">0.398</td>
+                  <td>张三</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td>02-23</td>
+                  <td class="log-type-init">初始</td>
+                  <td>钼铁60%</td><td>—</td>
+                  <td class="text-center">—</td>
+                  <td class="text-right log-type-in">+134.4</td>
+                  <td class="text-center">0</td><td class="text-right">0</td>
+                  <td class="text-center">—</td><td class="text-right">134.4</td>
+                  <td>李四</td>
+                </tr>
+                <tr>
+                  <td>☐</td>
+                  <td>03-01</td>
+                  <td class="log-type-adjust">调整</td>
+                  <td>H13</td><td>630</td>
+                  <td class="text-center log-type-in">+1</td>
+                  <td class="text-right log-type-in">+0.868</td>
+                  <td class="text-center">3</td><td class="text-right">3.632</td>
+                  <td class="text-center">4</td><td class="text-right">4.500</td>
+                  <td>张三</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-size:9px;color:#aaa;margin-top:2px;">
+          类型色标: <span class="log-type-in">入库(绿)</span> | <span class="log-type-out">出库(红)</span> | <span class="log-type-adjust">调整(橙)</span> | <span class="log-type-init">初始(灰)</span>
+          &nbsp; 完整审计轨迹, 不可修改/删除
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+    <!-- MODALS: 3 modals stacked -->
+    <div class="modal-overlay">
+      <div class="modal-col">
+
+        <!-- 入库 Modal -->
+        <div class="modal">
+          <span class="modal-label">Modal 1</span>
+          <div class="modal-title">入库 (change_type=in)</div>
+          <div class="field-row">
+            <div class="field-label">入库日期:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">物品类型:</div>
+            <div style="display:flex;gap:6px;font-size:10px;color:#666;flex-wrap:wrap;">
+              <label><span class="radio"></span>成品</label>
+              <label><span class="radio"></span>半成品</label>
+              <label><span class="radio"></span>合金</label>
+              <label><span class="radio"></span>原料</label>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">选择物品 (按类型过滤):</div>
+            <div class="dropdown" style="width:100%;">H13 ▾</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">规格 (自动带入, 可改):</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">归属:</div>
+            <label style="font-size:11px;color:#666;margin-right:10px;"><span class="radio"></span> 本厂</label>
+            <label style="font-size:11px;color:#666;"><span class="radio" style="background:#4a90d9;border-color:#4a90d9;"></span> 客户</label>
+            <div class="dropdown" style="width:100%;margin-top:4px;">富烽 ▾</div>
+          </div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">入库支数:</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">入库重量:</div>
+              <div class="field"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">单位:</div>
+            <div class="dropdown" style="width:80px;">吨 ▾</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">来源 (可选关联订单):</div>
+            <div class="dropdown" style="width:100%;">— ▾</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">备注:</div>
+            <div class="field"></div>
+          </div>
+          <div class="modal-actions">
+            <div class="btn btn-small">确认入库</div>
+            <div class="btn btn-small" style="background:#eee;">取消</div>
+          </div>
+        </div>
+
+        <!-- 出库 Modal -->
+        <div class="modal">
+          <span class="modal-label">Modal 2</span>
+          <div class="modal-title">出库 (change_type=out)</div>
+          <div class="field-row">
+            <div class="field-label">选择库存项:</div>
+            <div class="dropdown" style="width:100%;">H13 / 630 ▾</div>
+          </div>
+          <div class="info-box">
+            <div style="font-weight:600;margin-bottom:2px;">当前库存信息</div>
+            <div>物品: H13 / 630 (来自物品表)</div>
+            <div>归属: 本厂 &nbsp; 当前: 3支 / 3.632吨</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">出库日期:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">出库支数 (≤3):</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">出库重量 (≤3.632):</div>
+              <div class="field"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">去向:</div>
+            <div class="dropdown" style="width:100%;">发货 ▾</div>
+            <span style="font-size:9px;color:#aaa;">发货/加工/损耗...</span>
+          </div>
+          <div class="field-row">
+            <div class="field-label">关联订单 (可选):</div>
+            <div class="dropdown" style="width:100%;">— ▾</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">备注:</div>
+            <div class="field"></div>
+          </div>
+          <div class="modal-actions">
+            <div class="btn btn-small">确认出库</div>
+            <div class="btn btn-small" style="background:#eee;">取消</div>
+          </div>
+        </div>
+
+        <!-- 盘点 Modal -->
+        <div class="modal">
+          <span class="modal-label">Modal 3</span>
+          <div class="modal-title">盘点调整 (change_type=adjust)</div>
+          <div class="field-row">
+            <div class="field-label">选择库存项:</div>
+            <div class="dropdown" style="width:100%;">H13 / 630 ▾</div>
+          </div>
+          <div class="info-box">
+            <div style="font-weight:600;margin-bottom:2px;">当前库存 vs 实际盘点</div>
+            <div style="display:flex;gap:10px;">
+              <div>支数: 3 → 实际: <span style="border:1px solid #ccc;padding:1px 6px;background:#fff;">___</span></div>
+              <div>重量: 3.632 → 实际: <span style="border:1px solid #ccc;padding:1px 6px;background:#fff;">___</span></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">盘点日期:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">备注:</div>
+            <div class="field"></div>
+          </div>
+          <div style="background:#fcf8e4;border:1px solid #e8d888;padding:6px 8px;border-radius:3px;font-size:11px;color:#888;">
+            差异: Δ支数 <span style="color:#3a7a3a;">+1</span> &nbsp; Δ重量 <span style="color:#3a7a3a;">+0.868</span>
+          </div>
+          <div class="modal-actions" style="margin-top:6px;">
+            <div class="btn btn-small">确认调整</div>
+            <div class="btn btn-small" style="background:#eee;">取消</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

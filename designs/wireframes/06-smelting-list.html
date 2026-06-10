@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冶炼加工列表 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  .filters {
+    display: flex; gap: 12px; align-items: center;
+    padding: 6px 10px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #888; }
+  .dropdown {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 11px; color: #777;
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .search-input {
+    width: 180px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+  }
+  .date-input {
+    width: 100px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+  }
+
+  /* table */
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 8px 8px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 7px 8px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .edit-link { color: #4a90d9; text-decoration: underline; cursor: default; }
+  .batch-link { color: #2a5a8a; font-weight: 600; cursor: default; }
+
+  .status-tag {
+    display: inline-block; padding: 1px 8px; border-radius: 3px;
+    font-size: 11px; border: 1px solid #ccc; white-space: nowrap;
+  }
+  .s-draft    { background: #eee; color: #888; border-color: #ccc; }
+  .s-pending  { background: #fef0d0; color: #aa6a20; border-color: #e8c870; }
+  .s-approved { background: #d6e4f0; color: #2a5a8a; border-color: #9ab8d4; }
+  .s-progress { background: #d4eceb; color: #2a7a6a; border-color: #9accc4; }
+  .s-done     { background: #d4ead4; color: #3a7a3a; border-color: #9ac49a; }
+  .s-rejected { background: #fce4e4; color: #aa4040; border-color: #e8a0a0; }
+
+  .type-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 11px; border: 1px solid #ccc;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    冶炼加工列表 <span>/smelting</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">&#x1F4CA; 工作台</div>
+      <div class="sb-item">&#x1F465; 往来单位</div>
+      <div class="sb-item">&#x1F4E6; 物品管理</div>
+      <div class="sb-item active">&#x1F4CB; 冶炼加工</div>
+      <div class="sb-item">&#x1F527; 外协加工</div>
+      <div class="sb-item">&#x1F6D2; 采购管理</div>
+      <div class="sb-item">&#x1F4B0; 销售管理</div>
+      <div class="sb-item">&#x1F4E6; 库房管理</div>
+      <div class="sb-item">&#x1F4C4; 用户对账</div>
+      <div class="sb-item">&#x1F4B3; 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">&#x2699;&#xFE0F; 系统设置</div>
+      <div class="sb-item admin">&#x1F464; 用户管理</div>
+      <div class="sb-item admin">&#x1F4DC; 操作日志</div>
+      <div class="sb-item admin">&#x1F4CB; 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">&#x1F4CB; 冶炼加工 <span class="tab-close">&#x2715;</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <div class="btn">+ 新建冶炼批次</div>
+          <div class="btn">批量删除</div>
+          <span style="font-size:10px;color:#aaa;margin-left:8px;">工具栏</span>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">类型:</span>
+          <div class="dropdown">全部 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">外来 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">本厂 &#x25BE;</div>
+          <span class="filter-label" style="margin-left:4px;">状态:</span>
+          <div class="dropdown">全部 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">草稿 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">待审核 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">已审核 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">进行中 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">已完成 &#x25BE;</div>
+          <div class="dropdown" style="opacity:0.6;">驳回 &#x25BE;</div>
+          <div class="search-input">
+            <span style="font-size:11px;color:#bbb;">&#x1F50D; 批次号/钢种/客户...</span>
+          </div>
+          <span class="filter-label">日期:</span>
+          <div class="date-input">
+            <span style="font-size:11px;color:#bbb;">____</span>
+          </div>
+          <span style="color:#aaa;">~</span>
+          <div class="date-input">
+            <span style="font-size:11px;color:#bbb;">____</span>
+          </div>
+        </div>
+
+        <!-- table -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">&#x2610;</th>
+                  <th>批次</th>
+                  <th>类型</th>
+                  <th>客户</th>
+                  <th>投料日</th>
+                  <th>出钢日</th>
+                  <th>投料重</th>
+                  <th>出钢重</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">3000001</td>
+                  <td><span class="type-tag" style="background:#d6e4f0;color:#2a5a8a;">外来</span></td>
+                  <td>富烽</td>
+                  <td>03-15</td>
+                  <td>03-19</td>
+                  <td>6.409</td>
+                  <td>7.311</td>
+                  <td><span class="status-tag s-done">已完成</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">3000002</td>
+                  <td><span class="type-tag" style="background:#d6e4f0;color:#2a5a8a;">外来</span></td>
+                  <td>富烽</td>
+                  <td>04-21</td>
+                  <td>04-24</td>
+                  <td>4.582</td>
+                  <td>1.470</td>
+                  <td><span class="status-tag s-approved">已审核</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td class="batch-link">3000003</td>
+                  <td><span class="type-tag" style="background:#e8e0d0;color:#7a6a3a;">本厂</span></td>
+                  <td>&mdash;</td>
+                  <td>05-01</td>
+                  <td>05-05</td>
+                  <td>8.200</td>
+                  <td>7.800</td>
+                  <td><span class="status-tag s-progress">进行中</span></td>
+                  <td class="edit-link">详情</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:6px 10px;font-size:11px;color:#aaa;background:#fafafa;border-top:1px solid #eee;">
+            共 3 条 (示例) &nbsp;|&nbsp; 第 1/1 页 &nbsp;|&nbsp; &#x25C0; &#x25B6;
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

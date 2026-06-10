@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户对账 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    padding: 5px 14px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+  .btn-small {
+    padding: 3px 8px; border: 1px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 11px; color: #666; cursor: default;
+  }
+  .btn-danger {
+    background: #f0d0d0; border-color: #c88; color: #a44;
+  }
+  .btn-primary {
+    background: #d6e4f0; border-color: #8ab4d8; color: #2a5a8a;
+  }
+  .btn-outline {
+    background: #fff; border-color: #aaa; color: #666;
+  }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  .filters {
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 10px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #888; }
+  .dropdown {
+    height: 28px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 8px; font-size: 11px; color: #777;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .date-input {
+    width: 100px; height: 28px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 11px; color: #bbb;
+  }
+
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 6px 6px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 5px 6px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .edit-link { color: #4a90d9; text-decoration: underline; cursor: default; }
+  .status-tag {
+    display: inline-block; padding: 1px 5px; border-radius: 3px;
+    font-size: 10px; border: 1px solid #ccc;
+  }
+  .text-mono { font-family: monospace; font-weight: 600; color: #555; }
+  .text-right { text-align: right; }
+
+  /* SUMMARY ROW */
+  .summary-row {
+    background: #f5f5f5; border-top: 2px solid #ccc;
+    display: flex; gap: 12px; padding: 8px 10px;
+    font-size: 11px; color: #666; flex-wrap: wrap; align-items: center;
+  }
+  .summary-item {
+    padding: 2px 8px; border: 1px solid #ddd;
+    background: #fff; border-radius: 3px;
+  }
+  .summary-amount { font-weight: 600; }
+  .summary-actions {
+    margin-left: auto; display: flex; gap: 6px;
+  }
+
+  /* MODALS ROW */
+  .modal-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.05);
+    display: flex; align-items: flex-start; justify-content: flex-end;
+    pointer-events: none;
+  }
+  .modal-col {
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 20px 12px 0 0; pointer-events: auto; max-height: 740px; overflow-y: auto;
+  }
+  .modal {
+    width: 340px;
+    background: #fff; border: 2px dashed #999;
+    border-radius: 6px; padding: 14px;
+    pointer-events: auto;
+  }
+  .modal-label {
+    font-size: 9px; color: #999; position: relative; top: -6px;
+    background: #f0f0f0; padding: 1px 5px; border-radius: 2px;
+  }
+  .modal-title {
+    font-size: 13px; font-weight: 600; color: #555;
+    border-bottom: 1px dashed #ccc; padding-bottom: 6px; margin-bottom: 8px;
+  }
+  .field-row { margin-bottom: 6px; }
+  .field-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+  .field {
+    width: 100%; height: 26px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+  }
+  .field-readonly {
+    width: 100%; height: 26px; border: 2px solid #ddd;
+    background: #f5f5f5; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 8px;
+    font-size: 10px; color: #aaa;
+  }
+  .field-row-inline {
+    display: flex; gap: 8px;
+  }
+  .field-row-inline > div { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 6px; justify-content: flex-end;
+    margin-top: 10px;
+  }
+  .section-title {
+    font-size: 11px; font-weight: 600; color: #888;
+    border-top: 1px dashed #ddd; padding-top: 8px; margin: 6px 0 4px;
+  }
+  .radio {
+    width: 12px; height: 12px; border: 2px solid #aaa;
+    border-radius: 50%; display: inline-block; vertical-align: middle;
+    margin-right: 3px;
+  }
+  .import-table {
+    width: 100%; font-size: 10px; border-collapse: collapse;
+    margin: 4px 0;
+  }
+  .import-table th {
+    padding: 3px 4px; background: #f5f5f5; font-size: 10px;
+  }
+  .import-table td {
+    padding: 2px 4px; font-size: 10px;
+  }
+  .import-box {
+    border: 1px solid #ddd; border-radius: 3px; padding: 4px;
+    margin-bottom: 6px;
+  }
+  .hint {
+    font-size: 9px; color: #aaa; border-top: 1px dashed #ddd;
+    padding-top: 4px; margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    用户对账 <span>/reconciliation</span>
+  </div>
+
+  <div class="wrapper" style="position:relative;">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">📊 工作台</div>
+      <div class="sb-item">👥 往来单位</div>
+      <div class="sb-item">📦 物品管理</div>
+      <div class="sb-item">📋 冶炼加工</div>
+      <div class="sb-item">🔧 外协加工</div>
+      <div class="sb-item">🛒 采购管理</div>
+      <div class="sb-item">💰 销售管理</div>
+      <div class="sb-item">📦 库房管理</div>
+      <div class="sb-item active">📄 用户对账</div>
+      <div class="sb-item">💳 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">⚙️ 系统设置</div>
+      <div class="sb-item admin">👤 用户管理</div>
+      <div class="sb-item admin">📜 操作日志</div>
+      <div class="sb-item admin">📋 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">📄 用户对账 <span class="tab-close">✕</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <div class="btn">+ 新建明细</div>
+          <div class="btn btn-primary">+ 从订单导入</div>
+          <div class="btn btn-danger">批量删除</div>
+          <span style="font-size:10px;color:#aaa;margin-left:8px;">工具栏</span>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <span class="filter-label">往来单位:</span>
+          <div class="dropdown">全部 ▾</div>
+          <span class="filter-label">日期:</span>
+          <div class="date-input">____</div>
+          <span style="font-size:11px;color:#aaa;">~</span>
+          <div class="date-input">____</div>
+          <span class="filter-label">对账状态:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">未对账 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">已对账 ▾</div>
+          <span class="filter-label">发票状态:</span>
+          <div class="dropdown">全部 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">未开票 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">已开票 ▾</div>
+          <div class="dropdown" style="opacity:0.6;">无需开票 ▾</div>
+        </div>
+
+        <!-- table: 16 cols wide -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:22px;">☐</th>
+                  <th style="width:22px;">#</th>
+                  <th>批次</th>
+                  <th>日期</th>
+                  <th>摘要</th>
+                  <th>钢种</th>
+                  <th class="text-right">重量</th>
+                  <th class="text-right">支数</th>
+                  <th class="text-right">单价</th>
+                  <th class="text-right">应收款</th>
+                  <th class="text-right">应付款</th>
+                  <th>付款日</th>
+                  <th class="text-right">付款金额</th>
+                  <th>方式</th>
+                  <th>发票</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>☐</td><td>1</td>
+                  <td class="text-mono">2000001</td><td>5/3</td>
+                  <td>发DC53锭</td><td>DC53</td>
+                  <td class="text-right">3</td><td class="text-right">4</td>
+                  <td class="text-right">200</td>
+                  <td class="text-right">640</td><td class="text-right">0</td>
+                  <td>5/20</td><td class="text-right">500</td>
+                  <td>电汇</td>
+                  <td><span class="status-tag" style="background:#d4ead4;color:#3a7a3a;">已开票</span></td>
+                  <td class="edit-link">编辑</td>
+                </tr>
+                <tr>
+                  <td>☐</td><td>2</td>
+                  <td class="text-mono">2000001</td><td>5/10</td>
+                  <td>买DC53</td><td>DC53</td>
+                  <td class="text-right">3</td><td class="text-right">4</td>
+                  <td class="text-right">—</td>
+                  <td class="text-right">0</td><td class="text-right">32,000</td>
+                  <td>—</td><td class="text-right">—</td>
+                  <td>—</td>
+                  <td><span class="status-tag" style="background:#eee;color:#999;">未开票</span></td>
+                  <td class="edit-link">编辑</td>
+                </tr>
+                <tr>
+                  <td>☐</td><td>3</td>
+                  <td class="text-mono">4000001</td><td>5/15</td>
+                  <td>H13加工</td><td>H13</td>
+                  <td class="text-right">5</td><td class="text-right">6</td>
+                  <td class="text-right">1,800</td>
+                  <td class="text-right">9,000</td><td class="text-right">0</td>
+                  <td>—</td><td class="text-right">—</td>
+                  <td>—</td>
+                  <td><span class="status-tag" style="background:#d6e4f0;color:#2a5a8a;">无需开票</span></td>
+                  <td class="edit-link">编辑</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- SUMMARY ROW -->
+          <div class="summary-row">
+            <div class="summary-item">应收总计: <span class="summary-amount">9,640</span></div>
+            <div class="summary-item">应付总计: <span class="summary-amount">32,000</span></div>
+            <div class="summary-item">已付: <span class="summary-amount">500</span></div>
+            <div class="summary-item">余额: <span class="summary-amount" style="color:#cc4444;">-21,860</span></div>
+            <div class="summary-item">开票汇总: <span class="summary-amount">500 / 9,640</span></div>
+            <div class="summary-actions">
+              <div class="btn btn-small btn-primary">标记为已对账</div>
+              <div class="btn btn-small btn-outline">导出 Excel</div>
+            </div>
+            <span style="font-size:10px;color:#aaa;">底部合计行</span>
+          </div>
+        </div>
+
+        <div style="font-size:9px;color:#aaa;">
+          状态颜色: 对账: <span style="color:#aa6a20;">未对账(橙)</span> / <span style="color:#3a7a3a;">已对账(绿)</span>
+          &nbsp; 发票: <span style="color:#999;">未开票(灰)</span> / <span style="color:#3a7a3a;">已开票(绿)</span> / <span style="color:#2a5a8a;">无需开票(蓝)</span>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+    <!-- MODALS: 2 modals stacked -->
+    <div class="modal-overlay">
+      <div class="modal-col">
+
+        <!-- Modal 1: 新建/编辑明细 -->
+        <div class="modal">
+          <span class="modal-label">Modal 1</span>
+          <div class="modal-title">新建 / 编辑 对账明细</div>
+
+          <div class="field-row">
+            <div class="field-label">往来单位:</div>
+            <div class="dropdown" style="width:100%;">富烽 ▾</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">账期:</div>
+            <div class="dropdown" style="width:100%;">2026年5月 ▾</div>
+          </div>
+
+          <div class="section-title">业务信息</div>
+          <div class="field-row">
+            <div class="field-label">业务日期:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">业务摘要:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">钢种 (可选):</div>
+            <div class="dropdown" style="width:100%;">DC53 ▾</div>
+          </div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">重量(吨):</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">支数:</div>
+              <div class="field"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">单价:</div>
+            <div class="field"></div>
+          </div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">应收款:</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">应付款:</div>
+              <div class="field"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">差额 (自动):</div>
+            <div class="field-readonly">应收 - 应付</div>
+          </div>
+
+          <div class="section-title">付款信息</div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">付款日期:</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">付款金额:</div>
+              <div class="field"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">付款方式:</div>
+            <div class="dropdown" style="width:100%;">电汇 ▾</div>
+            <span style="font-size:9px;color:#aaa;">电汇/电承/现金</span>
+          </div>
+
+          <div class="section-title">发票信息</div>
+          <div style="display:flex;gap:12px;font-size:11px;color:#666;margin-bottom:4px;">
+            <label><span class="radio"></span> 未开票</label>
+            <label><span class="radio"></span> 已开票</label>
+            <label><span class="radio" style="background:#4a90d9;border-color:#4a90d9;"></span> 无需开票</label>
+          </div>
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">开票日期:</div>
+              <div class="field"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">开票金额:</div>
+              <div class="field"></div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field-label">备注:</div>
+            <div class="field"></div>
+          </div>
+          <div class="modal-actions">
+            <div class="btn btn-small">保存</div>
+            <div class="btn btn-small" style="background:#eee;">取消</div>
+          </div>
+        </div>
+
+        <!-- Modal 2: 从订单导入 -->
+        <div class="modal">
+          <span class="modal-label">Modal 2</span>
+          <div class="modal-title">从订单导入 <span style="font-size:10px;color:#aaa;float:right;">已选: 0 项</span></div>
+
+          <div class="field-row-inline">
+            <div class="field-row">
+              <div class="field-label">往来单位:</div>
+              <div class="dropdown" style="width:100%;">富烽 ▾</div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">类型:</div>
+              <div class="dropdown" style="width:100%;">全部 ▾</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;font-size:10px;color:#888;margin-bottom:4px;">
+            <span class="dropdown" style="height:22px;font-size:10px;">冶炼 ▾</span>
+            <span class="dropdown" style="height:22px;font-size:10px;">外协 ▾</span>
+            <span class="dropdown" style="height:22px;font-size:10px;">采购 ▾</span>
+            <span class="dropdown" style="height:22px;font-size:10px;">销售 ▾</span>
+          </div>
+
+          <div class="import-box">
+            <div style="font-size:10px;color:#888;margin-bottom:3px;">可选订单 (已审核/已完成, 未导入)</div>
+            <table class="import-table">
+              <tr><th style="width:18px;">☐</th><th>类型</th><th>批次</th><th>单位</th><th>日期</th><th class="text-right">金额</th></tr>
+              <tr><td>☐</td><td>冶炼</td><td class="text-mono">3000001</td><td>富烽</td><td>03-19</td><td class="text-right">188,683</td></tr>
+              <tr><td>☐</td><td>冶炼</td><td class="text-mono">3000002</td><td>富烽</td><td>04-24</td><td class="text-right">45,200</td></tr>
+              <tr><td>☐</td><td>外协</td><td class="text-mono">2000001</td><td>XSL</td><td>05-09</td><td class="text-right">15,000</td></tr>
+              <tr><td>☐</td><td>采购</td><td class="text-mono">P0001</td><td>捷丰</td><td>02-07</td><td class="text-right">43,354</td></tr>
+              <tr><td>☐</td><td>销售</td><td class="text-mono">S0001</td><td>盛安</td><td>05-10</td><td class="text-right">18,144</td></tr>
+            </table>
+          </div>
+
+          <div class="import-box">
+            <div style="font-size:10px;color:#888;margin-bottom:3px;">导入预览 (将生成以下对账行)</div>
+            <table class="import-table">
+              <tr><th style="width:14px;">#</th><th>类型</th><th>批次</th><th>摘要</th><th class="text-right">应收</th><th class="text-right">应付</th></tr>
+              <tr><td>1</td><td>冶炼</td><td class="text-mono">3000001</td><td>加工费+合金</td><td class="text-right">188,683</td><td class="text-right">0</td></tr>
+              <tr><td>2</td><td>外协</td><td class="text-mono">2000001</td><td>锻造加工费</td><td class="text-right">0</td><td class="text-right">15,000</td></tr>
+              <tr><td>3</td><td>采购</td><td class="text-mono">P0001</td><td>采购低铬</td><td class="text-right">0</td><td class="text-right">43,354</td></tr>
+            </table>
+            <div style="font-size:10px;color:#666;margin-top:3px;">应收合计: 188,683 &nbsp; 应付合计: 58,354</div>
+          </div>
+
+          <div class="hint">⚠ 导入后请在每行补充付款日期/金额/发票信息</div>
+          <div class="modal-actions">
+            <div class="btn btn-small btn-primary">确认导入 (3项)</div>
+            <div class="btn btn-small" style="background:#eee;">取消</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

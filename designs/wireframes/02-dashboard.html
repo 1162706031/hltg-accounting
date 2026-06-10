@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1200px; }
+
+  /* page header: title + route */
+  .page-header {
+    margin-bottom: 8px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  /* wrapper: sidebar left + right area */
+  .wrapper { display: flex; height: 780px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 200px; min-width: 200px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 6px 0; border-bottom: 2px dashed #ddd;
+    text-transform: uppercase;
+  }
+  .sb-item {
+    padding: 9px 14px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider {
+    height: 1px; background: #ddd; margin: 4px 0;
+    position: relative;
+  }
+  .sb-section-label {
+    font-size: 10px; color: #aaa; padding: 4px 14px;
+  }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT PANEL */
+  .right { flex: 1; display: flex; flex-direction: column; }
+
+  /* HEADER */
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px;
+    font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 16px; padding: 2px 8px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+  .header-label {
+    font-size: 10px; color: #aaa; position: relative; top: -6px;
+    background: #f0f0f0; padding: 0 4px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+    overflow: hidden;
+  }
+  .tab {
+    padding: 4px 12px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 16px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* stat cards row */
+  .stat-row { display: flex; gap: 14px; }
+  .stat-card {
+    flex: 1; height: 80px;
+    border: 2px solid #ccc; border-radius: 6px; background: #fafafa;
+    padding: 12px 16px; position: relative;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .stat-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; color: #555; font-weight: 600; }
+  .stat-card::after {
+    content: "统计卡片";
+    position: absolute; top: -9px; left: 10px;
+    font-size: 10px; color: #aaa; background: #fafafa; padding: 0 4px;
+  }
+
+  /* table area */
+  .table-area {
+    flex: 1; border: 2px solid #ccc; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-label {
+    font-size: 10px; color: #999; padding: 4px 10px;
+    border-bottom: 1px dashed #ddd;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 8px 10px; border-bottom: 2px solid #ccc;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 7px 10px; border-bottom: 1px solid #eee;
+    color: #777;
+  }
+  .empty-row td { color: #ccc; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    工作台 <span>/</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item active">📊 工作台</div>
+      <div class="sb-item">👥 往来单位</div>
+      <div class="sb-item">📦 物品管理</div>
+      <div class="sb-item">📋 冶炼加工</div>
+      <div class="sb-item">🔧 外协加工</div>
+      <div class="sb-item">🛒 采购管理</div>
+      <div class="sb-item">💰 销售管理</div>
+      <div class="sb-item">📦 库房管理</div>
+      <div class="sb-item">📄 用户对账</div>
+      <div class="sb-item">💳 财务中心</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">⚙️ 系统设置</div>
+      <div class="sb-item admin">👤 用户管理</div>
+      <div class="sb-item admin">📜 操作日志</div>
+      <div class="sb-item admin">📋 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <!-- HEADER -->
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <!-- TAB BAR -->
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">📊 工作台 <span class="tab-close">✕</span></div>
+      </div>
+
+      <!-- CONTENT -->
+      <div class="content">
+
+        <!-- 3 stat cards -->
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-label">往来余额概览</div>
+            <div class="stat-value">¥ 735,000</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">本月冶炼批次</div>
+            <div class="stat-value">12 批</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">本月外协批次</div>
+            <div class="stat-value">8 批</div>
+          </div>
+        </div>
+
+        <!-- recent records table -->
+        <div class="table-area">
+          <div class="table-label">最近录入记录</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>类型</th>
+                  <th>批次号</th>
+                  <th>单位</th>
+                  <th>金额</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2025-06-10 14:30</td>
+                  <td>冶炼加工</td>
+                  <td>3000005</td>
+                  <td>富烽</td>
+                  <td>¥ 215,000</td>
+                </tr>
+                <tr>
+                  <td>2025-06-10 11:15</td>
+                  <td>外协锻造</td>
+                  <td>2000003</td>
+                  <td>XSL鑫兴</td>
+                  <td>¥ 48,500</td>
+                </tr>
+                <tr class="empty-row">
+                  <td colspan="5">…… 更多记录（最近 20 条各表 UNION 按时间倒序）……</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+  </div><!-- /wrapper -->
+</div><!-- /page -->
+</body>
+</html>
