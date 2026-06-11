@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>库存变动记录 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 24px 0;
+  }
+  .page { width: 1400px; }
+
+  .page-header {
+    margin-bottom: 10px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 820px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: #fff; border: 2px solid #ddd; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 8px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 11px 18px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-item.sub { padding-left: 40px; font-size: 12px; }
+  .sb-item.sub.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 6px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 6px 18px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 44px; background: #fff; border: 2px solid #ddd; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 20px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 18px; padding: 3px 10px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 38px; background: #f7f7f7; border: 2px solid #ddd; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 10px; gap: 2px;
+  }
+  .tab {
+    padding: 5px 14px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ddd;
+    padding: 24px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .filters {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px 14px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px;
+  }
+  .filter-row {
+    display: flex; gap: 12px; align-items: center;
+  }
+  .filter-label { font-size: 12px; color: #888; white-space: nowrap; }
+  .dropdown {
+    height: 30px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 10px; font-size: 12px; color: #777;
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .search-input {
+    width: 220px; height: 30px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 12px; color: #bbb;
+  }
+  .date-input {
+    width: 110px; height: 30px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 12px; color: #bbb;
+  }
+
+  .readonly-note {
+    font-size: 11px; color: #999; background: #f8f8f8;
+    padding: 6px 12px; border: 1px dashed #ddd; border-radius: 3px;
+  }
+
+  /* table */
+  .table-area {
+    flex: 1; border: 2px solid #ddd; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 10px 14px; border-bottom: 2px solid #ddd;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px; border-bottom: 1px solid #eee;
+    color: #555;
+  }
+
+  .type-in { color: #2a7a3a; font-weight: 600; }
+  .type-out { color: #cc4444; font-weight: 600; }
+  .type-adjust { color: #c87020; font-weight: 600; }
+  .type-init { color: #999; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    库存变动记录 <span>/inventory/logs</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">&#x1F4CA; 工作台</div>
+      <div class="sb-item">&#x1F465; 往来单位</div>
+      <div class="sb-item">&#x1F4E6; 物品管理</div>
+      <div class="sb-item">&#x1F4CB; 冶炼加工</div>
+      <div class="sb-item">&#x1F527; 外协加工</div>
+      <div class="sb-item">&#x1F6D2; 采购管理</div>
+      <div class="sb-item">&#x1F4B0; 销售管理</div>
+      <div class="sb-item active">&#x1F4E6; 库房管理</div>
+      <div class="sb-item sub active">&#x1F4DC; 变动记录</div>
+      <div class="sb-item">&#x1F4C4; 用户对账</div>
+      <div class="sb-item sub">&#x1F4B3; 收付款记录</div>
+      <div class="sb-item sub">&#x1F9FE; 开票记录</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">&#x2699;&#xFE0F; 系统设置</div>
+      <div class="sb-item admin">&#x1F464; 用户管理</div>
+      <div class="sb-item admin">&#x1F4DC; 操作日志</div>
+      <div class="sb-item admin">&#x1F4CB; 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">&#x1F4DC; 库存变动记录 <span class="tab-close">&#x2715;</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- note -->
+        <div class="readonly-note">&#x1F512; 只读，不可编辑删除 — 系统自动生成的库存变动日志</div>
+
+        <!-- filters -->
+        <div class="filters">
+          <div class="filter-row">
+            <span class="filter-label">日期:</span>
+            <div class="date-input">____</div>
+            <span style="color:#aaa;">~</span>
+            <div class="date-input">____</div>
+            <span class="filter-label" style="margin-left:12px;">类型:</span>
+            <div class="dropdown">全部 &#x25BE;</div>
+            <span style="font-size:10px;color:#999;">(全部|入库|出库|调整|初始)</span>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">物品搜索:</span>
+            <div class="search-input">&#x1F50D; 钢种/材料名称...</div>
+          </div>
+        </div>
+
+        <!-- table -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px;">&#x2610;</th>
+                  <th>日期</th>
+                  <th>类型</th>
+                  <th>物品</th>
+                  <th>规格</th>
+                  <th>变化量</th>
+                  <th>变化前</th>
+                  <th>变化后</th>
+                  <th>操作人</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-05-09</td>
+                  <td><span class="type-in">入库</span></td>
+                  <td>H13</td>
+                  <td>&#x2300;280</td>
+                  <td>+5.210吨 / +12支</td>
+                  <td>2.101吨 / 4支</td>
+                  <td>7.311吨 / 16支</td>
+                  <td>张三</td>
+                  <td>外协回厂 #2000001</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-05-15</td>
+                  <td><span class="type-out">出库</span></td>
+                  <td>DC53</td>
+                  <td>&#x2300;230</td>
+                  <td>-2.806吨 / -8支</td>
+                  <td>5.612吨 / 16支</td>
+                  <td>2.806吨 / 8支</td>
+                  <td>张三</td>
+                  <td>销售发货 S0002 富烽</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-05-12</td>
+                  <td><span class="type-adjust">调整</span></td>
+                  <td>钼铁60%</td>
+                  <td>—</td>
+                  <td>-50kg</td>
+                  <td>700kg</td>
+                  <td>650kg</td>
+                  <td>李四</td>
+                  <td>盘点差异调整</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-01-01</td>
+                  <td><span class="type-init">初始</span></td>
+                  <td>2Cr14Ni</td>
+                  <td>板子</td>
+                  <td>+3.200吨</td>
+                  <td>0</td>
+                  <td>3.200吨</td>
+                  <td>系统</td>
+                  <td>期初录入</td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-04-30</td>
+                  <td><span class="type-out">出库</span></td>
+                  <td>H13</td>
+                  <td>&#x2300;300</td>
+                  <td>-6.586吨 / -12支</td>
+                  <td>8.687吨 / 16支</td>
+                  <td>2.101吨 / 4支</td>
+                  <td>张三</td>
+                  <td>外协发出 #2000001</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:8px 14px;font-size:12px;color:#aaa;background:#fafafa;border-top:1px solid #eee;">
+            共 5 条 &nbsp;|&nbsp; 第 1/1 页 &nbsp;|&nbsp; &#x25C0; &#x25B6;
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>收付款记录 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 24px 0;
+  }
+  .page { width: 1400px; }
+
+  .page-header {
+    margin-bottom: 10px; color: #666; font-size: 13px;
+  }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+
+  .wrapper { display: flex; height: 820px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: #fff; border: 2px solid #ddd; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label {
+    font-size: 10px; color: #999; text-align: center;
+    padding: 8px 0; border-bottom: 2px dashed #ddd;
+  }
+  .sb-item {
+    padding: 11px 18px; font-size: 13px; color: #555;
+    border-bottom: 1px solid #eee; cursor: default;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sb-item.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-item.sub { padding-left: 40px; font-size: 12px; }
+  .sb-item.sub.active {
+    background: #d6e4f0; color: #2a5a8a; font-weight: 600;
+    border-left: 3px solid #4a90d9;
+  }
+  .sb-divider { height: 1px; background: #ddd; margin: 6px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 6px 18px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+
+  /* RIGHT */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 44px; background: #fff; border: 2px solid #ddd; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 20px; font-size: 12px; color: #888;
+  }
+  .header-item {
+    margin-left: 18px; padding: 3px 10px;
+    border: 1px dashed #ccc; border-radius: 3px;
+  }
+
+  /* TAB BAR */
+  .tabbar {
+    height: 38px; background: #f7f7f7; border: 2px solid #ddd; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 10px; gap: 2px;
+  }
+  .tab {
+    padding: 5px 14px; font-size: 12px; color: #555;
+    background: #eaeaea; border: 1px solid #ccc; border-bottom: 0;
+    border-radius: 4px 4px 0 0; cursor: default;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab.active {
+    background: #fff; color: #2a5a8a; font-weight: 600;
+    border-bottom: 2px solid #fff; margin-bottom: -2px;
+    position: relative; z-index: 1;
+  }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  /* CONTENT */
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ddd;
+    padding: 24px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .btn {
+    padding: 6px 16px; border: 2px solid #aaa; border-radius: 3px;
+    background: #ddd; font-size: 12px; color: #555; cursor: default;
+  }
+
+  .party-selector {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; background: #f0f8ff; border: 2px solid #b8d4e8;
+    border-radius: 4px;
+  }
+  .party-selector-label { font-size: 13px; color: #555; font-weight: 600; }
+  .party-dropdown {
+    height: 32px; border: 2px solid #6a90b8; background: #fff;
+    border-radius: 3px; padding: 0 14px; font-size: 13px; color: #2a5a8a;
+    display: flex; align-items: center; gap: 6px; font-weight: 600;
+  }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; }
+
+  .filters {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px 14px; background: #fafafa; border: 1px solid #e0e0e0;
+    border-radius: 3px;
+  }
+  .filter-row {
+    display: flex; gap: 12px; align-items: center;
+  }
+  .filter-label { font-size: 12px; color: #888; white-space: nowrap; }
+  .dropdown {
+    height: 30px; border: 2px solid #ccc; background: #fafafa;
+    border-radius: 3px; padding: 0 10px; font-size: 12px; color: #777;
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .search-input {
+    width: 220px; height: 30px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 12px; color: #bbb;
+  }
+  .date-input {
+    width: 110px; height: 30px; border: 2px solid #ccc;
+    background: #fafafa; border-radius: 3px;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 12px; color: #bbb;
+  }
+
+  /* table */
+  .table-area {
+    flex: 1; border: 2px solid #ddd; border-radius: 4px;
+    display: flex; flex-direction: column;
+  }
+  .table-wrap { flex: 1; overflow: auto; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  th {
+    background: #f0f0f0; color: #666; font-weight: 600;
+    padding: 10px 14px; border-bottom: 2px solid #ddd;
+    text-align: left; white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px; border-bottom: 1px solid #eee;
+    color: #555;
+  }
+  .edit-link { color: #4a90d9; text-decoration: underline; cursor: default; }
+
+  .dir-in { color: #2a7a3a; font-weight: 600; }
+  .dir-out { color: #cc4444; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    收付款记录 <span>/payments</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">&#x1F4CA; 工作台</div>
+      <div class="sb-item">&#x1F465; 往来单位</div>
+      <div class="sb-item">&#x1F4E6; 物品管理</div>
+      <div class="sb-item">&#x1F4CB; 冶炼加工</div>
+      <div class="sb-item">&#x1F527; 外协加工</div>
+      <div class="sb-item">&#x1F6D2; 采购管理</div>
+      <div class="sb-item">&#x1F4B0; 销售管理</div>
+      <div class="sb-item">&#x1F4E6; 库房管理</div>
+      <div class="sb-item sub">&#x1F4DC; 变动记录</div>
+      <div class="sb-item active">&#x1F4C4; 用户对账</div>
+      <div class="sb-item sub active">&#x1F4B3; 收付款记录</div>
+      <div class="sb-item sub">&#x1F9FE; 开票记录</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin">&#x2699;&#xFE0F; 系统设置</div>
+      <div class="sb-item admin">&#x1F464; 用户管理</div>
+      <div class="sb-item admin">&#x1F4DC; 操作日志</div>
+      <div class="sb-item admin">&#x1F4CB; 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-item">用户名: 张三</span>
+        <span class="header-item">角色: 会计</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active">&#x1F4B3; 收付款记录 <span class="tab-close">&#x2715;</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- party selector -->
+        <div class="party-selector">
+          <span class="party-selector-label">往来单位:</span>
+          <div class="party-dropdown">富烽 &#x25BE;</div>
+        </div>
+
+        <!-- toolbar -->
+        <div class="toolbar">
+          <div class="btn">+ 新增收付款</div>
+        </div>
+
+        <!-- filters -->
+        <div class="filters">
+          <div class="filter-row">
+            <span class="filter-label">方向:</span>
+            <div class="dropdown">全部 &#x25BE;</div>
+            <span style="font-size:10px;color:#999;">(全部|收款|付款)</span>
+            <span class="filter-label" style="margin-left:12px;">日期:</span>
+            <div class="date-input">____</div>
+            <span style="color:#aaa;">~</span>
+            <div class="date-input">____</div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">搜索:</span>
+            <div class="search-input">&#x1F50D; 备注...</div>
+          </div>
+        </div>
+
+        <!-- table -->
+        <div class="table-area">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px;">&#x2610;</th>
+                  <th>日期</th>
+                  <th>方向</th>
+                  <th>金额</th>
+                  <th>方式</th>
+                  <th>备注</th>
+                  <th>关联订单</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-05-20</td>
+                  <td><span class="dir-in">收款</span></td>
+                  <td style="font-weight:600;">500,000</td>
+                  <td>电汇</td>
+                  <td>5月货款</td>
+                  <td>S0001, S0002</td>
+                  <td><span class="edit-link">编辑</span> <span style="color:#cc4444;margin-left:6px;cursor:default;">删除</span></td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-06-01</td>
+                  <td><span class="dir-in">收款</span></td>
+                  <td style="font-weight:600;">200,000</td>
+                  <td>电汇</td>
+                  <td>6月预付款</td>
+                  <td>—</td>
+                  <td><span class="edit-link">编辑</span> <span style="color:#cc4444;margin-left:6px;cursor:default;">删除</span></td>
+                </tr>
+                <tr>
+                  <td>&#x2610;</td>
+                  <td>2025-04-08</td>
+                  <td><span class="dir-out">付款</span></td>
+                  <td style="font-weight:600;">15,000</td>
+                  <td>电汇</td>
+                  <td>来料加工费结算</td>
+                  <td>3000001</td>
+                  <td><span class="edit-link">编辑</span> <span style="color:#cc4444;margin-left:6px;cursor:default;">删除</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:8px 14px;font-size:12px;color:#aaa;background:#fafafa;border-top:1px solid #eee;">
+            共 3 条 &nbsp;|&nbsp; 第 1/1 页 &nbsp;|&nbsp; &#x25C0; &#x25B6;
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /right -->
+
+  </div><!-- /wrapper -->
+</div>
+</body>
+</html>

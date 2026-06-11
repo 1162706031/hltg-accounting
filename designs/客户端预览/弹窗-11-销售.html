@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>销售记录 — 新建/编辑</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:flex-start;padding:48px}
+.modal{min-width:520px;background:#fff;border:2px solid #ddd;border-radius:8px;padding:32px 36px}
+.modal-title{font-size:18px;font-weight:600;color:#333;border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:24px}
+.row{display:flex;gap:12px;margin-bottom:16px;align-items:flex-start}
+.field{flex:1}
+.label{font-size:13px;color:#666;margin-bottom:6px}
+.input{height:40px;border:2px solid #ddd;background:#fafafa;border-radius:4px;padding:0 12px;font-size:13px;color:#555;display:flex;align-items:center;width:100%}
+.input-disabled{height:40px;border:2px solid #ddd;background:#f0f0f0;border-radius:4px;padding:0 12px;font-size:13px;color:#aaa;display:flex;align-items:center;width:100%}
+.select{height:40px;border:2px solid #ddd;background:#fafafa;border-radius:4px;padding:0 12px;font-size:13px;color:#555;display:flex;align-items:center;width:100%;justify-content:space-between}
+.info-box{background:#f8f8f8;border:1px solid #ddd;border-radius:4px;padding:12px 14px;font-size:12px;color:#666;margin-bottom:16px;line-height:1.8}
+.hint{font-size:12px;color:#999;margin-top:12px}
+.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.btn{padding:10px 22px;border-radius:4px;font-size:13px;cursor:default}
+.btn-primary{background:#e0e0e0;border:2px solid #bbb;color:#333}
+.btn-cancel{background:#fff;border:2px solid #ccc;color:#666}
+</style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-title">销售记录 — 新建/编辑</div>
+  <div class="row"><div class="field"><div class="label">批次号 (自动生成)</div><div class="input-disabled">S0004</div></div></div>
+  <div class="row"><div class="field"><div class="label">客户</div><div class="select">盛安 <span style="color:#aaa;">▾</span></div></div></div>
+  <div class="row"><div class="field"><div class="label">发货日期</div><div class="input"></div></div></div>
+  <div class="row"><div class="field"><div class="label">选择库存 (搜索当前库存)</div><div class="select">H13 / 630 <span style="color:#aaa;">▾</span></div></div></div>
+  <div class="info-box">
+    <strong>选中物品信息</strong><br>
+    钢种: H13 / 规格: 630 / 归属: 本厂<br>
+    当前库存: 3支 / 3.632吨
+  </div>
+  <div class="row">
+    <div class="field"><div class="label">发货支数 (≤3)</div><div class="input"></div></div>
+    <div class="field"><div class="label">发货重量 (≤3.632)</div><div class="input"></div></div>
+  </div>
+  <div class="row">
+    <div class="field"><div class="label">单价 (元/吨)</div><div class="input"></div></div>
+    <div class="field"><div class="label">金额 (自动)</div><div class="input-disabled">—</div></div>
+  </div>
+  <div class="row"><div class="field"><div class="label">备注</div><div class="input"></div></div></div>
+  <div class="hint">⚠️ 收付款/发票在「用户对账」管理</div>
+  <div class="hint">⚠️ 保存后自动扣减库存</div>
+  <div class="actions">
+    <div class="btn btn-primary">保存</div>
+    <div class="btn btn-cancel">取消</div>
+  </div>
+</div>
+</body>
+</html>

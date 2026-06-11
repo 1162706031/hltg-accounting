@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>添加合金 (冶炼)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:flex-start;padding:48px}
+.modal{min-width:720px;background:#fff;border:2px solid #ddd;border-radius:8px;padding:32px 36px}
+.modal-title{font-size:18px;font-weight:600;color:#333;border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:24px}
+.row{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+.field{flex:1}
+.label{font-size:13px;color:#666;margin-bottom:6px}
+.input{height:40px;border:2px solid #ddd;background:#fafafa;border-radius:4px;padding:0 12px;font-size:13px;color:#555;display:flex;align-items:center;width:100%}
+.select{height:40px;border:2px solid #ddd;background:#fafafa;border-radius:4px;padding:0 12px;font-size:13px;color:#555;display:flex;align-items:center;justify-content:space-between}
+.section{border:1px solid #eee;border-radius:4px;padding:16px;margin-bottom:16px}
+.section-title{font-size:13px;color:#888;font-weight:600;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+th{background:#f5f5f5;color:#666;font-weight:600;padding:10px 14px;border:1px solid #eee;text-align:left}
+td{padding:10px 14px;border:1px solid #eee;color:#777}
+.inp-cell{border:1px solid #ccc;padding:4px 8px;background:#fff;border-radius:3px;min-width:60px;display:inline-block;font-size:12px;color:#555}
+.hint{font-size:12px;color:#999;margin-top:12px}
+.total{font-size:13px;color:#555;font-weight:600;padding:8px 0}
+.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.btn{padding:10px 22px;border-radius:4px;font-size:13px;cursor:default}
+.btn-primary{background:#e0e0e0;border:2px solid #bbb;color:#333}
+.btn-cancel{background:#fff;border:2px solid #ccc;color:#666}
+</style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-title">添加合金 (冶炼)</div>
+
+  <div class="row">
+    <div class="field"><div class="label">搜索</div><div class="input" style="color:#bbb;">合金名...</div></div>
+    <div class="field"><div class="label">类型</div><div class="select">全部 <span style="color:#aaa;">▾</span></div></div>
+    <div class="field"><div class="label">归属</div><div class="select">全部 <span style="color:#aaa;">▾</span></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">可选库存</div>
+    <table>
+      <thead><tr><th>☐</th><th>物品</th><th>品位</th><th>库存重</th><th>归属</th></tr></thead>
+      <tbody>
+        <tr><td>☐</td><td>钼铁</td><td>60%</td><td>134.4 kg</td><td>本厂</td></tr>
+        <tr><td>☑</td><td>低铬</td><td>60</td><td>3.0 kg</td><td>本厂</td></tr>
+        <tr><td>☐</td><td>高锰</td><td>65%</td><td>1038.0 kg</td><td>本厂</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">已选合金</div>
+    <table>
+      <thead><tr><th>#</th><th>物品</th><th>品位</th><th>库存余量</th><th>用量(kg)</th><th>单价</th><th>归属</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>低铬</td><td>60</td><td>3.0</td><td><span class="inp-cell">2.5</span></td><td><span class="inp-cell">240</span></td><td>本厂</td></tr>
+      </tbody>
+    </table>
+    <div class="total">合金总计: 2.5 kg | 金额 = 用量 x 单价</div>
+    <div class="hint">⚠️ 单价可选填, 留空不计入费用</div>
+    <div class="hint">⚠️ 用量必须 ≤ 库存余量</div>
+    <div style="margin-top:12px;"><div class="label">备注</div><div class="input"></div></div>
+  </div>
+
+  <div class="actions">
+    <div class="btn btn-primary">确认添加</div>
+    <div class="btn btn-cancel">取消</div>
+  </div>
+</div>
+</body>
+</html>

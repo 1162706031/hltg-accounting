@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>审核 — 冶炼#3000004</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:flex-start;padding:48px}
+.modal{min-width:580px;background:#fff;border:2px solid #ddd;border-radius:8px;padding:32px 36px}
+.modal-title{font-size:18px;font-weight:600;color:#333;border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:24px}
+.info-box{background:#f8f8f8;border:1px solid #ddd;border-radius:4px;padding:14px 16px;font-size:13px;color:#666;margin-bottom:16px;line-height:2}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{background:#f5f5f5;color:#666;font-weight:600;padding:10px 14px;border:1px solid #eee;text-align:left}
+td{padding:10px 14px;border:1px solid #eee;color:#777}
+.field{margin-bottom:16px}
+.label{font-size:13px;color:#666;margin-bottom:6px}
+.radio-group{display:flex;gap:20px;align-items:center;height:40px}
+.radio-group label{font-size:13px;color:#555;display:flex;align-items:center;gap:6px}
+.radio{width:16px;height:16px;border:2px solid #aaa;border-radius:50%;display:inline-block}
+.radio-on{background:#4a90d9;border-color:#4a90d9}
+.textarea{border:2px solid #ddd;background:#fafafa;border-radius:4px;padding:10px 12px;font-size:13px;color:#555;width:100%;min-height:80px}
+.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+.btn{padding:10px 22px;border-radius:4px;font-size:13px;cursor:default}
+.btn-primary{background:#e0e0e0;border:2px solid #bbb;color:#333}
+.btn-cancel{background:#fff;border:2px solid #ccc;color:#666}
+</style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-title">审核 — 冶炼#3000004</div>
+
+  <div class="info-box">
+    <strong>订单摘要</strong><br>
+    类型: 外来冶炼 | 批次: 3000004 | 单位: 富烽<br>
+    金额: ¥188,683 | 录入人: 张三 | 时间: 2025-06-08 10:30
+  </div>
+
+  <table>
+    <thead><tr><th>来料</th><th>出钢</th><th>合金</th></tr></thead>
+    <tbody>
+      <tr><td>H13废料 2.0吨</td><td>H13/630 7.311吨/16支</td><td>钼铁 50kg</td></tr>
+    </tbody>
+  </table>
+
+  <div class="field">
+    <div class="label">审核操作</div>
+    <div class="radio-group">
+      <label><span class="radio radio-on"></span> 通过</label>
+      <label><span class="radio"></span> 驳回</label>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">驳回原因 (驳回时必填)</div>
+    <div class="textarea" style="color:#bbb;">请输入驳回原因...</div>
+  </div>
+
+  <div class="actions">
+    <div class="btn btn-primary">确认</div>
+    <div class="btn btn-cancel">取消</div>
+  </div>
+</div>
+</body>
+</html>

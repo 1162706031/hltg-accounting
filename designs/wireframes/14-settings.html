@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统设置 — 旭峰新材料 综合管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e8e8e8;
+    display: flex; justify-content: center;
+    padding: 20px 0;
+  }
+  .page { width: 1400px; }
+
+  .page-header { margin-bottom: 8px; color: #666; font-size: 13px; }
+  .page-header span {
+    background: #d0d0d0; padding: 2px 10px; border-radius: 3px;
+    font-family: monospace; font-size: 12px; color: #444;
+  }
+  .page-header .badge {
+    background: #fef0d0; color: #aa6a20; border: 1px solid #e8c870;
+    padding: 1px 6px; border-radius: 3px; font-size: 11px; font-family: inherit;
+  }
+
+  .wrapper { display: flex; height: 780px; }
+
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: #fff; border: 2px solid #ccc; border-right: 0;
+    display: flex; flex-direction: column;
+  }
+  .sb-label { font-size: 10px; color: #999; text-align: center; padding: 6px 0; border-bottom: 2px dashed #ddd; }
+  .sb-item { padding: 9px 14px; font-size: 13px; color: #555; border-bottom: 1px solid #eee; cursor: default; display: flex; align-items: center; gap: 6px; }
+  .sb-item.active { background: #d6e4f0; color: #2a5a8a; font-weight: 600; border-left: 3px solid #4a90d9; }
+  .sb-divider { height: 1px; background: #ddd; margin: 4px 0; }
+  .sb-section-label { font-size: 10px; color: #aaa; padding: 4px 14px; }
+  .sb-item.admin { color: #888; font-size: 12px; }
+  .sb-sub { padding: 6px 14px 6px 34px; font-size: 12px; color: #888; border-bottom: 1px solid #eee; cursor: default; }
+
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .header {
+    height: 40px; background: #fff; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px; font-size: 12px; color: #888;
+  }
+  .header-item { margin-left: 16px; padding: 2px 8px; border: 1px dashed #ccc; border-radius: 3px; }
+  .header-label { font-size: 10px; color: #aaa; position: relative; top: -6px; background: #f0f0f0; padding: 0 4px; }
+
+  .tabbar {
+    height: 34px; background: #f7f7f7; border: 2px solid #ccc; border-bottom: 0;
+    display: flex; align-items: center; padding: 0 8px; gap: 1px;
+  }
+  .tab { padding: 4px 12px; font-size: 12px; color: #555; background: #eaeaea; border: 1px solid #ccc; border-bottom: 0; border-radius: 4px 4px 0 0; cursor: default; display: flex; align-items: center; gap: 6px; }
+  .tab.active { background: #fff; color: #2a5a8a; font-weight: 600; border-bottom: 2px solid #fff; margin-bottom: -2px; position: relative; z-index: 1; }
+  .tab-close { font-size: 11px; color: #aaa; }
+
+  .content {
+    flex: 1; background: #fff; border: 2px solid #ccc;
+    padding: 24px 32px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  .section-title {
+    font-size: 14px; font-weight: 600; color: #333;
+    border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 4px;
+  }
+
+  .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .form-label { font-size: 13px; color: #666; width: 120px; text-align: right; }
+  .form-input {
+    height: 38px; border: 2px solid #ddd; background: #fafafa; border-radius: 4px;
+    padding: 0 12px; font-size: 13px; color: #555; display: flex; align-items: center;
+    width: 280px;
+  }
+  .form-input.short { width: 100px; }
+  .form-hint { font-size: 11px; color: #999; margin-left: 8px; }
+
+  .btn { padding: 8px 20px; border: 2px solid #aaa; border-radius: 4px; background: #ddd; font-size: 13px; color: #555; cursor: default; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; max-width: 500px; }
+  th { background: #f0f0f0; color: #666; font-weight: 600; padding: 10px 14px; border-bottom: 2px solid #ccc; text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid #eee; color: #777; }
+  .readonly { background: #f5f5f5; color: #999; }
+
+  .backup-info { font-size: 12px; color: #888; margin-left: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    系统设置 <span>/settings</span> <span class="badge">admin</span>
+  </div>
+
+  <div class="wrapper">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-label">Sidebar 导航</div>
+      <div class="sb-item">📊 工作台</div>
+      <div class="sb-item">👥 往来单位</div>
+      <div class="sb-item">📦 物品管理</div>
+      <div class="sb-item">📋 冶炼加工</div>
+      <div class="sb-item">🔧 外协加工</div>
+      <div class="sb-item">🛒 采购管理</div>
+      <div class="sb-item">💰 销售管理</div>
+      <div class="sb-item">📦 库房管理</div>
+      <div class="sb-sub">📜 变动记录</div>
+      <div class="sb-item">📄 用户对账</div>
+      <div class="sb-sub">💳 收付款记录</div>
+      <div class="sb-sub">🧾 开票记录</div>
+      <div class="sb-divider"></div>
+      <div class="sb-section-label">系统管理 (admin)</div>
+      <div class="sb-item admin active">⚙️ 系统设置</div>
+      <div class="sb-item admin">👤 用户管理</div>
+      <div class="sb-item admin">📜 操作日志</div>
+      <div class="sb-item admin">📋 审核中心</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+
+      <div class="header">
+        <span class="header-label">Header</span>
+        <span class="header-item">用户名: admin</span>
+        <span class="header-item">角色: 管理员</span>
+        <span class="header-item">退出</span>
+      </div>
+
+      <div class="tabbar">
+        <span style="font-size:10px;color:#aaa;margin-right:6px;">Tab Bar</span>
+        <div class="tab active">⚙️ 系统设置 <span class="tab-close">✕</span></div>
+      </div>
+
+      <div class="content">
+
+        <!-- 基本设置 -->
+        <div>
+          <div class="section-title">基本设置</div>
+          <div class="form-row">
+            <span class="form-label">公司名称:</span>
+            <div class="form-input">旭峰新材料</div>
+          </div>
+          <div class="form-row">
+            <span class="form-label">默认税率(%):</span>
+            <div class="form-input short">13</div>
+            <span class="form-hint">开票/对账时的默认税率</span>
+          </div>
+        </div>
+
+        <!-- 批次号前缀 -->
+        <div>
+          <div class="section-title">批次号前缀设置</div>
+          <table>
+            <thead>
+              <tr><th>业务类型</th><th>前缀</th><th>示例</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>冶炼加工</td><td class="readonly">3</td><td class="readonly">3000001</td></tr>
+              <tr><td>外协加工</td><td class="readonly">2</td><td class="readonly">2000001</td></tr>
+              <tr><td>采购</td><td class="readonly">P</td><td class="readonly">P0001</td></tr>
+              <tr><td>销售</td><td class="readonly">S</td><td class="readonly">S0001</td></tr>
+            </tbody>
+          </table>
+          <div style="font-size:11px;color:#999;margin-top:8px;">批次号由系统自动生成, 前缀不可修改</div>
+        </div>
+
+        <!-- 数据备份 -->
+        <div>
+          <div class="section-title">数据备份</div>
+          <div class="form-row">
+            <span class="form-label"></span>
+            <div class="btn">手动备份</div>
+            <span class="backup-info">上次备份: 2025-06-08 02:00 (自动)</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
