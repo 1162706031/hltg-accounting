@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_name: str = "HLTG Accounting API"
     api_prefix: str = "/api/v1"
     debug: bool = Field(default=False, validation_alias="APP_DEBUG")
+    backend_host: str = Field(default="0.0.0.0", validation_alias="BACKEND_HOST")
+    backend_port: int = Field(default=8000, validation_alias="BACKEND_PORT")
 
     db_host: str = Field(default="127.0.0.1", validation_alias="DB_HOST")
     db_port: int = Field(default=3306, validation_alias="DB_PORT")

@@ -1,15 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.finance import Invoice, Payment
+from app.models.inventory import Inventory
 from app.models.party import Party
+from app.models.reconciliation import PartyReconciliation
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.party import PartyCreate, PartyRead, PartyUpdate
 from app.utils.deps import get_current_user
 
 router = APIRouter(prefix="/parties", tags=["parties"], dependencies=[Depends(get_current_user)])
+
+
+async def party_reference_reason(db: AsyncSession, party_id: int) -> str | None:
+    """返回该单位被引用的原因；无引用则返回 None（可安全删除）。"""
+    checks = (
+        (Inventory, Inventory.owner_id, "仍有库存归属于该单位"),
+        (PartyReconciliation, PartyReconciliation.party_id, "仍有对账明细关联该单位"),
+        (Payment, Payment.party_id, "仍有收付款记录关联该单位"),
+        (Invoice, Invoice.party_id, "仍有开票记录关联该单位"),
+    )
+    for model, column, reason in checks:
+        count = await db.scalar(select(func.count()).select_from(model).where(column == party_id))
+        if count:
+            return reason
+    return None
 
 
 async def paginate(db: AsyncSession, stmt: Select[tuple[Party]], page: int, page_size: int) -> PageResult[PartyRead]:
@@ -20,8 +38,8 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Party]], page: int, page
 
 @router.get("", response_model=PageResult[PartyRead])
 async def list_parties(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     q: str | None = None,
     is_customer: bool | None = None,
     is_supplier: bool | None = None,
@@ -77,6 +95,9 @@ async def delete_party(party_id: int, db: AsyncSession = Depends(get_db)):
     party = await db.get(Party, party_id)
     if party is None:
         raise HTTPException(status_code=404, detail="往来单位不存在")
+    reason = await party_reference_reason(db, party_id)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"该单位{reason}，无法删除")
     await db.delete(party)
     await db.commit()
     return {"message": "往来单位已删除"}
@@ -84,10 +105,15 @@ async def delete_party(party_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/batch-delete")
 async def batch_delete_parties(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
-    parties = await db.scalars(select(Party).where(Party.id.in_(payload.ids)))
-    count = 0
+    parties = list(await db.scalars(select(Party).where(Party.id.in_(payload.ids))))
+    deleted = 0
+    skipped: list[dict[str, object]] = []
     for party in parties:
+        reason = await party_reference_reason(db, party.id)
+        if reason:
+            skipped.append({"id": party.id, "reason": f"该单位{reason}"})
+            continue
         await db.delete(party)
-        count += 1
+        deleted += 1
     await db.commit()
-    return {"message": f"已删除 {count} 个往来单位"}
+    return {"deleted_count": deleted, "skipped": skipped}

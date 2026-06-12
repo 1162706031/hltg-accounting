@@ -1,15 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.finance import Invoice
+from app.models.party import Party
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.finance import InvoiceCreate, InvoiceRead, InvoiceUpdate
 from app.utils.deps import get_current_user
 
 router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[Depends(get_current_user)])
+
+
+async def ensure_party_exists(db: AsyncSession, party_id: int) -> None:
+    if await db.get(Party, party_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="往来单位不存在")
 
 
 async def paginate(db: AsyncSession, stmt: Select[tuple[Invoice]], page: int, page_size: int) -> PageResult[InvoiceRead]:
@@ -20,8 +26,8 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Invoice]], page: int, pa
 
 @router.get("", response_model=PageResult[InvoiceRead])
 async def list_invoices(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     party_id: int | None = None,
     direction: str | None = None,
     db: AsyncSession = Depends(get_db),
@@ -36,6 +42,7 @@ async def list_invoices(
 
 @router.post("", response_model=InvoiceRead, status_code=status.HTTP_201_CREATED)
 async def create_invoice(payload: InvoiceCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    await ensure_party_exists(db, payload.party_id)
     data = payload.model_dump()
     if data.get("linked_orders") is not None:
         data["linked_orders"] = [order.model_dump() for order in payload.linked_orders or []]

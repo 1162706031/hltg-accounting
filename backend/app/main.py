@@ -42,4 +42,10 @@ if __name__ == "__main__":
     import uvicorn
 
     backend_dir = Path(__file__).resolve().parents[1]
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True, reload_dirs=[str(backend_dir)])
+    uvicorn.run(
+        "app.main:app",
+        host=settings.backend_host,
+        port=settings.backend_port,
+        reload=True,
+        reload_dirs=[str(backend_dir)],
+    )

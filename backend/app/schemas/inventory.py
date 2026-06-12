@@ -31,7 +31,7 @@ class InventoryInRequest(BaseModel):
     owner_id: int
     spec: str | None = Field(default=None, max_length=80)
     unit: str = Field(default="吨", max_length=10)
-    pieces: int = 0
+    pieces: int = Field(default=0, ge=0)
     weight: Decimal = Field(default=Decimal("0"), ge=0)
     change_date: date
     notes: str | None = Field(default=None, max_length=200)

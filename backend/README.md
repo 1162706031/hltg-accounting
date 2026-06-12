@@ -21,7 +21,14 @@ mysql -u root -p < ../database/schema.sql
 Run the API:
 
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python app/main.py
+```
+
+The API host and port are configured in `.env`:
+
+```env
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
 ```
 
 Open API docs:

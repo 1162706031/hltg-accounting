@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import Select, func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.inventory import Inventory, InventoryLog
@@ -15,6 +14,13 @@ from app.utils.deps import get_current_user
 router = APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depends(get_current_user)])
 
 
+def inventory_delete_reason(inventory: Inventory) -> str | None:
+    """返回库存项不可删除的原因；None 表示可删。"""
+    if inventory.current_pieces != 0 or inventory.current_weight != 0:
+        return "该库存项仍有结余，请先出库清空后再删除"
+    return None
+
+
 async def paginate_inventory(db: AsyncSession, stmt: Select[tuple[Inventory]], page: int, page_size: int) -> PageResult[InventoryRead]:
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
@@ -23,8 +29,8 @@ async def paginate_inventory(db: AsyncSession, stmt: Select[tuple[Inventory]], p
 
 @router.get("", response_model=PageResult[InventoryRead])
 async def list_inventory(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     item_type: str | None = None,
     owner_id: int | None = None,
     q: str | None = None,
@@ -45,8 +51,8 @@ async def list_inventory(
 
 @router.get("/logs", response_model=PageResult[InventoryLogRead])
 async def list_inventory_logs(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     change_type: str | None = None,
     inventory_id: int | None = None,
     db: AsyncSession = Depends(get_db),
@@ -104,17 +110,27 @@ async def delete_inventory(inventory_id: int, db: AsyncSession = Depends(get_db)
     inventory = await db.get(Inventory, inventory_id)
     if inventory is None:
         raise HTTPException(status_code=404, detail="库存不存在")
-    await db.delete(inventory)
-    await db.commit()
+    reason = inventory_delete_reason(inventory)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
+    async with db.begin():
+        await db.execute(delete(InventoryLog).where(InventoryLog.inventory_id == inventory_id))
+        await db.delete(inventory)
     return {"message": "库存已删除"}
 
 
 @router.post("/batch-delete")
 async def batch_delete_inventory(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
-    rows = await db.scalars(select(Inventory).where(Inventory.id.in_(payload.ids)))
-    count = 0
-    for row in rows:
-        await db.delete(row)
-        count += 1
-    await db.commit()
-    return {"message": f"已删除 {count} 条库存"}
+    rows = list(await db.scalars(select(Inventory).where(Inventory.id.in_(payload.ids))))
+    deleted = 0
+    skipped: list[dict[str, object]] = []
+    async with db.begin():
+        for row in rows:
+            reason = inventory_delete_reason(row)
+            if reason:
+                skipped.append({"id": row.id, "reason": reason})
+                continue
+            await db.execute(delete(InventoryLog).where(InventoryLog.inventory_id == row.id))
+            await db.delete(row)
+            deleted += 1
+    return {"deleted_count": deleted, "skipped": skipped}

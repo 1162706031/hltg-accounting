@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.party import Party
 from app.models.reconciliation import PartyReconciliation
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
@@ -28,8 +30,8 @@ async def paginate(
 
 @router.get("", response_model=PageResult[ReconciliationRead])
 async def list_reconciliations(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     party_id: int | None = None,
     recon_status: str | None = None,
     period: str | None = None,
@@ -51,9 +53,15 @@ async def create_reconciliation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if await db.get(Party, payload.party_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="往来单位不存在")
     row = PartyReconciliation(**payload.model_dump(), created_by=current_user.id)
     db.add(row)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该订单已导入过对账，请勿重复导入")
     await db.refresh(row)
     return row
 

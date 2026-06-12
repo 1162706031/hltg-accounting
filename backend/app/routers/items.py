@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -20,8 +21,8 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Item]], page: int, page_
 
 @router.get("", response_model=PageResult[ItemRead])
 async def list_items(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     q: str | None = None,
     item_type: ItemType | None = None,
     is_active: bool | None = None,
@@ -41,7 +42,11 @@ async def list_items(
 async def create_item(payload: ItemCreate, db: AsyncSession = Depends(get_db)):
     item = Item(**payload.model_dump())
     db.add(item)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名称+类型+规格的物品已存在")
     await db.refresh(item)
     return item
 
@@ -61,7 +66,11 @@ async def update_item(item_id: int, payload: ItemUpdate, db: AsyncSession = Depe
         raise HTTPException(status_code=404, detail="物品不存在")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名称+类型+规格的物品已存在")
     await db.refresh(item)
     return item
 
