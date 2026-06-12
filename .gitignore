@@ -15,6 +15,8 @@ yarn-debug.log*
 yarn-error.log*
 .next/
 build/
+dist/
+*.tsbuildinfo
 
 # IDE
 .idea/
