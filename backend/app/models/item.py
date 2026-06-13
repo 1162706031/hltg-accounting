@@ -14,8 +14,6 @@ class Item(TimestampMixin, Base):
         Enum("steel_grade", "raw_material", "alloy", "finished_product", "semi_finished", "scrap"),
         nullable=False,
     )
-    spec: Mapped[str | None] = mapped_column(String(80))
-    default_unit: Mapped[str] = mapped_column(String(10), default="吨")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[str | None] = mapped_column(Text)
 

@@ -8,7 +8,7 @@ from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
 from app.schemas.party import PartyRead
 
-ChangeType = Literal["in", "out", "adjust", "init"]
+ChangeType = Literal["in", "out", "adjust", "init", "delete"]
 
 
 class InventoryRead(ORMModel):
@@ -57,7 +57,7 @@ class InventoryAdjustRequest(BaseModel):
 
 class InventoryLogRead(ORMModel):
     id: int
-    inventory_id: int
+    inventory_id: int | None
     change_type: ChangeType
     change_date: date
     delta_pieces: int
@@ -71,3 +71,13 @@ class InventoryLogRead(ORMModel):
     notes: str | None
     created_by: int | None
     created_at: datetime
+
+
+class InventoryLogWithRelations(InventoryLogRead):
+    """用于库存变动页面，附带物品/操作人 JOIN 字段。"""
+
+    item_name: str | None = None
+    item_spec: str | None = None
+    item_type: str | None = None
+    owner_name: str | None = None
+    operator_name: str | None = None

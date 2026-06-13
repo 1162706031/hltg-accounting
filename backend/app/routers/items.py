@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.inventory import Inventory
 from app.models.item import Item
+from app.models.outsource import OutsourceOrder, ProcessingOutbound
+from app.models.smelting import SmeltingInbound, SmeltingOrder
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.item import ItemCreate, ItemRead, ItemType, ItemUpdate
 from app.utils.deps import get_current_user
@@ -19,6 +21,53 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Item]], page: int, page_
     return PageResult(items=[ItemRead.model_validate(row) for row in rows], total=total or 0, page=page, page_size=page_size)
 
 
+# ---------- 业务约束：删除/停用前检查引用 ----------
+ACTIVE_ORDER_STATUSES = ("draft", "pending_review", "approved", "in_progress")
+
+
+async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | None:
+    """返回不可删除/停用的原因；None 表示允许。
+
+    设计 §5.3：
+    - 处于进行中/待审的订单引用该物品 → 禁止
+    - 仍有库存 → 提示先出库清空
+    """
+    active_smelting = await db.scalar(
+        select(func.count())
+        .select_from(SmeltingInbound)
+        .join(SmeltingOrder, SmeltingInbound.order_id == SmeltingOrder.id)
+        .where(
+            SmeltingInbound.item_id == item_id,
+            SmeltingOrder.status.in_(ACTIVE_ORDER_STATUSES),
+        )
+    )
+    if active_smelting:
+        return "该物品正在加工订单中使用，无法操作"
+
+    active_outsource = await db.scalar(
+        select(func.count())
+        .select_from(ProcessingOutbound)
+        .join(OutsourceOrder, ProcessingOutbound.order_id == OutsourceOrder.id)
+        .where(
+            ProcessingOutbound.item_id == item_id,
+            OutsourceOrder.status.in_(ACTIVE_ORDER_STATUSES),
+        )
+    )
+    if active_outsource:
+        return "该物品正在加工订单中使用，无法操作"
+
+    inv_balance = await db.scalar(
+        select(
+            func.coalesce(func.sum(Inventory.current_pieces), 0)
+            + func.coalesce(func.sum(Inventory.current_weight), 0)
+        ).where(Inventory.item_id == item_id)
+    )
+    if inv_balance and float(inv_balance) > 0:
+        return "该物品仍有库存，请先出库清空后再操作"
+
+    return None
+
+
 @router.get("", response_model=PageResult[ItemRead])
 async def list_items(
     page: int = Query(default=1, ge=1),
@@ -30,7 +79,7 @@ async def list_items(
 ):
     stmt = select(Item).order_by(Item.id.desc())
     if q:
-        stmt = stmt.where(or_(Item.name.like(f"%{q}%"), Item.spec.like(f"%{q}%")))
+        stmt = stmt.where(Item.name.like(f"%{q}%"))
     if item_type:
         stmt = stmt.where(Item.item_type == item_type)
     if is_active is not None:
@@ -75,16 +124,33 @@ async def update_item(item_id: int, payload: ItemUpdate, db: AsyncSession = Depe
     return item
 
 
+@router.post("/{item_id}/toggle-active", response_model=ItemRead)
+async def toggle_item_active(item_id: int, db: AsyncSession = Depends(get_db)):
+    """停用/启用切换；停用前进行业务约束检查。"""
+    item = await db.get(Item, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="物品不存在")
+    if item.is_active:
+        # 停用前检查
+        reason = await item_deletion_block_reason(db, item_id)
+        if reason:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
+        item.is_active = False
+    else:
+        item.is_active = True
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
 @router.delete("/{item_id}")
 async def delete_item(item_id: int, db: AsyncSession = Depends(get_db)):
     item = await db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
-    inventory_count = await db.scalar(select(func.count()).select_from(Inventory).where(Inventory.item_id == item_id))
-    if inventory_count:
-        item.is_active = False
-        await db.commit()
-        return {"message": "物品已有库存引用，已自动停用"}
+    reason = await item_deletion_block_reason(db, item_id)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
     await db.delete(item)
     await db.commit()
     return {"message": "物品已删除"}
@@ -94,14 +160,13 @@ async def delete_item(item_id: int, db: AsyncSession = Depends(get_db)):
 async def batch_delete_items(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
     items = await db.scalars(select(Item).where(Item.id.in_(payload.ids)))
     deleted = 0
-    disabled = 0
+    skipped: list[dict] = []
     for item in items:
-        inventory_count = await db.scalar(select(func.count()).select_from(Inventory).where(Inventory.item_id == item.id))
-        if inventory_count:
-            item.is_active = False
-            disabled += 1
-        else:
-            await db.delete(item)
-            deleted += 1
+        reason = await item_deletion_block_reason(db, item.id)
+        if reason:
+            skipped.append({"id": item.id, "reason": reason})
+            continue
+        await db.delete(item)
+        deleted += 1
     await db.commit()
-    return {"message": f"已删除 {deleted} 个物品，停用 {disabled} 个已有引用物品"}
+    return {"deleted_count": deleted, "skipped": skipped}

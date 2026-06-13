@@ -11,8 +11,6 @@ ItemType = Literal["steel_grade", "raw_material", "alloy", "finished_product", "
 class ItemBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     item_type: ItemType
-    spec: str | None = Field(default=None, max_length=80)
-    default_unit: str = Field(default="吨", max_length=10)
     is_active: bool = True
     notes: str | None = None
 
@@ -24,8 +22,6 @@ class ItemCreate(ItemBase):
 class ItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     item_type: ItemType | None = None
-    spec: str | None = Field(default=None, max_length=80)
-    default_unit: str | None = Field(default=None, max_length=10)
     is_active: bool | None = None
     notes: str | None = None
 

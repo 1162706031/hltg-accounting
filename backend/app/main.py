@@ -8,7 +8,21 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings
-from app.routers import auth, inventory, invoices, items, parties, payments, reconciliations, users
+from app.routers import (
+    auth,
+    dashboard,
+    inventory,
+    invoices,
+    items,
+    outsource,
+    parties,
+    payments,
+    procurement,
+    reconciliations,
+    sales,
+    smelting,
+    users,
+)
 
 settings = get_settings()
 
@@ -36,6 +50,11 @@ app.include_router(inventory.router, prefix=settings.api_prefix)
 app.include_router(payments.router, prefix=settings.api_prefix)
 app.include_router(invoices.router, prefix=settings.api_prefix)
 app.include_router(reconciliations.router, prefix=settings.api_prefix)
+app.include_router(smelting.router, prefix=settings.api_prefix)
+app.include_router(outsource.router, prefix=settings.api_prefix)
+app.include_router(procurement.router, prefix=settings.api_prefix)
+app.include_router(sales.router, prefix=settings.api_prefix)
+app.include_router(dashboard.router, prefix=settings.api_prefix)
 
 
 if __name__ == "__main__":

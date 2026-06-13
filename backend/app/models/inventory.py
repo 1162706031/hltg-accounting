@@ -32,8 +32,12 @@ class InventoryLog(Base):
     __tablename__ = "inventory_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    inventory_id: Mapped[int] = mapped_column(ForeignKey("inventory.id"), nullable=False)
-    change_type: Mapped[str] = mapped_column(Enum("in", "out", "adjust", "init"), nullable=False)
+    inventory_id: Mapped[int | None] = mapped_column(ForeignKey("inventory.id", ondelete="SET NULL"))
+    item_name: Mapped[str | None] = mapped_column(String(100))
+    item_spec: Mapped[str | None] = mapped_column(String(80))
+    item_type: Mapped[str | None] = mapped_column(String(30))
+    owner_name: Mapped[str | None] = mapped_column(String(100))
+    change_type: Mapped[str] = mapped_column(Enum("in", "out", "adjust", "init", "delete"), nullable=False)
     change_date: Mapped[date] = mapped_column(Date, nullable=False)
     delta_pieces: Mapped[int] = mapped_column(default=0)
     delta_weight: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=0)
