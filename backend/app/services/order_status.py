@@ -54,9 +54,16 @@ async def rollback_inventory_by_ref(db: AsyncSession, *, ref_type: str, ref_id: 
     await db.flush()
 
 
-def compute_tax_totals(amount: Decimal, tax_rate: Decimal | None) -> tuple[Decimal, Decimal, Decimal]:
-    """返回 (subtotal, tax_amount, total)。subtotal=amount(税前)。"""
+def compute_tax_totals(
+    amount: Decimal, tax_rate: Decimal | None, need_invoice: bool = True
+) -> tuple[Decimal, Decimal, Decimal]:
+    """返回 (subtotal, tax_amount, total)。subtotal=amount(税前)。
+
+    need_invoice=False 时不计税：tax_amount=0，total=subtotal。
+    """
     subtotal = Decimal(amount).quantize(Decimal("0.01"))
+    if not need_invoice:
+        return subtotal, Decimal("0.00"), subtotal
     rate = Decimal(tax_rate) if tax_rate is not None else Decimal("0")
     tax_amount = (subtotal * rate / 100).quantize(Decimal("0.01"))
     return subtotal, tax_amount, subtotal + tax_amount

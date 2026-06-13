@@ -15,6 +15,7 @@ import {
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { ItemOption, PartyOption, UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 
 interface InventoryRow {
@@ -314,10 +315,10 @@ function InFormModal({
       onFinish={(v) => onSubmit(v)}
     >
       <Form.Item name="item_id" label="物品" rules={[{ required: true, message: '请选择物品' }]}>
-        <Select options={itemOpts} showSearch optionFilterProp="label" placeholder="搜索并选择物品" />
+        <ItemSelect options={itemOpts} />
       </Form.Item>
       <Form.Item name="owner_id" label="归属" rules={[{ required: true }]}>
-        <Select options={partyOpts} showSearch optionFilterProp="label" placeholder="选择归属单位" />
+        <PartySelect options={partyOpts} />
       </Form.Item>
       <Form.Item name="spec" label="规格">
         <Input />

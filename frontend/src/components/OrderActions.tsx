@@ -16,7 +16,7 @@ interface Props {
   onEdit?: () => void
 }
 
-/** 订单工作流操作按钮组（提交/审核/驳回/开工/完成/反审核/编辑/删除）。 */
+/** 订单工作流操作按钮组（提交/审核/驳回/开始/完成/反审核/编辑/删除）。 */
 export function OrderActions({ resource, orderId, status, role, invalidateKey, onEdit }: Props) {
   const { message, modal } = AntApp.useApp()
   const queryClient = useQueryClient()
@@ -71,7 +71,7 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
       )}
       {actions.start && (
         <Button type="link" size="small" onClick={() => act.mutate({ action: 'start' })}>
-          开工
+          开始
         </Button>
       )}
       {actions.complete && (

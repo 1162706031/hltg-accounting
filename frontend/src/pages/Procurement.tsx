@@ -4,8 +4,9 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
+import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import { itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface ProcurementOrder {
@@ -148,13 +149,13 @@ export function Procurement() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="party_id" label="供应商" rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp="label" options={partyOptions(parties.data)} loading={parties.isLoading} />
+            <PartySelect options={partyOptions(parties.data)} placeholder="选择供应商" />
           </Form.Item>
           <Form.Item name="purchase_date" label="采购日期">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="item_id" label="物品">
-            <Select showSearch optionFilterProp="label" allowClear options={itemOptions(items.data)} loading={items.isLoading} />
+            <ItemSelect options={itemOptions(items.data)} />
           </Form.Item>
           <Form.Item name="item_spec" label="规格/品位">
             <Input placeholder="如 59.6%" />
@@ -163,13 +164,10 @@ export function Procurement() {
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="unit" label="单位">
-            <Input />
+            <Select options={UNIT_OPTIONS} style={{ width: '100%' }} placeholder="选择单位" />
           </Form.Item>
           <Form.Item name="unit_price" label="单价" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="tax_rate" label="税率(%)">
-            <InputNumber min={0} max={100} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="need_invoice" label="是否需要开票">
             <Select
@@ -178,6 +176,21 @@ export function Procurement() {
                 { value: true, label: '是' }
               ]}
             />
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) => prev.need_invoice !== cur.need_invoice}
+          >
+            {({ getFieldValue }) => (
+              <Form.Item name="tax_rate" label="税率(%)" tooltip="不开票时不计税">
+                <InputNumber
+                  min={0}
+                  max={100}
+                  style={{ width: '100%' }}
+                  disabled={!getFieldValue('need_invoice')}
+                />
+              </Form.Item>
+            )}
           </Form.Item>
           <Form.Item name="notes" label="备注">
             <Input.TextArea rows={2} />

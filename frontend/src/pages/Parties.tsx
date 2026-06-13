@@ -252,29 +252,10 @@ export function Parties() {
 
   const openCreate = () => {
     setEditing(null)
-    form.resetFields()
-    form.setFieldsValue({
-      is_internal: false,
-      is_customer: false,
-      is_supplier: false,
-      is_processor: false
-    })
     setOpen(true)
   }
   const openEdit = (row: Party) => {
     setEditing(row)
-    form.setFieldsValue({
-      name: row.name,
-      short_name: row.short_name ?? '',
-      is_internal: row.is_internal,
-      is_customer: row.is_customer,
-      is_supplier: row.is_supplier,
-      is_processor: row.is_processor,
-      contact: row.contact ?? '',
-      phone: row.phone ?? '',
-      address: row.address ?? '',
-      notes: row.notes ?? ''
-    })
     setOpen(true)
   }
   const handleSubmit = () => {
@@ -429,7 +410,39 @@ export function Parties() {
         confirmLoading={createMut.isPending || updateMut.isPending}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form
+          key={editing ? `edit-${editing.id}` : 'create'}
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? {
+                  name: editing.name,
+                  short_name: editing.short_name ?? '',
+                  is_internal: editing.is_internal,
+                  is_customer: editing.is_customer,
+                  is_supplier: editing.is_supplier,
+                  is_processor: editing.is_processor,
+                  contact: editing.contact ?? '',
+                  phone: editing.phone ?? '',
+                  address: editing.address ?? '',
+                  notes: editing.notes ?? ''
+                }
+              : {
+                  name: '',
+                  short_name: '',
+                  is_internal: false,
+                  is_customer: false,
+                  is_supplier: false,
+                  is_processor: false,
+                  contact: '',
+                  phone: '',
+                  address: '',
+                  notes: ''
+                }
+          }
+        >
           <Form.Item name="name" label="单位名称" rules={[{ required: true, min: 1, max: 100 }]}>
             <Input placeholder="如 富烽、捷丰" />
           </Form.Item>

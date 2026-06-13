@@ -38,7 +38,9 @@ def _recompute(order: SalesOrder) -> None:
     for line in order.items:
         line.amount = (Decimal(line.weight_ton or 0) * Decimal(line.unit_price or 0)).quantize(Decimal("0.01"))
         subtotal += line.amount
-    order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(subtotal, order.tax_rate)
+    order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(
+        subtotal, order.tax_rate, order.need_invoice
+    )
 
 
 async def _load(db: AsyncSession, order_id: int) -> SalesOrder:

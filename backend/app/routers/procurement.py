@@ -35,7 +35,9 @@ router = APIRouter(prefix="/procurement-orders", tags=["procurement"], dependenc
 
 def _recompute(order: ProcurementOrder) -> None:
     order.amount = (Decimal(order.quantity or 0) * Decimal(order.unit_price or 0)).quantize(Decimal("0.01"))
-    order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(order.amount, order.tax_rate)
+    order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(
+        order.amount, order.tax_rate, order.need_invoice
+    )
 
 
 async def _load(db: AsyncSession, order_id: int) -> ProcurementOrder:

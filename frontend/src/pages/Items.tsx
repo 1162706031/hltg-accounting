@@ -146,18 +146,10 @@ export function Items() {
 
   const openCreate = () => {
     setEditing(null)
-    form.resetFields()
-    form.setFieldsValue({ item_type: 'steel_grade', is_active: true })
     setOpen(true)
   }
   const openEdit = (row: Item) => {
     setEditing(row)
-    form.setFieldsValue({
-      name: row.name,
-      item_type: row.item_type,
-      is_active: row.is_active,
-      notes: row.notes ?? ''
-    })
     setOpen(true)
   }
   const handleSubmit = () => {
@@ -291,7 +283,22 @@ export function Items() {
         confirmLoading={createMut.isPending || updateMut.isPending}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form
+          key={editing ? `edit-${editing.id}` : 'create'}
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={
+            editing
+              ? {
+                  name: editing.name,
+                  item_type: editing.item_type,
+                  is_active: editing.is_active,
+                  notes: editing.notes ?? ''
+                }
+              : { name: '', item_type: 'steel_grade', is_active: true, notes: '' }
+          }
+        >
           <Form.Item
             name="name"
             label="名称"
