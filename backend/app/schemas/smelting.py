@@ -20,8 +20,8 @@ class InboundLineBase(BaseModel):
     line_no: int = 1
     date: date_type | None = None
     item_id: int | None = None
-    weight_ton: Decimal = Field(default=Decimal("0"), ge=0)
-    pieces: int | None = Field(default=None, ge=0)
+    quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    unit: str = Field(default="吨", max_length=10)
     spec: str | None = Field(default=None, max_length=80)
     furnace_no: str | None = Field(default=None, max_length=20)
     owner_id: int | None = None
@@ -39,7 +39,8 @@ class InboundLineRead(InboundLineBase, ORMModel):
 # ---- 子表：补加合金 ----
 class AlloyLineBase(BaseModel):
     item_id: int
-    weight_kg: Decimal = Field(default=Decimal("0"), ge=0)
+    quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    unit: str = Field(default="千克", max_length=10)
     unit_price: Decimal | None = Field(default=None, ge=0)
     amount: Decimal | None = None
     notes: str | None = Field(default=None, max_length=100)

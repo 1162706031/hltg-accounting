@@ -43,10 +43,10 @@ def assert_editable(order: SmeltingOrder) -> None:
         )
 
 
-def _line_amount(weight, unit_price) -> Decimal | None:
+def _line_amount(quantity, unit_price) -> Decimal | None:
     if unit_price is None:
         return None
-    return (Decimal(weight) * Decimal(unit_price)).quantize(Decimal("0.01"))
+    return (Decimal(quantity) * Decimal(unit_price)).quantize(Decimal("0.01"))
 
 
 def recompute_amounts(order: SmeltingOrder) -> None:
@@ -57,23 +57,23 @@ def recompute_amounts(order: SmeltingOrder) -> None:
     outbound_amount = Decimal("0")
 
     for line in order.inbound_lines:
-        line.amount = _line_amount(line.weight_ton, line.unit_price)
+        line.amount = _line_amount(line.quantity, line.unit_price)
         if line.side == "in":
-            feed_total += Decimal(line.weight_ton or 0)
+            feed_total += Decimal(line.quantity or 0)
             if line.amount:
                 inbound_amount += line.amount
         else:
-            tap_total += Decimal(line.weight_ton or 0)
+            tap_total += Decimal(line.quantity or 0)
             if line.amount:
                 outbound_amount += line.amount
 
     alloy_amount = Decimal("0")
     for alloy in order.alloy_lines:
-        alloy.amount = _line_amount(alloy.weight_kg, alloy.unit_price)
+        alloy.amount = _line_amount(alloy.quantity, alloy.unit_price)
         if alloy.amount:
             alloy_amount += alloy.amount
 
-    # 成锭率：出钢总重 / 投料总重；仅在未手动填写时自动计算
+    # 成锭率：出钢总量 / 投料总量；仅在未手动填写时自动计算（假定投料/出钢同单位）
     if order.yield_pct is None and feed_total > 0:
         order.yield_pct = (tap_total / feed_total * 100).quantize(Decimal("0.01"))
 
@@ -154,8 +154,7 @@ async def apply_approve_inventory(db: AsyncSession, order: SmeltingOrder) -> Non
         await stock_out_inventory_obj(
             db,
             inventory=inv,
-            pieces=line.pieces or 0,
-            weight=Decimal(line.weight_ton or 0),
+            quantity=Decimal(line.quantity or 0),
             change_date=line.date or order.feed_date or datetime.utcnow().date(),
             notes=f"冶炼#{order.batch_no}投料",
             ref_type="smelting_order",
@@ -173,8 +172,7 @@ async def apply_approve_inventory(db: AsyncSession, order: SmeltingOrder) -> Non
         await stock_out_inventory_obj(
             db,
             inventory=inv,
-            pieces=0,
-            weight=Decimal(alloy.weight_kg or 0),
+            quantity=Decimal(alloy.quantity or 0),
             change_date=order.feed_date or datetime.utcnow().date(),
             notes=f"冶炼#{order.batch_no}补合金",
             ref_type="smelting_order",
@@ -194,9 +192,8 @@ async def apply_complete_inventory(db: AsyncSession, order: SmeltingOrder) -> No
             item_id=line.item_id,
             owner_id=owner_id,
             spec=line.spec,
-            unit="吨",
-            pieces=line.pieces or 0,
-            weight=Decimal(line.weight_ton or 0),
+            unit=line.unit or "吨",
+            quantity=Decimal(line.quantity or 0),
             change_date=line.date or order.tap_date or datetime.utcnow().date(),
             notes=f"冶炼#{order.batch_no}出钢入库",
             ref_type="smelting_order",
@@ -223,8 +220,7 @@ async def rollback_inventory(db: AsyncSession, order: SmeltingOrder) -> None:
         if inv is None:
             continue
         # 反向冲销：减去当初的 delta
-        inv.current_pieces -= log.delta_pieces
-        inv.current_weight -= log.delta_weight
+        inv.current_quantity -= log.delta_quantity
 
     # 删除本订单的库存日志（联动整体撤销，不保留半截轨迹）
     await db.execute(

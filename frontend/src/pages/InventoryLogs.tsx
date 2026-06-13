@@ -9,12 +9,10 @@ interface InventoryLog {
   inventory_id: number
   change_type: 'in' | 'out' | 'adjust' | 'init' | 'delete'
   change_date: string
-  delta_pieces: number
-  delta_weight: string
-  before_pieces: number
-  before_weight: string
-  after_pieces: number
-  after_weight: string
+  unit?: string
+  delta_quantity: string
+  before_quantity: string
+  after_quantity: string
   ref_type?: string | null
   ref_id?: number | null
   notes?: string | null
@@ -123,20 +121,14 @@ export function InventoryLogs() {
           },
           { title: '归属', dataIndex: 'owner_name', width: 120, render: (v) => v ?? '—' },
           {
-            title: 'Δ 支数',
-            dataIndex: 'delta_pieces',
-            width: 90,
-            align: 'right',
-            render: (v: number) => (v ? <span style={{ color: v > 0 ? '#389e0d' : '#cf1322' }}>{v > 0 ? `+${v}` : v}</span> : '—')
-          },
-          {
-            title: 'Δ 重量',
-            dataIndex: 'delta_weight',
-            width: 100,
+            title: 'Δ 数量',
+            dataIndex: 'delta_quantity',
+            width: 110,
             align: 'right',
             render: (v: string) => (Number(v) ? <span style={{ color: Number(v) > 0 ? '#389e0d' : '#cf1322' }}>{Number(v) > 0 ? `+${v}` : v}</span> : '—')
           },
-          { title: '前 → 后', key: 'after', width: 150, render: (_, row) => `${row.before_weight} → ${row.after_weight}` },
+          { title: '单位', dataIndex: 'unit', width: 70, render: (v) => v ?? '—' },
+          { title: '前 → 后', key: 'after', width: 150, render: (_, row) => `${row.before_quantity} → ${row.after_quantity}` },
           { title: '操作人', dataIndex: 'operator_name', width: 100, render: (v) => v ?? '—' },
           {
             title: '备注',

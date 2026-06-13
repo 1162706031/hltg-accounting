@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Form, Input, Modal, Select, Space, Table, Tag } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { DetailModal } from '../components/DetailModal'
 
 interface User {
   id: number
@@ -27,6 +28,7 @@ export function Users() {
   const [editing, setEditing] = useState<User | null>(null)
   const [creating, setCreating] = useState(false)
   const [pwTarget, setPwTarget] = useState<User | null>(null)
+  const [detail, setDetail] = useState<User | null>(null)
   const [form] = Form.useForm()
   const [pwForm] = Form.useForm()
 
@@ -110,6 +112,7 @@ export function Users() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
           { title: '用户名', dataIndex: 'username' },
           { title: '姓名', dataIndex: 'real_name', render: (v) => v ?? '—' },
@@ -124,6 +127,9 @@ export function Users() {
             title: '操作',
             render: (_, row) => (
               <Space>
+                <Button type="link" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
                 <Button type="link" onClick={() => openEdit(row)}>
                   编辑
                 </Button>
@@ -206,6 +212,23 @@ export function Users() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `用户 ${detail.username}` : ''}
+        fields={
+          detail
+            ? [
+                { label: '用户名', value: detail.username },
+                { label: '姓名', value: detail.real_name },
+                { label: '角色', value: ROLE_META[detail.role].label },
+                { label: '状态', value: detail.is_active ? '启用' : '禁用' },
+                { label: '创建时间', value: detail.created_at?.slice(0, 10), span: 2 }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

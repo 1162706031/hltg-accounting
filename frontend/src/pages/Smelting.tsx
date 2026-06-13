@@ -5,8 +5,9 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
+import { DetailModal } from '../components/DetailModal'
 import { useAuth } from '../utils/AuthContext'
-import { itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface SmeltingOrder {
@@ -41,6 +42,7 @@ export function Smelting() {
   const [typeFilter, setTypeFilter] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -57,6 +59,12 @@ export function Smelting() {
           }
         })
       ).data
+  })
+
+  const detailQuery = useQuery({
+    queryKey: ['smelting', 'detail', detailId],
+    enabled: detailId !== null,
+    queryFn: async () => (await api.get<SmeltingOrder>(`/smelting-orders/${detailId}`)).data
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['smelting'] })
@@ -108,8 +116,8 @@ export function Smelting() {
     const toLine = (it: any) => ({
       date: it.date ? dayjs(it.date) : null,
       item_id: it.item_id,
-      weight_ton: Number(it.weight_ton),
-      pieces: it.pieces,
+      quantity: Number(it.quantity),
+      unit: it.unit ?? '吨',
       spec: it.spec,
       furnace_no: it.furnace_no,
       owner_id: it.owner_id,
@@ -128,7 +136,8 @@ export function Smelting() {
       tap_lines: d.inbound_lines.filter((l) => l.side === 'out').map(toLine),
       alloy_lines: d.alloy_lines.map((a) => ({
         item_id: a.item_id,
-        weight_kg: Number(a.weight_kg),
+        quantity: Number(a.quantity),
+        unit: a.unit ?? '千克',
         unit_price: a.unit_price ? Number(a.unit_price) : null,
         notes: a.notes
       }))
@@ -148,11 +157,11 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'spec']} label="规格">
                 <Input style={{ width: 90 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'weight_ton']} label="重量(吨)">
-                <InputNumber style={{ width: 90 }} min={0} />
+              <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
+                <InputNumber style={{ width: 90 }} min={0} step={0.001} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'pieces']} label="支数">
-                <InputNumber style={{ width: 70 }} min={0} />
+              <Form.Item {...field} name={[field.name, 'unit']} label="单位">
+                <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'furnace_no']} label="炉号">
                 <Input style={{ width: 90 }} />
@@ -165,7 +174,7 @@ export function Smelting() {
               <MinusCircleOutlined onClick={() => remove(field.name)} />
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ weight_ton: 0 })} icon={<PlusOutlined />}>
+          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
             添加行
           </Button>
         </div>
@@ -192,6 +201,7 @@ export function Smelting() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },
           {
@@ -204,18 +214,24 @@ export function Smelting() {
           { title: '成锭率%', dataIndex: 'yield_pct', render: (v) => v ?? '—' },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 280,
+            width: 340,
             render: (_, row) => (
-              <OrderActions
-                resource="smelting-orders"
-                orderId={row.id}
-                status={row.status}
-                role={user?.role}
-                invalidateKey="smelting"
-                onEdit={() => openEdit(row)}
-              />
+              <Space size="small">
+                <Button size="small" onClick={() => setDetailId(row.id)}>
+                  查看
+                </Button>
+                <OrderActions
+                  resource="smelting-orders"
+                  orderId={row.id}
+                  status={row.status}
+                  role={user?.role}
+                  invalidateKey="smelting"
+                  onEdit={() => openEdit(row)}
+                />
+              </Space>
             )
           }
         ]}
@@ -277,16 +293,19 @@ export function Smelting() {
                       <Form.Item {...field} name={[field.name, 'item_id']} label="合金" rules={[{ required: true }]}>
                         <Select style={{ width: 160 }} showSearch optionFilterProp="label" options={itemOptions(items.data)} />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'weight_kg']} label="重量(kg)">
-                        <InputNumber style={{ width: 100 }} min={0} />
+                      <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
+                        <InputNumber style={{ width: 100 }} min={0} step={0.001} />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'unit_price']} label="单价(元/kg)">
+                      <Form.Item {...field} name={[field.name, 'unit']} label="单位">
+                        <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'unit_price']} label="单价">
                         <InputNumber style={{ width: 110 }} min={0} />
                       </Form.Item>
                       <MinusCircleOutlined onClick={() => remove(field.name)} />
                     </Space>
                   ))}
-                  <Button type="dashed" size="small" onClick={() => add({ weight_kg: 0 })} icon={<PlusOutlined />}>
+                  <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '千克' })} icon={<PlusOutlined />}>
                     添加合金
                   </Button>
                 </div>
@@ -299,6 +318,74 @@ export function Smelting() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={detailId !== null}
+        onClose={() => setDetailId(null)}
+        loading={detailQuery.isLoading}
+        title={detailQuery.data ? `冶炼单 ${detailQuery.data.batch_no}` : '冶炼单详情'}
+        width={860}
+        fields={
+          detailQuery.data
+            ? [
+                { label: '批次号', value: detailQuery.data.batch_no },
+                {
+                  label: '类型',
+                  value: ORDER_TYPE_OPTIONS.find((o) => o.value === detailQuery.data!.order_type)?.label
+                },
+                { label: '单位', value: detailQuery.data.party?.name },
+                { label: '投料日', value: detailQuery.data.feed_date },
+                { label: '出钢日', value: detailQuery.data.tap_date },
+                { label: '成锭率', value: detailQuery.data.yield_pct != null ? `${detailQuery.data.yield_pct}%` : '—' },
+                { label: '加工单价', value: detailQuery.data.unit_price },
+                { label: '税率', value: detailQuery.data.tax_rate != null ? `${detailQuery.data.tax_rate}%` : '—' },
+                { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
+                { label: '合计', value: detailQuery.data.total_amount },
+                { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
+                { label: '备注', value: detailQuery.data.notes, span: 2 }
+              ]
+            : []
+        }
+        tables={
+          detailQuery.data
+            ? [
+                {
+                  title: '投料',
+                  rowKey: 'id',
+                  dataSource: (detailQuery.data.inbound_lines ?? []).filter((l: any) => l.side === 'in'),
+                  columns: steelLineColumns
+                },
+                {
+                  title: '出钢',
+                  rowKey: 'id',
+                  dataSource: (detailQuery.data.inbound_lines ?? []).filter((l: any) => l.side === 'out'),
+                  columns: steelLineColumns
+                },
+                {
+                  title: '补加合金',
+                  rowKey: 'id',
+                  dataSource: detailQuery.data.alloy_lines ?? [],
+                  columns: [
+                    { title: '合金', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
+                    { title: '数量', dataIndex: 'quantity', align: 'right' },
+                    { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+                    { title: '单价', dataIndex: 'unit_price', align: 'right', render: (v: any) => v ?? '—' },
+                    { title: '金额', dataIndex: 'amount', align: 'right', render: (v: any) => v ?? '—' }
+                  ]
+                }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }
+
+const steelLineColumns = [
+  { title: '钢种', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
+  { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
+  { title: '数量', dataIndex: 'quantity', align: 'right' as const },
+  { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+  { title: '炉号', dataIndex: 'furnace_no', render: (v: string) => v ?? '—' },
+  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' }
+]

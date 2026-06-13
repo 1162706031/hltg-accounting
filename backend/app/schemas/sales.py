@@ -17,8 +17,8 @@ class SalesItemBase(BaseModel):
     inventory_id: int | None = None
     item_id: int | None = None
     spec: str | None = Field(default=None, max_length=80)
-    weight_ton: Decimal = Field(default=Decimal("0"), ge=0)
-    pieces: int | None = Field(default=None, ge=0)
+    quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    unit: str = Field(default="吨", max_length=10)
     unit_price: Decimal = Field(default=Decimal("0"), ge=0)
     amount: Decimal | None = None
     notes: str | None = None

@@ -36,33 +36,33 @@ def assert_editable(order: OutsourceOrder) -> None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已审核/进行中/已完成，禁止修改业务字段")
 
 
-def _line_amount(weight, unit_price) -> Decimal | None:
+def _line_amount(quantity, unit_price) -> Decimal | None:
     if unit_price is None:
         return None
-    return (Decimal(weight) * Decimal(unit_price)).quantize(Decimal("0.01"))
+    return (Decimal(quantity) * Decimal(unit_price)).quantize(Decimal("0.01"))
 
 
 def recompute_amounts(order: OutsourceOrder) -> None:
-    """重算费用与成材率。成材率 = 回厂总重 / 发出总重（未手动填写时自动算）。"""
+    """重算费用与成材率。成材率 = 回厂总量 / 发出总量（未手动填写时自动算，假定同单位）。"""
     out_total = Decimal("0")
     in_total = Decimal("0")
     line_amount_sum = Decimal("0")
 
     for line in order.outbound_lines:
-        line.amount = _line_amount(line.weight_ton, line.unit_price)
-        out_total += Decimal(line.weight_ton or 0)
+        line.amount = _line_amount(line.quantity, line.unit_price)
+        out_total += Decimal(line.quantity or 0)
         if line.amount:
             line_amount_sum += line.amount
     for line in order.inbound_lines:
-        line.amount = _line_amount(line.weight_ton, line.unit_price)
-        in_total += Decimal(line.weight_ton or 0)
+        line.amount = _line_amount(line.quantity, line.unit_price)
+        in_total += Decimal(line.quantity or 0)
         if line.amount:
             line_amount_sum += line.amount
 
     if order.yield_rate is None and out_total > 0:
         order.yield_rate = (in_total / out_total).quantize(Decimal("0.0001"))
 
-    # 加工金额 = 发出总重 × 加工单价（外协按发出计费）
+    # 加工金额 = 发出总量 × 加工单价（外协按发出计费）
     if order.unit_price is not None:
         order.amount = (out_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
     else:
@@ -121,8 +121,7 @@ async def apply_approve_inventory(db: AsyncSession, order: OutsourceOrder) -> No
         await stock_out_inventory_obj(
             db,
             inventory=inv,
-            pieces=line.pieces or 0,
-            weight=Decimal(line.weight_ton or 0),
+            quantity=Decimal(line.quantity or 0),
             change_date=line.out_date or datetime.utcnow().date(),
             notes=f"外协#{order.batch_no}发出",
             ref_type="outsource_order",
@@ -142,9 +141,8 @@ async def apply_complete_inventory(db: AsyncSession, order: OutsourceOrder) -> N
             item_id=line.item_id,
             owner_id=internal_party_id,
             spec=line.spec,
-            unit="吨",
-            pieces=line.pieces or 0,
-            weight=Decimal(line.weight_ton or 0),
+            unit=line.unit or "吨",
+            quantity=Decimal(line.quantity or 0),
             change_date=line.in_date or datetime.utcnow().date(),
             notes=f"外协#{order.batch_no}回厂入库",
             ref_type="outsource_order",
@@ -166,8 +164,7 @@ async def rollback_inventory(db: AsyncSession, order: OutsourceOrder) -> None:
         inv = await db.get(Inventory, log.inventory_id, with_for_update=True)
         if inv is None:
             continue
-        inv.current_pieces -= log.delta_pieces
-        inv.current_weight -= log.delta_weight
+        inv.current_quantity -= log.delta_quantity
     await db.execute(
         delete(InventoryLog).where(InventoryLog.ref_type == "outsource_order", InventoryLog.ref_id == order.id)
     )

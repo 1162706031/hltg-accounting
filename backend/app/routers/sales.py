@@ -36,7 +36,7 @@ router = APIRouter(prefix="/sales-orders", tags=["sales"], dependencies=[Depends
 def _recompute(order: SalesOrder) -> None:
     subtotal = Decimal("0")
     for line in order.items:
-        line.amount = (Decimal(line.weight_ton or 0) * Decimal(line.unit_price or 0)).quantize(Decimal("0.01"))
+        line.amount = (Decimal(line.quantity or 0) * Decimal(line.unit_price or 0)).quantize(Decimal("0.01"))
         subtotal += line.amount
     order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(
         subtotal, order.tax_rate, order.need_invoice
@@ -216,8 +216,7 @@ async def complete_order(order_id: int, db: AsyncSession = Depends(get_db)):
             await stock_out(
                 db,
                 inventory_id=line.inventory_id,
-                pieces=line.pieces or 0,
-                weight=Decimal(line.weight_ton or 0),
+                quantity=Decimal(line.quantity or 0),
                 change_date=order.ship_date or datetime.utcnow().date(),
                 notes=f"销售#{order.batch_no}出库",
                 ref_type="sales_order",

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Table } from 'antd'
+import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
+import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
 import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
@@ -27,6 +28,7 @@ interface ProcurementOrder {
   status: OrderStatus
   notes?: string | null
   party?: { name: string } | null
+  item?: { id: number; name: string; item_type: string } | null
 }
 
 export function Procurement() {
@@ -36,6 +38,7 @@ export function Procurement() {
   const [statusFilter, setStatusFilter] = useState('')
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
   const [creating, setCreating] = useState(false)
+  const [detail, setDetail] = useState<ProcurementOrder | null>(null)
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -109,27 +112,35 @@ export function Procurement() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },
           { title: '供应商', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
+          { title: '物品', dataIndex: ['item', 'name'], render: (v) => v ?? '—' },
           { title: '采购日期', dataIndex: 'purchase_date', render: (v) => v ?? '—' },
           { title: '数量', dataIndex: 'quantity', align: 'right' },
           { title: '单位', dataIndex: 'unit' },
           { title: '单价', dataIndex: 'unit_price', align: 'right' },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 280,
+            width: 340,
             render: (_, row) => (
-              <OrderActions
-                resource="procurement-orders"
-                orderId={row.id}
-                status={row.status}
-                role={user?.role}
-                invalidateKey="procurement"
-                onEdit={() => openEdit(row)}
-              />
+              <Space size="small">
+                <Button size="small" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
+                <OrderActions
+                  resource="procurement-orders"
+                  orderId={row.id}
+                  status={row.status}
+                  role={user?.role}
+                  invalidateKey="procurement"
+                  onEdit={() => openEdit(row)}
+                />
+              </Space>
             )
           }
         ]}
@@ -197,6 +208,31 @@ export function Procurement() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `采购单 ${detail.batch_no}` : ''}
+        fields={
+          detail
+            ? [
+                { label: '批次号', value: detail.batch_no },
+                { label: '供应商', value: detail.party?.name },
+                { label: '物品', value: detail.item?.name },
+                { label: '规格/品位', value: detail.item_spec },
+                { label: '采购日期', value: detail.purchase_date },
+                { label: '数量', value: `${detail.quantity} ${detail.unit}` },
+                { label: '单价', value: detail.unit_price },
+                { label: '金额', value: detail.amount },
+                { label: '税率', value: detail.tax_rate != null ? `${detail.tax_rate}%` : '—' },
+                { label: '是否开票', value: detail.need_invoice ? '是' : '否' },
+                { label: '合计', value: detail.total_amount },
+                { label: '状态', value: <OrderStatusTag status={detail.status} /> },
+                { label: '备注', value: detail.notes, span: 2 }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

@@ -21,8 +21,8 @@ class ReconciliationBase(BaseModel):
     biz_date: date | None = None
     biz_desc: str | None = Field(default=None, max_length=200)
     steel_grade: str | None = Field(default=None, max_length=50)
-    weight_ton: Decimal = Decimal("0")
-    pieces: int | None = None
+    quantity: Decimal = Decimal("0")
+    unit: str = Field(default="吨", max_length=10)
     unit_price: Decimal | None = None
     debit: Decimal = Decimal("0")
     credit: Decimal = Decimal("0")
@@ -47,8 +47,8 @@ class ReconciliationUpdate(BaseModel):
     biz_date: date | None = None
     biz_desc: str | None = Field(default=None, max_length=200)
     steel_grade: str | None = Field(default=None, max_length=50)
-    weight_ton: Decimal | None = None
-    pieces: int | None = None
+    quantity: Decimal | None = None
+    unit: str | None = Field(default=None, max_length=10)
     unit_price: Decimal | None = None
     debit: Decimal | None = None
     credit: Decimal | None = None

@@ -1,7 +1,16 @@
 -- ============================================================================
--- 汇隆特钢 · 会计数据库建表脚本 (v2.1 — 重构版)
+-- 汇隆特钢 · 会计数据库建表脚本 (v2.2 — 重构版)
 -- 数据库引擎: MySQL 8.0+ / MariaDB 10.5+
 -- 字符集: utf8mb4 (支持中文)
+--
+-- v2.2 变更 (2026-06-14):
+--   - 库存与单据统一为「数量(quantity) + 单位(unit)」计量，单位可取 吨/千克/支：
+--     · inventory: 去除 current_pieces，current_weight → current_quantity
+--     · inventory_log: 去除 *_pieces，*_weight → *_quantity，新增 unit 快照列
+--     · 明细行 (smelting_inbound/processing_outbound/processing_inbound/
+--       sales_order_item/party_reconciliation): 去除 pieces，weight_ton → quantity，新增 unit 列
+--     · alloy_addition: weight_kg → quantity (+unit, 默认千克)
+--   - 损耗类字段 (casting_loss_kg/saw_head_ton/loss_ton) 保持不变（物理损耗量，非计量数量）
 --
 -- v2.1 变更 (2026-06-13):
 --   - item 去除 spec/default_unit：物品为抽象定义，规格与单位归库存(inventory)
@@ -154,13 +163,13 @@ CREATE TABLE smelting_inbound (
     line_no         TINYINT UNSIGNED DEFAULT 1 COMMENT '同批次内行号',
     date            DATE          DEFAULT NULL COMMENT '来料日期 / 出料日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
-    weight_ton      DECIMAL(10,3) DEFAULT 0 COMMENT '重量 (吨)',
-    pieces          INT           DEFAULT NULL COMMENT '支数',
+    quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 300*12, 630*7 ...',
     furnace_no      VARCHAR(20)   DEFAULT NULL COMMENT '炉号 — 3-60-63',
     owner_id        BIGINT UNSIGNED DEFAULT NULL COMMENT '出钢入库归属；side=out 时必填，side=in 可空按订单 party',
-    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/吨) — 可选填,留空不计入费用',
-    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = weight_ton × unit_price',
+    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/单位) — 可选填,留空不计入费用',
+    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = quantity × unit_price',
     notes           TEXT          DEFAULT NULL,
 
     INDEX idx_order (order_id),
@@ -178,8 +187,9 @@ CREATE TABLE alloy_addition (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_id      BIGINT UNSIGNED NOT NULL,
     item_id       BIGINT UNSIGNED NOT NULL COMMENT '物品 (合金)',
-    weight_kg     DECIMAL(10,1) DEFAULT 0 COMMENT '重量 (kg)',
-    unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/kg)',
+    quantity      DECIMAL(10,1) DEFAULT 0 COMMENT '数量 (单位见 unit)',
+    unit          VARCHAR(10)   DEFAULT '千克' COMMENT '单位 (吨/千克/支)',
+    unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/单位)',
     amount        DECIMAL(12,2) DEFAULT NULL COMMENT '金额 (元)',
     notes         VARCHAR(100)  DEFAULT NULL,
 
@@ -242,11 +252,11 @@ CREATE TABLE processing_outbound (
     line_no         TINYINT UNSIGNED DEFAULT 1,
     out_date        DATE          DEFAULT NULL COMMENT '出库日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
-    weight_ton      DECIMAL(10,3) DEFAULT 0,
-    pieces          INT           DEFAULT NULL,
+    quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL,
-    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/吨) — 可选填,留空不计入费用',
-    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = weight_ton × unit_price',
+    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/单位) — 可选填,留空不计入费用',
+    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = quantity × unit_price',
     notes           TEXT          DEFAULT NULL COMMENT '委加工 / 母棒已退火 ...',
 
     INDEX idx_order (order_id),
@@ -264,11 +274,11 @@ CREATE TABLE processing_inbound (
     line_no         TINYINT UNSIGNED DEFAULT 1,
     in_date         DATE          DEFAULT NULL COMMENT '回厂日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
-    weight_ton      DECIMAL(10,3) DEFAULT 0,
-    pieces          INT           DEFAULT NULL,
+    quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL,
-    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/吨) — 可选填,留空不计入费用',
-    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = weight_ton × unit_price',
+    unit_price      DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/单位) — 可选填,留空不计入费用',
+    amount          DECIMAL(12,2) DEFAULT NULL COMMENT '金额 = quantity × unit_price',
     notes           TEXT          DEFAULT NULL COMMENT '红送金点 / 退火转荣畅 ...',
 
     INDEX idx_order (order_id),
@@ -372,10 +382,10 @@ CREATE TABLE sales_order_item (
     inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '销售选择的库存记录，完成时按此扣库',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (成品/半成品 — 从仓库库存选)',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 630, 150圆钢 ...',
-    weight_ton      DECIMAL(10,3) DEFAULT 0 COMMENT '发货重量 (吨)',
-    pieces          INT           DEFAULT NULL COMMENT '发货支数',
-    unit_price      DECIMAL(10,2) DEFAULT 0 COMMENT '单价 (元/吨)',
-    amount          DECIMAL(12,2) DEFAULT 0 COMMENT '金额 = weight_ton × unit_price',
+    quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '发货数量 (单位见 unit)',
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
+    unit_price      DECIMAL(10,2) DEFAULT 0 COMMENT '单价 (元/单位)',
+    amount          DECIMAL(12,2) DEFAULT 0 COMMENT '金额 = quantity × unit_price',
     notes           TEXT          DEFAULT NULL,
 
     INDEX idx_order (order_id),
@@ -457,14 +467,13 @@ CREATE TABLE inventory (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种/原料/合金) — 物品类型通过 JOIN item.item_type 读取，不在此表冗余',
     spec            VARCHAR(80)   NOT NULL DEFAULT '' COMMENT '规格 — 板子 / 圆钢150 / 630；空规格用空字符串，确保唯一索引生效',
-    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位',
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
 
     -- 归属：本厂也作为 party 记录，因此库存归属统一引用 party
     owner_id        BIGINT UNSIGNED NOT NULL COMMENT '归属单位ID：本厂/客户',
 
-    -- 当前数量
-    current_pieces  INT           DEFAULT 0 COMMENT '当前支数',
-    current_weight  DECIMAL(12,3) DEFAULT 0 COMMENT '当前重量 (吨/kg)',
+    -- 当前数量 (按 unit 计量；支=按支计数, 吨/千克=按重量)
+    current_quantity DECIMAL(12,3) DEFAULT 0 COMMENT '当前数量 (单位见 unit)',
 
     notes           TEXT          DEFAULT NULL,
     created_by      BIGINT UNSIGNED DEFAULT NULL,
@@ -504,16 +513,14 @@ CREATE TABLE inventory_log (
     change_type     ENUM('in','out','adjust','init','delete') NOT NULL
                     COMMENT 'in=入库 out=出库 adjust=盘点调整 init=初始录入 delete=库存项删除',
     change_date     DATE          NOT NULL,
+    unit            VARCHAR(10)   DEFAULT '吨' COMMENT '快照:单位 (吨/千克/支)',
 
     -- 变化量 (±)
-    delta_pieces    INT           DEFAULT 0,
-    delta_weight    DECIMAL(12,3) DEFAULT 0,
+    delta_quantity  DECIMAL(12,3) DEFAULT 0,
 
     -- 变化前后快照
-    before_pieces   INT           DEFAULT 0,
-    before_weight   DECIMAL(12,3) DEFAULT 0,
-    after_pieces    INT           DEFAULT 0,
-    after_weight    DECIMAL(12,3) DEFAULT 0,
+    before_quantity DECIMAL(12,3) DEFAULT 0,
+    after_quantity  DECIMAL(12,3) DEFAULT 0,
 
     -- 来源追踪
     ref_type        VARCHAR(30)   DEFAULT NULL COMMENT '关联业务表',
@@ -551,8 +558,8 @@ CREATE TABLE party_reconciliation (
     biz_date      DATE          DEFAULT NULL COMMENT '业务日期',
     biz_desc      VARCHAR(200)  DEFAULT NULL COMMENT '业务摘要',
     steel_grade   VARCHAR(50)   DEFAULT NULL COMMENT '钢种 (文字快照, 非FK)',
-    weight_ton    DECIMAL(10,3) DEFAULT 0,
-    pieces        INT           DEFAULT NULL,
+    quantity      DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
+    unit          VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '单价',
 
     -- 金额 (借贷)
@@ -681,9 +688,9 @@ SELECT
     so.tap_date,
     so.yield_pct,
     -- 投料汇总
-    (SELECT SUM(weight_ton) FROM smelting_inbound WHERE order_id = so.id AND side = 'in')  AS total_feed_ton,
+    (SELECT SUM(quantity) FROM smelting_inbound WHERE order_id = so.id AND side = 'in')  AS total_feed_ton,
     -- 出钢汇总
-    (SELECT SUM(weight_ton) FROM smelting_inbound WHERE order_id = so.id AND side = 'out') AS total_tap_ton,
+    (SELECT SUM(quantity) FROM smelting_inbound WHERE order_id = so.id AND side = 'out') AS total_tap_ton,
     -- 合金金额
     (SELECT SUM(amount) FROM alloy_addition WHERE order_id = so.id)                          AS total_alloy_amount
 FROM smelting_order so
@@ -697,8 +704,8 @@ SELECT
     oo.batch_no,
     p.name          AS party_name,
     oo.process_type,
-    (SELECT SUM(weight_ton) FROM processing_outbound WHERE order_id = oo.id) AS total_out_ton,
-    (SELECT SUM(weight_ton) FROM processing_inbound  WHERE order_id = oo.id) AS total_in_ton,
+    (SELECT SUM(quantity) FROM processing_outbound WHERE order_id = oo.id) AS total_out_ton,
+    (SELECT SUM(quantity) FROM processing_inbound  WHERE order_id = oo.id) AS total_in_ton,
     oo.yield_rate,
     oo.saw_head_ton,
     oo.loss_ton,
@@ -711,5 +718,5 @@ LEFT JOIN party p ON p.id = oo.party_id;
 -- ============================================================================
 -- 验证
 -- ============================================================================
-SELECT 'Database hltg_accounting v2.1 created successfully.' AS status;
+SELECT 'Database hltg_accounting v2.2 created successfully.' AS status;
 SHOW TABLES;

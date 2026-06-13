@@ -13,6 +13,7 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { DetailModal } from '../components/DetailModal'
 
 type ItemType = 'steel_grade' | 'raw_material' | 'alloy' | 'finished_product' | 'semi_finished' | 'scrap'
 
@@ -58,6 +59,7 @@ export function Items() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [editing, setEditing] = useState<Item | null>(null)
   const [open, setOpen] = useState(false)
+  const [detail, setDetail] = useState<Item | null>(null)
   const [form] = Form.useForm<FormValues>()
 
   const query = useQuery({
@@ -220,6 +222,7 @@ export function Items() {
         dataSource={query.data?.items}
         pagination={false}
         size="middle"
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={{
           selectedRowKeys: selectedIds,
           onChange: (keys) => setSelectedIds(keys as number[])
@@ -246,9 +249,12 @@ export function Items() {
           { title: '备注', dataIndex: 'notes', ellipsis: true },
           {
             title: '操作',
-            width: 160,
+            width: 220,
             render: (_, row) => (
               <Space size="small">
+                <Button size="small" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
                 <Button size="small" onClick={() => openEdit(row)}>
                   编辑
                 </Button>
@@ -321,6 +327,22 @@ export function Items() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `物品 ${detail.name}` : ''}
+        fields={
+          detail
+            ? [
+                { label: '名称', value: detail.name },
+                { label: '类型', value: typeLabels[detail.item_type] },
+                { label: '状态', value: detail.is_active ? '启用' : '停用' },
+                { label: '备注', value: detail.notes, span: 2 }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

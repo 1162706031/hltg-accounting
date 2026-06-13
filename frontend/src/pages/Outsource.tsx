@@ -5,8 +5,9 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
+import { DetailModal } from '../components/DetailModal'
 import { useAuth } from '../utils/AuthContext'
-import { itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface OutsourceOrder {
@@ -41,6 +42,7 @@ export function Outsource() {
   const [typeFilter, setTypeFilter] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -61,6 +63,12 @@ export function Outsource() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['outsource'] })
   const onError = (e: any) => message.error(e.response?.data?.detail ?? '操作失败')
+
+  const detailQuery = useQuery({
+    queryKey: ['outsource', 'detail', detailId],
+    enabled: detailId !== null,
+    queryFn: async () => (await api.get<OutsourceOrder>(`/outsource-orders/${detailId}`)).data
+  })
 
   const save = useMutation({
     mutationFn: async (values: any) => {
@@ -105,16 +113,16 @@ export function Outsource() {
         out_date: l.out_date ? dayjs(l.out_date) : null,
         item_id: l.item_id,
         spec: l.spec,
-        weight_ton: Number(l.weight_ton),
-        pieces: l.pieces,
+        quantity: Number(l.quantity),
+        unit: l.unit ?? '吨',
         unit_price: l.unit_price ? Number(l.unit_price) : null
       })),
       inbound_lines: d.inbound_lines.map((l) => ({
         in_date: l.in_date ? dayjs(l.in_date) : null,
         item_id: l.item_id,
         spec: l.spec,
-        weight_ton: Number(l.weight_ton),
-        pieces: l.pieces,
+        quantity: Number(l.quantity),
+        unit: l.unit ?? '吨',
         unit_price: l.unit_price ? Number(l.unit_price) : null
       }))
     })
@@ -136,16 +144,16 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'spec']} label="规格">
                 <Input style={{ width: 90 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'weight_ton']} label="重量(吨)">
-                <InputNumber style={{ width: 90 }} min={0} />
+              <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
+                <InputNumber style={{ width: 90 }} min={0} step={0.001} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'pieces']} label="支数">
-                <InputNumber style={{ width: 70 }} min={0} />
+              <Form.Item {...field} name={[field.name, 'unit']} label="单位">
+                <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
               </Form.Item>
               <MinusCircleOutlined onClick={() => remove(field.name)} />
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ weight_ton: 0 })} icon={<PlusOutlined />}>
+          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
             添加行
           </Button>
         </div>
@@ -172,6 +180,7 @@ export function Outsource() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },
           { title: '工艺', dataIndex: 'process_type', render: (v) => PROCESS_OPTIONS.find((o) => o.value === v)?.label ?? v },
@@ -179,18 +188,24 @@ export function Outsource() {
           { title: '成材率', dataIndex: 'yield_rate', render: (v) => (v ? `${(Number(v) * 100).toFixed(2)}%` : '—') },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 280,
+            width: 340,
             render: (_, row) => (
-              <OrderActions
-                resource="outsource-orders"
-                orderId={row.id}
-                status={row.status}
-                role={user?.role}
-                invalidateKey="outsource"
-                onEdit={() => openEdit(row)}
-              />
+              <Space size="small">
+                <Button size="small" onClick={() => setDetailId(row.id)}>
+                  查看
+                </Button>
+                <OrderActions
+                  resource="outsource-orders"
+                  orderId={row.id}
+                  status={row.status}
+                  role={user?.role}
+                  invalidateKey="outsource"
+                  onEdit={() => openEdit(row)}
+                />
+              </Space>
             )
           }
         ]}
@@ -243,6 +258,66 @@ export function Outsource() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={detailId !== null}
+        onClose={() => setDetailId(null)}
+        loading={detailQuery.isLoading}
+        title={detailQuery.data ? `外协单 ${detailQuery.data.batch_no}` : '外协单详情'}
+        width={860}
+        fields={
+          detailQuery.data
+            ? [
+                { label: '批次号', value: detailQuery.data.batch_no },
+                {
+                  label: '工艺',
+                  value: PROCESS_OPTIONS.find((o) => o.value === detailQuery.data!.process_type)?.label
+                },
+                { label: '外协厂', value: detailQuery.data.party?.name },
+                {
+                  label: '成材率',
+                  value:
+                    detailQuery.data.yield_rate != null
+                      ? `${(Number(detailQuery.data.yield_rate) * 100).toFixed(2)}%`
+                      : '—'
+                },
+                { label: '加工单价', value: detailQuery.data.unit_price },
+                { label: '税率', value: detailQuery.data.tax_rate != null ? `${detailQuery.data.tax_rate}%` : '—' },
+                { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
+                { label: '合计', value: detailQuery.data.total_amount },
+                { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
+                { label: '备注', value: detailQuery.data.notes, span: 2 }
+              ]
+            : []
+        }
+        tables={
+          detailQuery.data
+            ? [
+                {
+                  title: '发出',
+                  rowKey: 'id',
+                  dataSource: detailQuery.data.outbound_lines ?? [],
+                  columns: outsourceLineColumns
+                },
+                {
+                  title: '回厂',
+                  rowKey: 'id',
+                  dataSource: detailQuery.data.inbound_lines ?? [],
+                  columns: outsourceLineColumns
+                }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }
+
+const outsourceLineColumns = [
+  { title: '钢种', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
+  { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
+  { title: '数量', dataIndex: 'quantity', align: 'right' as const },
+  { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' }
+]

@@ -22,8 +22,7 @@ export interface InventoryStockOption {
   item_id: number | null
   spec: string | null
   unit: string
-  current_pieces: number
-  current_weight: string
+  current_quantity: string
   item?: { id: number; name: string; item_type: string } | null
   owner?: { id: number; name: string } | null
 }
@@ -65,7 +64,7 @@ export function inventoryStockOptions(rows?: InventoryStockOption[]) {
     const parts = [r.item?.name ?? '未知物品']
     if (r.spec) parts.push(r.spec)
     const owner = r.owner?.name ? `（${r.owner.name}）` : ''
-    const balance = `结余 ${r.current_pieces}支/${r.current_weight}${r.unit}`
+    const balance = `结余 ${r.current_quantity}${r.unit}`
     return { value: r.id, label: `${parts.join(' · ')}${owner} ${balance}` }
   })
 }
@@ -81,5 +80,7 @@ export function itemOptions(items?: ItemOption[]) {
 /** 统一的单位下拉选项（中文）。 */
 export const UNIT_OPTIONS = [
   { value: '吨', label: '吨' },
-  { value: '千克', label: '千克' }
+  { value: '千克', label: '千克' },
+  { value: '支', label: '支' },
+  { value: '个', label: '个' }
 ]

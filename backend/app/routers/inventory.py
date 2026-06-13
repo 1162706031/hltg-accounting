@@ -31,7 +31,7 @@ router = APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depend
 
 def inventory_delete_reason(inventory: Inventory) -> str | None:
     """返回库存项不可删除的原因；None 表示可删。"""
-    if inventory.current_pieces != 0 or inventory.current_weight != 0:
+    if inventory.current_quantity != 0:
         return "该库存项仍有结余，请先出库清空后再删除"
     return None
 
@@ -60,7 +60,7 @@ async def list_inventory(
     if q:
         stmt = stmt.where(Item.name.like(f"%{q}%") | Inventory.spec.like(f"%{q}%"))
     if only_positive:
-        stmt = stmt.where((Inventory.current_pieces > 0) | (Inventory.current_weight > 0))
+        stmt = stmt.where(Inventory.current_quantity > 0)
     return await paginate_inventory(db, stmt, page, page_size)
 
 

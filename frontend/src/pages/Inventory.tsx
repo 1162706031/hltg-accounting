@@ -15,6 +15,7 @@ import {
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { ItemOption, PartyOption, UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 
@@ -24,8 +25,8 @@ interface InventoryRow {
   spec: string | null
   unit: string
   owner_id: number
-  current_pieces: number
-  current_weight: string
+  current_quantity: string
+  notes?: string | null
   item?: { id: number; name: string; item_type: string } | null
   owner?: { id: number; name: string } | null
 }
@@ -52,8 +53,7 @@ interface InForm {
   owner_id: number
   spec?: string
   unit: string
-  pieces: number
-  weight: number
+  quantity: number
   change_date: Dayjs
   notes?: string
 }
@@ -68,6 +68,7 @@ export function Inventory() {
   const [inOpen, setInOpen] = useState(false)
   const [outTarget, setOutTarget] = useState<InventoryRow | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<InventoryRow | null>(null)
+  const [detail, setDetail] = useState<InventoryRow | null>(null)
 
   const partiesQ = useParties()
   const partyList: PartyOption[] = partiesQ.data ?? []
@@ -112,7 +113,7 @@ export function Inventory() {
   })
 
   const stockOutMut = useMutation({
-    mutationFn: async ({ id, ...v }: { id: number; pieces: number; weight: number; change_date: Dayjs; notes?: string }) =>
+    mutationFn: async ({ id, ...v }: { id: number; quantity: number; change_date: Dayjs; notes?: string }) =>
       (
         await api.post(`/inventory/${id}/out`, {
           ...v,
@@ -129,7 +130,7 @@ export function Inventory() {
   })
 
   const adjustMut = useMutation({
-    mutationFn: async ({ id, ...v }: { id: number; actual_pieces: number; actual_weight: number; change_date: Dayjs; notes?: string }) =>
+    mutationFn: async ({ id, ...v }: { id: number; actual_quantity: number; change_date: Dayjs; notes?: string }) =>
       (
         await api.post(`/inventory/${id}/adjust`, {
           ...v,
@@ -204,6 +205,7 @@ export function Inventory() {
         loading={list.isLoading}
         dataSource={list.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={{
           selectedRowKeys: selected,
           onChange: (keys) => setSelected(keys as number[])
@@ -224,18 +226,21 @@ export function Inventory() {
           { title: '物品', render: (_, row) => row.item?.name ?? '-' },
           { title: '规格', dataIndex: 'spec' },
           { title: '归属', render: (_, row) => row.owner?.name ?? '-' },
-          { title: '支数', dataIndex: 'current_pieces' },
-          { title: '重量', dataIndex: 'current_weight' },
+          { title: '数量', dataIndex: 'current_quantity' },
           { title: '单位', dataIndex: 'unit', width: 70 },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 200,
+            width: 260,
             render: (_, row) => (
               <Space>
+                <Button size="small" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
                 <Button
                   size="small"
                   onClick={() => setOutTarget(row)}
-                  disabled={row.current_pieces === 0 && Number(row.current_weight) === 0}
+                  disabled={Number(row.current_quantity) === 0}
                 >
                   出库
                 </Button>
@@ -283,13 +288,34 @@ export function Inventory() {
         onSubmit={(v) =>
           adjustMut.mutate({
             id: adjustTarget!.id,
-            actual_pieces: v.actual_pieces as number,
-            actual_weight: v.actual_weight as number,
+            actual_quantity: v.actual_quantity as number,
             change_date: v.change_date,
             notes: v.notes
           })
         }
         submitting={adjustMut.isPending}
+      />
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `库存 ${detail.item?.name ?? ''}` : ''}
+        fields={
+          detail
+            ? [
+                {
+                  label: '类型',
+                  value: detail.item ? itemTypeLabels[detail.item.item_type] ?? detail.item.item_type : '—'
+                },
+                { label: '物品', value: detail.item?.name },
+                { label: '规格', value: detail.spec },
+                { label: '归属', value: detail.owner?.name },
+                { label: '数量', value: detail.current_quantity },
+                { label: '单位', value: detail.unit },
+                { label: '备注', value: detail.notes, span: 2 }
+              ]
+            : []
+        }
       />
     </div>
   )
@@ -311,7 +337,7 @@ function InFormModal({
     <Form
       form={form}
       layout="vertical"
-      initialValues={{ unit: '吨', pieces: 0, weight: 0, change_date: dayjs() }}
+      initialValues={{ unit: '吨', quantity: 0, change_date: dayjs() }}
       onFinish={(v) => onSubmit(v)}
     >
       <Form.Item name="item_id" label="物品" rules={[{ required: true, message: '请选择物品' }]}>
@@ -323,14 +349,11 @@ function InFormModal({
       <Form.Item name="spec" label="规格">
         <Input />
       </Form.Item>
-      <Form.Item name="unit" label="单位" rules={[{ required: true }]}>
-        <Select options={UNIT_OPTIONS} style={{ width: 120 }} placeholder="选择单位" />
-      </Form.Item>
       <Space>
-        <Form.Item name="pieces" label="入库支数">
-          <InputNumber min={0} style={{ width: 120 }} />
+        <Form.Item name="unit" label="单位" rules={[{ required: true }]}>
+          <Select options={UNIT_OPTIONS} style={{ width: 120 }} placeholder="选择单位" />
         </Form.Item>
-        <Form.Item name="weight" label="入库重量">
+        <Form.Item name="quantity" label="入库数量" rules={[{ required: true }]}>
           <InputNumber min={0} step={0.001} style={{ width: 160 }} />
         </Form.Item>
       </Space>
@@ -377,7 +400,7 @@ function OutAdjustModal({
       width={480}
     >
       <div style={{ background: '#f5f7fb', padding: 12, borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
-        当前库存：<b>{target.current_pieces}</b> 支 / <b>{target.current_weight}</b> {target.unit} · 归属：
+        当前库存：<b>{target.current_quantity}</b> {target.unit} · 归属：
         {target.owner?.name ?? '-'}
       </div>
       <Form
@@ -385,29 +408,19 @@ function OutAdjustModal({
         layout="vertical"
         initialValues={
           isAdjust
-            ? { change_date: dayjs(), actual_pieces: target.current_pieces, actual_weight: Number(target.current_weight) }
-            : { change_date: dayjs(), pieces: 0, weight: 0 }
+            ? { change_date: dayjs(), actual_quantity: Number(target.current_quantity) }
+            : { change_date: dayjs(), quantity: 0 }
         }
         onFinish={onSubmit}
       >
         {isAdjust ? (
-          <Space size="large">
-            <Form.Item name="actual_pieces" label="实际支数">
-              <InputNumber min={0} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="actual_weight" label="实际重量">
-              <InputNumber min={0} step={0.001} style={{ width: 160 }} />
-            </Form.Item>
-          </Space>
+          <Form.Item name="actual_quantity" label={`实际数量（${target.unit}）`}>
+            <InputNumber min={0} step={0.001} style={{ width: 200 }} />
+          </Form.Item>
         ) : (
-          <Space size="large">
-            <Form.Item name="pieces" label={`出库支数（≤ ${target.current_pieces}）`}>
-              <InputNumber min={0} max={target.current_pieces} style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="weight" label={`出库重量（≤ ${target.current_weight}）`}>
-              <InputNumber min={0} max={Number(target.current_weight)} step={0.001} style={{ width: 200 }} />
-            </Form.Item>
-          </Space>
+          <Form.Item name="quantity" label={`出库数量（≤ ${target.current_quantity} ${target.unit}）`}>
+            <InputNumber min={0} max={Number(target.current_quantity)} step={0.001} style={{ width: 240 }} />
+          </Form.Item>
         )}
         <Form.Item name="change_date" label={isAdjust ? '盘点日期' : '出库日期'} rules={[{ required: true }]}>
           <DatePicker style={{ width: '100%' }} />

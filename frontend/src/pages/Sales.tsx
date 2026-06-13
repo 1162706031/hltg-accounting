@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
+import { DetailModal } from '../components/DetailModal'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
 import {
@@ -22,11 +23,12 @@ interface SalesItem {
   inventory_id?: number | null
   item_id?: number | null
   spec?: string | null
-  weight_ton: string
-  pieces?: number | null
+  quantity: string
+  unit?: string
   unit_price: string
   amount: string
   notes?: string | null
+  item?: { id: number; name: string } | null
 }
 
 interface SalesOrder {
@@ -50,6 +52,7 @@ export function Sales() {
   const [statusFilter, setStatusFilter] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const [form] = Form.useForm()
   const parties = useParties()
   const stock = useInventoryStock()
@@ -64,6 +67,12 @@ export function Sales() {
           params: { page_size: 100, ...(statusFilter ? { status: statusFilter } : {}) }
         })
       ).data
+  })
+
+  const detailQuery = useQuery({
+    queryKey: ['sales', 'detail', detailId],
+    enabled: detailId !== null,
+    queryFn: async () => (await api.get<SalesOrder>(`/sales-orders/${detailId}`)).data
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales'] })
@@ -92,7 +101,7 @@ export function Sales() {
     setCreating(true)
     setEditingId(null)
     form.resetFields()
-    form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [{ line_no: 1, weight_ton: 0, unit_price: 0 }] })
+    form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [{ line_no: 1, quantity: 0, unit_price: 0 }] })
   }
 
   const openEdit = async (row: SalesOrder) => {
@@ -110,8 +119,8 @@ export function Sales() {
         inventory_id: it.inventory_id,
         item_id: it.item_id,
         spec: it.spec,
-        weight_ton: Number(it.weight_ton),
-        pieces: it.pieces,
+        quantity: Number(it.quantity),
+        unit: it.unit,
         unit_price: Number(it.unit_price),
         notes: it.notes
       }))
@@ -135,24 +144,31 @@ export function Sales() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={false}
+        onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },
           { title: '客户', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
           { title: '发货日期', dataIndex: 'ship_date', render: (v) => v ?? '—' },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 280,
+            width: 340,
             render: (_, row) => (
-              <OrderActions
-                resource="sales-orders"
-                orderId={row.id}
-                status={row.status}
-                role={user?.role}
-                invalidateKey="sales"
-                onEdit={() => openEdit(row)}
-              />
+              <Space size="small">
+                <Button size="small" onClick={() => setDetailId(row.id)}>
+                  查看
+                </Button>
+                <OrderActions
+                  resource="sales-orders"
+                  orderId={row.id}
+                  status={row.status}
+                  role={user?.role}
+                  invalidateKey="sales"
+                  onEdit={() => openEdit(row)}
+                />
+              </Space>
             )
           }
         ]}
@@ -205,11 +221,14 @@ export function Sales() {
                 <div style={{ fontWeight: 600 }}>销售明细（从库房现存中选择，完成时按所选库存项扣库）</div>
                 {fields.map((field) => (
                   <Space key={field.key} align="baseline" wrap>
-                    {/* item_id / spec 由所选库存项自动带出，隐藏存储用于提交 */}
+                    {/* item_id / spec / unit 由所选库存项自动带出，隐藏存储用于提交 */}
                     <Form.Item {...field} name={[field.name, 'item_id']} hidden>
                       <Input />
                     </Form.Item>
                     <Form.Item {...field} name={[field.name, 'spec']} hidden>
+                      <Input />
+                    </Form.Item>
+                    <Form.Item {...field} name={[field.name, 'unit']} hidden>
                       <Input />
                     </Form.Item>
                     <Form.Item
@@ -228,16 +247,13 @@ export function Sales() {
                           const inv = stockById.get(invId)
                           form.setFieldValue(['items', field.name, 'item_id'], inv?.item_id ?? null)
                           form.setFieldValue(['items', field.name, 'spec'], inv?.spec ?? null)
-                          // 切换库存项后，把超出新结余的重量/支数收敛到上限
+                          form.setFieldValue(['items', field.name, 'unit'], inv?.unit ?? '吨')
+                          // 切换库存项后，把超出新结余的数量收敛到上限
                           if (inv) {
-                            const maxWeight = Number(inv.current_weight)
-                            const curWeight = form.getFieldValue(['items', field.name, 'weight_ton'])
-                            if (Number(curWeight) > maxWeight) {
-                              form.setFieldValue(['items', field.name, 'weight_ton'], maxWeight)
-                            }
-                            const curPieces = form.getFieldValue(['items', field.name, 'pieces'])
-                            if (Number(curPieces) > inv.current_pieces) {
-                              form.setFieldValue(['items', field.name, 'pieces'], inv.current_pieces)
+                            const maxQty = Number(inv.current_quantity)
+                            const curQty = form.getFieldValue(['items', field.name, 'quantity'])
+                            if (Number(curQty) > maxQty) {
+                              form.setFieldValue(['items', field.name, 'quantity'], maxQty)
                             }
                           }
                         }}
@@ -251,42 +267,25 @@ export function Sales() {
                     >
                       {({ getFieldValue }) => {
                         const inv = stockById.get(getFieldValue(['items', field.name, 'inventory_id']))
-                        const maxWeight = inv ? Number(inv.current_weight) : undefined
-                        const maxPieces = inv ? inv.current_pieces : undefined
+                        const maxQty = inv ? Number(inv.current_quantity) : undefined
+                        const unit = inv?.unit ?? ''
                         return (
-                          <Space align="baseline">
-                            <Form.Item
-                              {...field}
-                              name={[field.name, 'weight_ton']}
-                              label={maxWeight != null ? `重量(吨，≤${maxWeight})` : '重量(吨)'}
-                              rules={[
-                                { required: true },
-                                {
-                                  validator: (_, v) =>
-                                    maxWeight != null && Number(v) > maxWeight
-                                      ? Promise.reject(new Error(`不能超过结余 ${maxWeight}`))
-                                      : Promise.resolve()
-                                }
-                              ]}
-                            >
-                              <InputNumber style={{ width: 130 }} min={0} max={maxWeight} step={0.001} />
-                            </Form.Item>
-                            <Form.Item
-                              {...field}
-                              name={[field.name, 'pieces']}
-                              label={maxPieces != null ? `支数(≤${maxPieces})` : '支数'}
-                              rules={[
-                                {
-                                  validator: (_, v) =>
-                                    maxPieces != null && Number(v) > maxPieces
-                                      ? Promise.reject(new Error(`不能超过结余 ${maxPieces}`))
-                                      : Promise.resolve()
-                                }
-                              ]}
-                            >
-                              <InputNumber style={{ width: 110 }} min={0} max={maxPieces} />
-                            </Form.Item>
-                          </Space>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, 'quantity']}
+                            label={maxQty != null ? `数量(${unit}，≤${maxQty})` : '数量'}
+                            rules={[
+                              { required: true },
+                              {
+                                validator: (_, v) =>
+                                  maxQty != null && Number(v) > maxQty
+                                    ? Promise.reject(new Error(`不能超过结余 ${maxQty}`))
+                                    : Promise.resolve()
+                              }
+                            ]}
+                          >
+                            <InputNumber style={{ width: 150 }} min={0} max={maxQty} step={0.001} />
+                          </Form.Item>
                         )
                       }}
                     </Form.Item>
@@ -296,7 +295,7 @@ export function Sales() {
                     <MinusCircleOutlined onClick={() => remove(field.name)} />
                   </Space>
                 ))}
-                <Button type="dashed" onClick={() => add({ weight_ton: 0, unit_price: 0 })} icon={<PlusOutlined />}>
+                <Button type="dashed" onClick={() => add({ quantity: 0, unit_price: 0 })} icon={<PlusOutlined />}>
                   添加明细
                 </Button>
               </div>
@@ -308,6 +307,46 @@ export function Sales() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={detailId !== null}
+        onClose={() => setDetailId(null)}
+        loading={detailQuery.isLoading}
+        title={detailQuery.data ? `销售单 ${detailQuery.data.batch_no}` : '销售单详情'}
+        fields={
+          detailQuery.data
+            ? [
+                { label: '批次号', value: detailQuery.data.batch_no },
+                { label: '客户', value: detailQuery.data.party?.name },
+                { label: '发货日期', value: detailQuery.data.ship_date },
+                { label: '税率', value: detailQuery.data.tax_rate != null ? `${detailQuery.data.tax_rate}%` : '—' },
+                { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
+                { label: '合计', value: detailQuery.data.total_amount },
+                { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
+                { label: '备注', value: detailQuery.data.notes, span: 2 }
+              ]
+            : []
+        }
+        tables={
+          detailQuery.data
+            ? [
+                {
+                  title: '销售明细',
+                  dataSource: detailQuery.data.items ?? [],
+                  rowKey: 'line_no',
+                  columns: [
+                    { title: '物品', render: (_: any, r: SalesItem) => r.item?.name ?? r.spec ?? '—' },
+                    { title: '数量', dataIndex: 'quantity', align: 'right' },
+                    { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+                    { title: '单价', dataIndex: 'unit_price', align: 'right' },
+                    { title: '金额', dataIndex: 'amount', align: 'right' },
+                    { title: '备注', dataIndex: 'notes', render: (v: string) => v ?? '—' }
+                  ]
+                }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

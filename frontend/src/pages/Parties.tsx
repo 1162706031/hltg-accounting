@@ -15,6 +15,7 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { DetailModal } from '../components/DetailModal'
 
 type RoleKey = 'is_internal' | 'is_customer' | 'is_supplier' | 'is_processor'
 
@@ -166,6 +167,7 @@ export function Parties() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [editing, setEditing] = useState<Party | null>(null)
   const [open, setOpen] = useState(false)
+  const [detail, setDetail] = useState<Party | null>(null)
   const [form] = Form.useForm<FormValues>()
 
   const query = useQuery({
@@ -326,6 +328,7 @@ export function Parties() {
         dataSource={query.data?.items}
         pagination={false}
         size="middle"
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={{
           selectedRowKeys: selectedIds,
           onChange: (keys) => setSelectedIds(keys as number[])
@@ -373,9 +376,12 @@ export function Parties() {
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v || '—' },
           {
             title: '操作',
-            width: 140,
+            width: 200,
             render: (_, row) => (
               <Space size="small">
+                <Button size="small" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
                 <Button size="small" onClick={() => openEdit(row)}>
                   编辑
                 </Button>
@@ -472,6 +478,29 @@ export function Parties() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `往来单位 ${detail.name}` : ''}
+        fields={
+          detail
+            ? [
+                { label: '名称', value: detail.name },
+                { label: '简称', value: detail.short_name },
+                {
+                  label: '角色',
+                  value: ROLES.filter((r) => detail[r.key]).map((r) => r.label).join('、') || '—',
+                  span: 2
+                },
+                { label: '联系人', value: detail.contact },
+                { label: '电话', value: detail.phone },
+                { label: '地址', value: detail.address, span: 2 },
+                { label: '备注', value: detail.notes, span: 2 }
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

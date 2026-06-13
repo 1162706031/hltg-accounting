@@ -48,8 +48,7 @@ async def rollback_inventory_by_ref(db: AsyncSession, *, ref_type: str, ref_id: 
         inv = await db.get(Inventory, log.inventory_id, with_for_update=True)
         if inv is None:
             continue
-        inv.current_pieces -= log.delta_pieces
-        inv.current_weight -= log.delta_weight
+        inv.current_quantity -= log.delta_quantity
     await db.execute(delete(InventoryLog).where(InventoryLog.ref_type == ref_type, InventoryLog.ref_id == ref_id))
     await db.flush()
 

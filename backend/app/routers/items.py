@@ -57,10 +57,7 @@ async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | No
         return "该物品正在加工订单中使用，无法操作"
 
     inv_balance = await db.scalar(
-        select(
-            func.coalesce(func.sum(Inventory.current_pieces), 0)
-            + func.coalesce(func.sum(Inventory.current_weight), 0)
-        ).where(Inventory.item_id == item_id)
+        select(func.coalesce(func.sum(Inventory.current_quantity), 0)).where(Inventory.item_id == item_id)
     )
     if inv_balance and float(inv_balance) > 0:
         return "该物品仍有库存，请先出库清空后再操作"

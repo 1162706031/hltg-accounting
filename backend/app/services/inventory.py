@@ -72,8 +72,7 @@ async def find_or_create_inventory(
         owner_id=owner_id,
         spec=_normalize_spec(spec),
         unit=unit,
-        current_pieces=0,
-        current_weight=Decimal("0"),
+        current_quantity=Decimal("0"),
         created_by=created_by,
     )
     db.add(inventory)
@@ -88,16 +87,15 @@ async def stock_in(
     owner_id: int,
     spec: str | None,
     unit: str,
-    pieces: int,
-    weight: Decimal,
+    quantity: Decimal,
     change_date: date,
     notes: str | None,
     ref_type: str | None,
     ref_id: int | None,
     created_by: int | None,
 ) -> Inventory:
-    if pieces == 0 and weight == 0:
-        raise HTTPException(status_code=400, detail="入库支数和重量不能同时为 0")
+    if quantity == 0:
+        raise HTTPException(status_code=400, detail="入库数量不能为 0")
 
     inventory = await find_or_create_inventory(
         db,
@@ -107,10 +105,8 @@ async def stock_in(
         unit=unit,
         created_by=created_by,
     )
-    before_pieces = inventory.current_pieces
-    before_weight = inventory.current_weight
-    inventory.current_pieces += pieces
-    inventory.current_weight += weight
+    before_quantity = inventory.current_quantity
+    inventory.current_quantity += quantity
 
     db.add(
         InventoryLog(
@@ -118,12 +114,10 @@ async def stock_in(
             **await _snapshot(db, inventory, created_by),
             change_type="in",
             change_date=change_date,
-            delta_pieces=pieces,
-            delta_weight=weight,
-            before_pieces=before_pieces,
-            before_weight=before_weight,
-            after_pieces=inventory.current_pieces,
-            after_weight=inventory.current_weight,
+            unit=inventory.unit,
+            delta_quantity=quantity,
+            before_quantity=before_quantity,
+            after_quantity=inventory.current_quantity,
             ref_type=ref_type,
             ref_id=ref_id,
             notes=notes,
@@ -138,23 +132,21 @@ async def stock_out(
     db: AsyncSession,
     *,
     inventory_id: int,
-    pieces: int,
-    weight: Decimal,
+    quantity: Decimal,
     change_date: date,
     notes: str | None,
     ref_type: str | None,
     ref_id: int | None,
     created_by: int | None,
 ) -> Inventory:
-    if pieces == 0 and weight == 0:
-        raise HTTPException(status_code=400, detail="出库支数和重量不能同时为 0")
+    if quantity == 0:
+        raise HTTPException(status_code=400, detail="出库数量不能为 0")
 
     inventory = await get_inventory_for_update(db, inventory_id)
     return await stock_out_inventory_obj(
         db,
         inventory=inventory,
-        pieces=pieces,
-        weight=weight,
+        quantity=quantity,
         change_date=change_date,
         notes=notes,
         ref_type=ref_type,
@@ -167,8 +159,7 @@ async def stock_out_inventory_obj(
     db: AsyncSession,
     *,
     inventory: Inventory,
-    pieces: int,
-    weight: Decimal,
+    quantity: Decimal,
     change_date: date,
     notes: str | None,
     ref_type: str | None,
@@ -176,13 +167,11 @@ async def stock_out_inventory_obj(
     created_by: int | None,
 ) -> Inventory:
     """对已加锁的库存对象执行出库。调用方须确保 inventory 已通过 with_for_update 加锁。"""
-    if inventory.current_pieces < pieces or inventory.current_weight < weight:
+    if inventory.current_quantity < quantity:
         raise HTTPException(status_code=409, detail="库存不足")
 
-    before_pieces = inventory.current_pieces
-    before_weight = inventory.current_weight
-    inventory.current_pieces -= pieces
-    inventory.current_weight -= weight
+    before_quantity = inventory.current_quantity
+    inventory.current_quantity -= quantity
 
     db.add(
         InventoryLog(
@@ -190,12 +179,10 @@ async def stock_out_inventory_obj(
             **await _snapshot(db, inventory, created_by),
             change_type="out",
             change_date=change_date,
-            delta_pieces=-pieces,
-            delta_weight=-weight,
-            before_pieces=before_pieces,
-            before_weight=before_weight,
-            after_pieces=inventory.current_pieces,
-            after_weight=inventory.current_weight,
+            unit=inventory.unit,
+            delta_quantity=-quantity,
+            before_quantity=before_quantity,
+            after_quantity=inventory.current_quantity,
             ref_type=ref_type,
             ref_id=ref_id,
             notes=notes,
@@ -210,18 +197,15 @@ async def stock_adjust(
     db: AsyncSession,
     *,
     inventory_id: int,
-    actual_pieces: int,
-    actual_weight: Decimal,
+    actual_quantity: Decimal,
     change_date: date,
     notes: str | None,
     created_by: int | None,
 ) -> Inventory:
     inventory = await get_inventory_for_update(db, inventory_id)
-    before_pieces = inventory.current_pieces
-    before_weight = inventory.current_weight
+    before_quantity = inventory.current_quantity
 
-    inventory.current_pieces = actual_pieces
-    inventory.current_weight = actual_weight
+    inventory.current_quantity = actual_quantity
 
     db.add(
         InventoryLog(
@@ -229,12 +213,10 @@ async def stock_adjust(
             **await _snapshot(db, inventory, created_by),
             change_type="adjust",
             change_date=change_date,
-            delta_pieces=actual_pieces - before_pieces,
-            delta_weight=actual_weight - before_weight,
-            before_pieces=before_pieces,
-            before_weight=before_weight,
-            after_pieces=actual_pieces,
-            after_weight=actual_weight,
+            unit=inventory.unit,
+            delta_quantity=actual_quantity - before_quantity,
+            before_quantity=before_quantity,
+            after_quantity=actual_quantity,
             notes=notes,
             created_by=created_by,
         )
@@ -265,12 +247,10 @@ async def delete_inventory_with_log(
             **await _snapshot(db, inventory, created_by),
             change_type="delete",
             change_date=change_date,
-            delta_pieces=0,
-            delta_weight=Decimal("0"),
-            before_pieces=inventory.current_pieces,
-            before_weight=inventory.current_weight,
-            after_pieces=0,
-            after_weight=Decimal("0"),
+            unit=inventory.unit,
+            delta_quantity=Decimal("0"),
+            before_quantity=inventory.current_quantity,
+            after_quantity=Decimal("0"),
             notes="库存项删除",
             created_by=created_by,
         )
