@@ -2,17 +2,39 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Inventory, InventoryLog
 from app.models.item import Item
 from app.models.party import Party
+from app.models.user import User
 
 
 def _normalize_spec(spec: str | None) -> str:
     return spec or ""
+
+
+async def _snapshot(db: AsyncSession, inventory: Inventory, created_by: int | None) -> dict[str, str | None]:
+    """读取写入日志所需的快照信息（物品名/类型、归属名、操作人名）。
+
+    日志行自包含，写入时即固化这些信息，之后不依赖任何表。
+    """
+    item_name = await db.scalar(select(Item.name).where(Item.id == inventory.item_id))
+    item_type = await db.scalar(select(Item.item_type).where(Item.id == inventory.item_id))
+    owner_name = await db.scalar(select(Party.name).where(Party.id == inventory.owner_id))
+    operator_name = (
+        await db.scalar(select(User.real_name).where(User.id == created_by)) if created_by else None
+    )
+    return {
+        "item_id": inventory.item_id,
+        "item_name": item_name,
+        "item_spec": inventory.spec,
+        "item_type": item_type,
+        "owner_name": owner_name,
+        "operator_name": operator_name,
+    }
 
 
 async def get_inventory_for_update(db: AsyncSession, inventory_id: int) -> Inventory:
@@ -93,6 +115,7 @@ async def stock_in(
     db.add(
         InventoryLog(
             inventory_id=inventory.id,
+            **await _snapshot(db, inventory, created_by),
             change_type="in",
             change_date=change_date,
             delta_pieces=pieces,
@@ -164,6 +187,7 @@ async def stock_out_inventory_obj(
     db.add(
         InventoryLog(
             inventory_id=inventory.id,
+            **await _snapshot(db, inventory, created_by),
             change_type="out",
             change_date=change_date,
             delta_pieces=-pieces,
@@ -202,6 +226,7 @@ async def stock_adjust(
     db.add(
         InventoryLog(
             inventory_id=inventory.id,
+            **await _snapshot(db, inventory, created_by),
             change_type="adjust",
             change_date=change_date,
             delta_pieces=actual_pieces - before_pieces,
@@ -229,36 +254,15 @@ async def delete_inventory_with_log(
     change_date: date,
     created_by: int | None,
 ) -> None:
-    """删除库存项，同时保留其历史变动日志并追加一条删除日志。
+    """删除库存项，并追加一条自包含的删除日志。
 
-    库存行删除后，日志查询无法再 JOIN 出物品/归属信息，因此先把这些信息
-    以快照形式回填到该库存的所有历史日志，再写一条 change_type='delete' 的
-    日志，最后将日志的 inventory_id 解绑（置空）并删除库存行。
+    日志表独立自治：删除日志写入时即固化物品/归属/操作人快照，因此可以
+    直接删除库存行而无需保留外键或回填——历史日志不受影响。
     """
-    item_name = await db.scalar(select(Item.name).where(Item.id == inventory.item_id))
-    item_type = await db.scalar(select(Item.item_type).where(Item.id == inventory.item_id))
-    owner_name = await db.scalar(select(Party.name).where(Party.id == inventory.owner_id))
-
-    # 1) 把快照回填到该库存已有的所有日志
-    await db.execute(
-        update(InventoryLog)
-        .where(InventoryLog.inventory_id == inventory.id)
-        .values(
-            item_name=item_name,
-            item_spec=inventory.spec,
-            item_type=item_type,
-            owner_name=owner_name,
-        )
-    )
-
-    # 2) 追加一条删除日志（自带快照）
     db.add(
         InventoryLog(
             inventory_id=inventory.id,
-            item_name=item_name,
-            item_spec=inventory.spec,
-            item_type=item_type,
-            owner_name=owner_name,
+            **await _snapshot(db, inventory, created_by),
             change_type="delete",
             change_date=change_date,
             delta_pieces=0,
@@ -270,14 +274,6 @@ async def delete_inventory_with_log(
             notes="库存项删除",
             created_by=created_by,
         )
-    )
-    await db.flush()
-
-    # 3) 解绑日志并删除库存行（ON DELETE SET NULL 会自动置空，这里显式置空以兼容）
-    await db.execute(
-        update(InventoryLog)
-        .where(InventoryLog.inventory_id == inventory.id)
-        .values(inventory_id=None)
     )
     await db.delete(inventory)
     await db.flush()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -9,7 +9,13 @@ from app.models.party import Party
 from app.models.reconciliation import PartyReconciliation
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
-from app.schemas.party import PartyCreate, PartyRead, PartyUpdate
+from app.schemas.party import (
+    PartyBalanceDetail,
+    PartyBalanceLine,
+    PartyCreate,
+    PartyRead,
+    PartyUpdate,
+)
 from app.utils.deps import get_current_user
 
 router = APIRouter(prefix="/parties", tags=["parties"], dependencies=[Depends(get_current_user)])
@@ -76,6 +82,43 @@ async def get_party(party_id: int, db: AsyncSession = Depends(get_db)):
     if party is None:
         raise HTTPException(status_code=404, detail="往来单位不存在")
     return party
+
+
+@router.get("/{party_id}/balance", response_model=PartyBalanceDetail)
+async def get_party_balance(party_id: int, db: AsyncSession = Depends(get_db)):
+    """单个单位的往来明细：汇总四项净额 + 对账明细行（设计 §5.2 展开面板）。"""
+    party = await db.get(Party, party_id)
+    if party is None:
+        raise HTTPException(status_code=404, detail="往来单位不存在")
+
+    summary = (
+        await db.execute(
+            text(
+                "SELECT net_receivable, net_payable, net_to_issue, net_to_receive "
+                "FROM v_party_balance WHERE party_id = :pid"
+            ),
+            {"pid": party_id},
+        )
+    ).first()
+
+    rows = await db.scalars(
+        select(PartyReconciliation)
+        .where(
+            PartyReconciliation.party_id == party_id,
+            PartyReconciliation.recon_status.in_(("unreconciled", "verified")),
+        )
+        .order_by(PartyReconciliation.biz_date.desc(), PartyReconciliation.id.desc())
+    )
+
+    return PartyBalanceDetail(
+        party_id=party_id,
+        party_name=party.name,
+        net_receivable=summary.net_receivable if summary else 0,
+        net_payable=summary.net_payable if summary else 0,
+        net_to_issue=summary.net_to_issue if summary else 0,
+        net_to_receive=summary.net_to_receive if summary else 0,
+        lines=[PartyBalanceLine.model_validate(row, from_attributes=True) for row in rows],
+    )
 
 
 @router.put("/{party_id}", response_model=PartyRead)

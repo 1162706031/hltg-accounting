@@ -79,3 +79,5 @@ class PartyBalanceRead(BaseModel):
     total_paid: Decimal
     net_receivable: Decimal
     net_payable: Decimal
+    net_to_issue: Decimal
+    net_to_receive: Decimal

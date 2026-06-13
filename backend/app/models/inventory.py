@@ -25,18 +25,27 @@ class Inventory(Base):
 
     item = relationship("Item", back_populates="inventories")
     owner = relationship("Party", back_populates="inventories")
-    logs = relationship("InventoryLog", back_populates="inventory")
 
 
 class InventoryLog(Base):
+    """库存变动日志：独立自包含，不与其他表外键联动。
+
+    每次仓库操作（入库/出库/调整/删除）完成时追加一行，写入时即把物品、
+    规格、归属、操作人等信息快照进本行。日志只增不改不删，查询时直接读取
+    本表字段，无需 JOIN，因此库存项被删除也不影响历史日志。
+    """
+
     __tablename__ = "inventory_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    inventory_id: Mapped[int | None] = mapped_column(ForeignKey("inventory.id", ondelete="SET NULL"))
+    # 仅记录来源库存 id 供追溯，非外键（库存删除后此值保留）
+    inventory_id: Mapped[int | None] = mapped_column()
+    item_id: Mapped[int | None] = mapped_column()
     item_name: Mapped[str | None] = mapped_column(String(100))
     item_spec: Mapped[str | None] = mapped_column(String(80))
     item_type: Mapped[str | None] = mapped_column(String(30))
     owner_name: Mapped[str | None] = mapped_column(String(100))
+    operator_name: Mapped[str | None] = mapped_column(String(50))
     change_type: Mapped[str] = mapped_column(Enum("in", "out", "adjust", "init", "delete"), nullable=False)
     change_date: Mapped[date] = mapped_column(Date, nullable=False)
     delta_pieces: Mapped[int] = mapped_column(default=0)
@@ -48,7 +57,6 @@ class InventoryLog(Base):
     ref_type: Mapped[str | None] = mapped_column(String(30))
     ref_id: Mapped[int | None] = mapped_column()
     notes: Mapped[str | None] = mapped_column(String(200))
-    created_by: Mapped[int | None] = mapped_column(ForeignKey("user.id"))
+    # 仅记录操作人 id 供追溯，非外键
+    created_by: Mapped[int | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    inventory = relationship("Inventory", back_populates="logs")

@@ -3,12 +3,10 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.models.inventory import Inventory, InventoryLog
 from app.models.item import Item
-from app.models.party import Party
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.inventory import (
@@ -78,72 +76,24 @@ async def list_inventory_logs(
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    inv_alias = aliased(Inventory, name="inv")
-    item_alias = aliased(Item, name="item")
-    party_alias = aliased(Party, name="party")
-    user_alias = aliased(User, name="user")
-
-    stmt = (
-        select(
-            InventoryLog,
-            func.coalesce(InventoryLog.item_name, item_alias.name).label("disp_item_name"),
-            func.coalesce(InventoryLog.item_spec, inv_alias.spec).label("disp_item_spec"),
-            func.coalesce(InventoryLog.item_type, item_alias.item_type).label("disp_item_type"),
-            func.coalesce(InventoryLog.owner_name, party_alias.name).label("disp_owner_name"),
-            user_alias.real_name.label("operator_name"),
-        )
-        .join(inv_alias, inv_alias.id == InventoryLog.inventory_id, isouter=True)
-        .join(item_alias, item_alias.id == inv_alias.item_id, isouter=True)
-        .join(party_alias, party_alias.id == inv_alias.owner_id, isouter=True)
-        .join(user_alias, user_alias.id == InventoryLog.created_by, isouter=True)
-        .order_by(InventoryLog.id.desc())
-    )
+    # 日志表自包含：每行写入时已固化物品/归属/操作人快照，查询直接读取本表，无需 JOIN。
+    stmt = select(InventoryLog).order_by(InventoryLog.id.desc())
     if change_type:
         stmt = stmt.where(InventoryLog.change_type == change_type)
     if inventory_id:
         stmt = stmt.where(InventoryLog.inventory_id == inventory_id)
     if item_id:
-        stmt = stmt.where(inv_alias.item_id == item_id)
+        stmt = stmt.where(InventoryLog.item_id == item_id)
     if date_from:
         stmt = stmt.where(InventoryLog.change_date >= date_from)
     if date_to:
         stmt = stmt.where(InventoryLog.change_date <= date_to)
     if q:
-        stmt = stmt.where(
-            func.coalesce(InventoryLog.item_name, item_alias.name).like(f"%{q}%")
-            | func.coalesce(InventoryLog.item_spec, inv_alias.spec).like(f"%{q}%")
-        )
+        stmt = stmt.where(InventoryLog.item_name.like(f"%{q}%") | InventoryLog.item_spec.like(f"%{q}%"))
 
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = await db.scalar(count_stmt)
-    rows = (await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))).mappings().all()
-    items: list[InventoryLogWithRelations] = []
-    for row in rows:
-        log: InventoryLog = row[InventoryLog]
-        items.append(
-            InventoryLogWithRelations(
-                id=log.id,
-                inventory_id=log.inventory_id,
-                change_type=log.change_type,
-                change_date=log.change_date,
-                delta_pieces=log.delta_pieces,
-                delta_weight=log.delta_weight,
-                before_pieces=log.before_pieces,
-                before_weight=log.before_weight,
-                after_pieces=log.after_pieces,
-                after_weight=log.after_weight,
-                ref_type=log.ref_type,
-                ref_id=log.ref_id,
-                notes=log.notes,
-                created_by=log.created_by,
-                created_at=log.created_at,
-                item_name=row["disp_item_name"],
-                item_spec=row["disp_item_spec"],
-                item_type=row["disp_item_type"],
-                owner_name=row["disp_owner_name"],
-                operator_name=row["operator_name"],
-            )
-        )
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
+    rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
+    items = [InventoryLogWithRelations.model_validate(row) for row in rows]
     return PageResult(items=items, total=total or 0, page=page, page_size=page_size)
 
 

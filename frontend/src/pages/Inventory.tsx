@@ -267,6 +267,7 @@ export function Inventory() {
       </Modal>
 
       <OutAdjustModal
+        key={outTarget ? `out-${outTarget.id}` : 'out-empty'}
         target={outTarget}
         kind="out"
         onClose={() => setOutTarget(null)}
@@ -274,14 +275,15 @@ export function Inventory() {
         submitting={stockOutMut.isPending}
       />
       <OutAdjustModal
+        key={adjustTarget ? `adjust-${adjustTarget.id}` : 'adjust-empty'}
         target={adjustTarget}
         kind="adjust"
         onClose={() => setAdjustTarget(null)}
         onSubmit={(v) =>
           adjustMut.mutate({
             id: adjustTarget!.id,
-            actual_pieces: v.pieces as number,
-            actual_weight: v.weight as number,
+            actual_pieces: v.actual_pieces as number,
+            actual_weight: v.actual_weight as number,
             change_date: v.change_date,
             notes: v.notes
           })

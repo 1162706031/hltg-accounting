@@ -1,7 +1,15 @@
 -- ============================================================================
--- 汇隆特钢 · 会计数据库建表脚本 (v2.0 — 重构版)
+-- 汇隆特钢 · 会计数据库建表脚本 (v2.1 — 重构版)
 -- 数据库引擎: MySQL 8.0+ / MariaDB 10.5+
 -- 字符集: utf8mb4 (支持中文)
+--
+-- v2.1 变更 (2026-06-13):
+--   - item 去除 spec/default_unit：物品为抽象定义，规格与单位归库存(inventory)
+--     与单据，唯一约束改为 (name, item_type)
+--   - inventory_log 重构为独立自包含日志：去除 inventory/user 外键，inventory_id
+--     可空；新增 item_id/item_name/item_spec/item_type/owner_name/operator_name
+--     快照列，写入时固化；change_type 增加 'delete'。库存项删除不影响历史日志
+--   - v_party_balance 增加 应开未开发票(net_to_issue)/应收未收发票(net_to_receive) 两列净额 (设计5.2)
 --
 -- v2.0 变更 (2026-06-12):
 --   - party_reconciliation.recon_status 2态→4态 (设计4.9)
@@ -79,22 +87,21 @@ INSERT INTO party (name, short_name, is_internal, notes) VALUES
 
 
 -- 2. 统一物品字典（替代原 steel_grade + material）
+-- 物品为抽象定义，仅含名称/类型/状态；规格(spec)与单位属于库存与单据，不在此表
 CREATE TABLE item (
     id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(100)  NOT NULL COMMENT '物品名称 — H13, 钼铁60%, 2Cr14Ni ...',
     item_type   ENUM('steel_grade','raw_material','alloy','finished_product','semi_finished','scrap')
                 NOT NULL COMMENT '物品类型',
-    spec        VARCHAR(100)  DEFAULT '' COMMENT '规格 — 630, 板子, 60% ...',
-    default_unit ENUM('ton','kg') DEFAULT 'ton' COMMENT '默认单位',
     is_active   BOOLEAN       DEFAULT TRUE COMMENT '是否启用',
     notes       TEXT          DEFAULT NULL COMMENT '备注',
     created_at  DATETIME      DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_name_type_spec (name, item_type, spec),
+    UNIQUE KEY uk_name_type_spec (name, item_type),
     INDEX idx_type (item_type),
     INDEX idx_active (is_active),
     INDEX idx_name (name)
-) ENGINE=InnoDB COMMENT='统一物品字典：钢种/原料/合金/成品/半成品/废料';
+) ENGINE=InnoDB COMMENT='统一物品字典：钢种/原料/合金/成品/半成品/废料（规格/单位归库存，不在此表）';
 
 
 -- ============================================================================
@@ -478,12 +485,24 @@ ALTER TABLE sales_order_item
     ADD CONSTRAINT fk_soi_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id);
 
 
--- 库存变动日志（不可修改，每次库存CRUD自动生成）
+-- 库存变动日志（独立自包含，不与其他表外键联动，不可修改）
+-- 每次库存操作(入库/出库/盘点调整/删除)完成时追加一行，写入时即把物品/规格/
+-- 归属/操作人快照进本行。查询直接读本表，无需 JOIN；库存项删除不影响历史日志。
 CREATE TABLE inventory_log (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    inventory_id    BIGINT UNSIGNED NOT NULL,
-    change_type     ENUM('in','out','adjust','init') NOT NULL
-                    COMMENT 'in=入库 out=出库 adjust=盘点调整 init=初始录入',
+    -- 仅记录来源 id 供追溯，非外键（库存删除后此值保留）
+    inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '来源库存ID（非外键，仅追溯）',
+    item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '快照:物品ID（供按物品追溯）',
+
+    -- 写入时固化的快照字段（库存/物品/归属被改名或删除后仍可读）
+    item_name       VARCHAR(100)  DEFAULT NULL COMMENT '快照:物品名称',
+    item_spec       VARCHAR(80)   DEFAULT NULL COMMENT '快照:规格',
+    item_type       VARCHAR(30)   DEFAULT NULL COMMENT '快照:物品类型',
+    owner_name      VARCHAR(100)  DEFAULT NULL COMMENT '快照:归属单位名称',
+    operator_name   VARCHAR(50)   DEFAULT NULL COMMENT '快照:操作人姓名',
+
+    change_type     ENUM('in','out','adjust','init','delete') NOT NULL
+                    COMMENT 'in=入库 out=出库 adjust=盘点调整 init=初始录入 delete=库存项删除',
     change_date     DATE          NOT NULL,
 
     -- 变化量 (±)
@@ -500,17 +519,14 @@ CREATE TABLE inventory_log (
     ref_type        VARCHAR(30)   DEFAULT NULL COMMENT '关联业务表',
     ref_id          BIGINT UNSIGNED DEFAULT NULL COMMENT '关联记录ID',
     notes           VARCHAR(200)  DEFAULT NULL,
-    created_by      BIGINT UNSIGNED DEFAULT NULL,
+    created_by      BIGINT UNSIGNED DEFAULT NULL COMMENT '操作人ID（非外键，仅追溯）',
     created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP,
 
     INDEX idx_inventory (inventory_id),
     INDEX idx_date (change_date),
     INDEX idx_type (change_type),
-    INDEX idx_ref (ref_type, ref_id),
-
-    CONSTRAINT fk_ilog_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id),
-    CONSTRAINT fk_ilog_created   FOREIGN KEY (created_by)   REFERENCES user(id)
-) ENGINE=InnoDB COMMENT='库存变动日志 — 每次库存变化自动记录，不可修改';
+    INDEX idx_ref (ref_type, ref_id)
+) ENGINE=InnoDB COMMENT='库存变动日志 — 独立自包含，写入时快照，只增不改不删';
 
 
 -- ============================================================================
@@ -597,9 +613,10 @@ CREATE TABLE operation_log (
 -- 十、常用视图
 -- ============================================================================
 
--- 10.1 往来余额视图 — 实时计算各往来单位的应收/应付余额
+-- 10.1 往来余额视图 — 实时计算各往来单位的应收/应付余额 + 发票应开/应收净额
 -- 余额来源: 对账明细 (party_reconciliation) 中未完成行的 debit/credit 汇总 + 独立收付款记录
--- 注意: 对账行和收付款必须先按 party_id 独立聚合，再 JOIN 到 party，避免 N 条对账 × M 条收付款导致金额重复放大。
+-- 发票净额: 对账明细中应计发票 (invoice_amount+invoice_direction) 汇总 - 实际开/收发票 (invoice 表)
+-- 注意: 对账行、收付款、实际发票必须先各自按 party_id 独立聚合，再 JOIN 到 party，避免笛卡尔积导致金额重复放大。
 CREATE OR REPLACE VIEW v_party_balance AS
 SELECT
     p.id          AS party_id,
@@ -616,14 +633,21 @@ SELECT
     COALESCE(pay.total_received, 0)     AS total_received,
     COALESCE(pay.total_paid, 0)         AS total_paid,
     COALESCE(recon.total_receivable, 0) - COALESCE(pay.total_received, 0) AS net_receivable,
-    COALESCE(recon.total_payable, 0) - COALESCE(pay.total_paid, 0)        AS net_payable
+    COALESCE(recon.total_payable, 0) - COALESCE(pay.total_paid, 0)        AS net_payable,
+
+    -- 应开未开发票净额: 应计应开发票 (对账 issue) - 实际已开发票 (invoice issue)
+    COALESCE(recon.accrued_issue, 0)   - COALESCE(inv.actual_issued, 0)   AS net_to_issue,
+    -- 应收未收发票净额: 应计应收发票 (对账 receive) - 实际已收发票 (invoice receive)
+    COALESCE(recon.accrued_receive, 0) - COALESCE(inv.actual_received, 0) AS net_to_receive
 
 FROM party p
 LEFT JOIN (
     SELECT
         party_id,
         SUM(debit)  AS total_receivable,
-        SUM(credit) AS total_payable
+        SUM(credit) AS total_payable,
+        SUM(CASE WHEN invoice_direction = 'issue'   THEN COALESCE(invoice_amount, 0) ELSE 0 END) AS accrued_issue,
+        SUM(CASE WHEN invoice_direction = 'receive' THEN COALESCE(invoice_amount, 0) ELSE 0 END) AS accrued_receive
     FROM party_reconciliation
     WHERE recon_status IN ('unreconciled', 'verified')
     GROUP BY party_id
@@ -635,7 +659,15 @@ LEFT JOIN (
         SUM(CASE WHEN direction = 'pay'     THEN amount ELSE 0 END) AS total_paid
     FROM payment
     GROUP BY party_id
-) pay ON pay.party_id = p.id;
+) pay ON pay.party_id = p.id
+LEFT JOIN (
+    SELECT
+        party_id,
+        SUM(CASE WHEN direction = 'issue'   THEN amount ELSE 0 END) AS actual_issued,
+        SUM(CASE WHEN direction = 'receive' THEN amount ELSE 0 END) AS actual_received
+    FROM invoice
+    GROUP BY party_id
+) inv ON inv.party_id = p.id;
 
 
 -- 10.2 加工批次汇总视图 — 冶炼
@@ -679,5 +711,5 @@ LEFT JOIN party p ON p.id = oo.party_id;
 -- ============================================================================
 -- 验证
 -- ============================================================================
-SELECT 'Database hltg_accounting v2.0 created successfully.' AS status;
+SELECT 'Database hltg_accounting v2.1 created successfully.' AS status;
 SHOW TABLES;

@@ -26,12 +26,12 @@ export function useParties() {
   })
 }
 
-/** 加载全部物品（最多 200），用于下拉选择。 */
+/** 加载全部启用的物品（最多 200），用于业务页下拉选择。停用物品不参与新业务。 */
 export function useItems() {
   return useQuery({
     queryKey: ['items', 'options'],
     queryFn: async () =>
-      (await api.get<PageResult<ItemOption>>('/items', { params: { page_size: 200 } })).data.items
+      (await api.get<PageResult<ItemOption>>('/items', { params: { page_size: 200, is_active: 1 } })).data.items
   })
 }
 
