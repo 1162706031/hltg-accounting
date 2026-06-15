@@ -18,6 +18,7 @@ class OutboundLineBase(BaseModel):
     line_no: int = 1
     out_date: date_type | None = None
     item_id: int | None = None
+    inventory_id: int | None = None
     quantity: Decimal = Field(default=Decimal("0"), ge=0)
     unit: str = Field(default="吨", max_length=10)
     spec: str | None = Field(default=None, max_length=80)
@@ -36,6 +37,7 @@ class InboundLineBase(BaseModel):
     line_no: int = 1
     in_date: date_type | None = None
     item_id: int | None = None
+    owner_id: int | None = None
     quantity: Decimal = Field(default=Decimal("0"), ge=0)
     unit: str = Field(default="吨", max_length=10)
     spec: str | None = Field(default=None, max_length=80)
@@ -47,12 +49,15 @@ class InboundLineBase(BaseModel):
 class InboundLineRead(InboundLineBase, ORMModel):
     id: int
     item: ItemRead | None = None
+    owner: PartyRead | None = None
 
 
 # ---- 主表 ----
 class OutsourceOrderBase(BaseModel):
     party_id: int
     process_type: ProcessType
+    out_date: date_type | None = None
+    in_date: date_type | None = None
     unit_price: Decimal | None = Field(default=None, ge=0)
     tax_rate: Decimal | None = Field(default=Decimal("13.00"), ge=0, le=100)
     saw_head_ton: Decimal | None = Field(default=None, ge=0)
@@ -70,6 +75,8 @@ class OutsourceOrderCreate(OutsourceOrderBase):
 class OutsourceOrderUpdate(BaseModel):
     party_id: int | None = None
     process_type: ProcessType | None = None
+    out_date: date_type | None = None
+    in_date: date_type | None = None
     unit_price: Decimal | None = Field(default=None, ge=0)
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100)
     saw_head_ton: Decimal | None = Field(default=None, ge=0)
@@ -86,6 +93,8 @@ class OutsourceOrderListItem(ORMModel):
     batch_no: str
     party_id: int
     process_type: ProcessType
+    out_date: date_type | None = None
+    in_date: date_type | None = None
     yield_rate: Decimal | None
     total_amount: Decimal | None
     status: OrderStatus

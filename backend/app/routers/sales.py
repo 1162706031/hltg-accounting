@@ -217,7 +217,7 @@ async def complete_order(order_id: int, db: AsyncSession = Depends(get_db)):
                 db,
                 inventory_id=line.inventory_id,
                 quantity=Decimal(line.quantity or 0),
-                change_date=order.ship_date or datetime.utcnow().date(),
+                change_date=line.ship_date or order.ship_date or datetime.utcnow().date(),
                 notes=f"销售#{order.batch_no}出库",
                 ref_type="sales_order",
                 ref_id=order.id,

@@ -3,9 +3,25 @@
 -- 数据库引擎: MySQL 8.0+ / MariaDB 10.5+
 -- 字符集: utf8mb4 (支持中文)
 --
+-- v2.5 变更 (2026-06-15):
+--   - processing_inbound（外协回厂）加 owner_id：回厂入库归属可逐行指定（前端钢种/归属
+--     均用 QuickCreate 下拉，可现场新建），留空回退本厂。
+--
+-- v2.4 变更 (2026-06-15):
+--   - 明细行支持「每行独立日期」，订单主表日期作为默认值/兜底：
+--     · alloy_addition 加 date（补加日期）
+--     · outsource_order 加 out_date / in_date（发出/回厂总体日期，明细行默认值/兜底）
+--     · sales_order_item 加 ship_date（行级发货日期）
+--   审核/完成扣库时优先用行日期，留空回退订单日期。
+--
+-- v2.3 变更 (2026-06-15):
+--   - 「从现存库存扣减」的明细行统一改为直接记录 inventory_id（与 sales_order_item
+--     同口径），审核扣减按 inventory_id 精确出库，消除 item_id+owner+spec 反查歧义：
+--     · smelting_inbound (side=in 投料行)、alloy_addition、processing_outbound 各加 inventory_id
+--     · side=out 出钢 / 回厂 inbound 仍为新产出入库，按 owner_id 归属 find-or-create，不加 inventory_id
+--
 -- v2.2 变更 (2026-06-14):
---   - 库存与单据统一为「数量(quantity) + 单位(unit)」计量，单位可取 吨/千克/支：
---     · inventory: 去除 current_pieces，current_weight → current_quantity
+--   - 库存与单据统一为「数量(quantity) + 单位(unit)」计量，单位可取 吨/千克/支：--     · inventory: 去除 current_pieces，current_weight → current_quantity
 --     · inventory_log: 去除 *_pieces，*_weight → *_quantity，新增 unit 快照列
 --     · 明细行 (smelting_inbound/processing_outbound/processing_inbound/
 --       sales_order_item/party_reconciliation): 去除 pieces，weight_ton → quantity，新增 unit 列
@@ -163,6 +179,7 @@ CREATE TABLE smelting_inbound (
     line_no         TINYINT UNSIGNED DEFAULT 1 COMMENT '同批次内行号',
     date            DATE          DEFAULT NULL COMMENT '来料日期 / 出料日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
+    inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT 'side=in 投料：所选库存项，审核按此 id 出库；side=out 出钢留空',
     quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
     unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 300*12, 630*7 ...',
@@ -175,6 +192,7 @@ CREATE TABLE smelting_inbound (
     INDEX idx_order (order_id),
     INDEX idx_item (item_id),
     INDEX idx_owner (owner_id),
+    INDEX idx_inventory (inventory_id),
 
     CONSTRAINT fk_si_order FOREIGN KEY (order_id)  REFERENCES smelting_order(id) ON DELETE CASCADE,
     CONSTRAINT fk_si_item  FOREIGN KEY (item_id)   REFERENCES item(id),
@@ -187,14 +205,18 @@ CREATE TABLE alloy_addition (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_id      BIGINT UNSIGNED NOT NULL,
     item_id       BIGINT UNSIGNED NOT NULL COMMENT '物品 (合金)',
+    inventory_id  BIGINT UNSIGNED DEFAULT NULL COMMENT '所选库存项；审核时按此 id 出库',
+    date          DATE          DEFAULT NULL COMMENT '补加日期；留空回退订单投料日期',
     quantity      DECIMAL(10,1) DEFAULT 0 COMMENT '数量 (单位见 unit)',
     unit          VARCHAR(10)   DEFAULT '千克' COMMENT '单位 (吨/千克/支)',
+    spec          VARCHAR(80)   DEFAULT NULL COMMENT '规格快照 — 按所选库存项带出',
     unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '单价 (元/单位)',
     amount        DECIMAL(12,2) DEFAULT NULL COMMENT '金额 (元)',
     notes         VARCHAR(100)  DEFAULT NULL,
 
     INDEX idx_order (order_id),
     INDEX idx_item (item_id),
+    INDEX idx_inventory (inventory_id),
 
     CONSTRAINT fk_aa_order FOREIGN KEY (order_id) REFERENCES smelting_order(id) ON DELETE CASCADE,
     CONSTRAINT fk_aa_item  FOREIGN KEY (item_id)  REFERENCES item(id)
@@ -210,6 +232,8 @@ CREATE TABLE outsource_order (
     batch_no      VARCHAR(30)   NOT NULL COMMENT '批次号',
     party_id      BIGINT UNSIGNED NOT NULL COMMENT '外协厂',
     process_type  ENUM('forging','esr','turning','annealing') NOT NULL COMMENT '锻造/电渣/车光/退火',
+    out_date      DATE          DEFAULT NULL COMMENT '发出日期（总体，明细行默认值/兜底）',
+    in_date       DATE          DEFAULT NULL COMMENT '回厂日期（总体，明细行默认值/兜底）',
 
     -- 加工费用
     unit_price    DECIMAL(10,2) DEFAULT NULL COMMENT '加工单价 (元/吨)',
@@ -252,6 +276,7 @@ CREATE TABLE processing_outbound (
     line_no         TINYINT UNSIGNED DEFAULT 1,
     out_date        DATE          DEFAULT NULL COMMENT '出库日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
+    inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '所选本厂库存项；审核时按此 id 出库',
     quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
     unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL,
@@ -261,6 +286,7 @@ CREATE TABLE processing_outbound (
 
     INDEX idx_order (order_id),
     INDEX idx_item (item_id),
+    INDEX idx_inventory (inventory_id),
 
     CONSTRAINT fk_po_order FOREIGN KEY (order_id) REFERENCES outsource_order(id) ON DELETE CASCADE,
     CONSTRAINT fk_po_item  FOREIGN KEY (item_id)  REFERENCES item(id)
@@ -274,6 +300,7 @@ CREATE TABLE processing_inbound (
     line_no         TINYINT UNSIGNED DEFAULT 1,
     in_date         DATE          DEFAULT NULL COMMENT '回厂日期',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (钢种)',
+    owner_id        BIGINT UNSIGNED DEFAULT NULL COMMENT '入库归属单位；留空回退本厂',
     quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '数量 (单位见 unit)',
     unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',
     spec            VARCHAR(80)   DEFAULT NULL,
@@ -283,9 +310,11 @@ CREATE TABLE processing_inbound (
 
     INDEX idx_order (order_id),
     INDEX idx_item (item_id),
+    INDEX idx_owner (owner_id),
 
     CONSTRAINT fk_pi_order FOREIGN KEY (order_id) REFERENCES outsource_order(id) ON DELETE CASCADE,
-    CONSTRAINT fk_pi_item  FOREIGN KEY (item_id)  REFERENCES item(id)
+    CONSTRAINT fk_pi_item  FOREIGN KEY (item_id)  REFERENCES item(id),
+    CONSTRAINT fk_pi_owner FOREIGN KEY (owner_id) REFERENCES party(id)
 ) ENGINE=InnoDB COMMENT='外协回厂/入库明细';
 
 
@@ -379,6 +408,7 @@ CREATE TABLE sales_order_item (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_id        BIGINT UNSIGNED NOT NULL,
     line_no         TINYINT UNSIGNED DEFAULT 1,
+    ship_date       DATE          DEFAULT NULL COMMENT '发货日期（行级，留空回退订单发货日期）',
     inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '销售选择的库存记录，完成时按此扣库',
     item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (成品/半成品 — 从仓库库存选)',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 630, 150圆钢 ...',
@@ -489,9 +519,15 @@ CREATE TABLE inventory (
     CONSTRAINT fk_inv_created FOREIGN KEY (created_by) REFERENCES user(id)
 ) ENGINE=InnoDB COMMENT='统一库存 — 物品类型通过 JOIN item.item_type 读取，不冗余存储';
 
--- sales_order_item 先于 inventory 创建，库存外键在 inventory 建好后补充
+-- 以下子表先于 inventory 创建，库存外键在 inventory 建好后统一补充
 ALTER TABLE sales_order_item
     ADD CONSTRAINT fk_soi_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+ALTER TABLE smelting_inbound
+    ADD CONSTRAINT fk_si_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+ALTER TABLE alloy_addition
+    ADD CONSTRAINT fk_aa_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+ALTER TABLE processing_outbound
+    ADD CONSTRAINT fk_po_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
 
 
 -- 库存变动日志（独立自包含，不与其他表外键联动，不可修改）

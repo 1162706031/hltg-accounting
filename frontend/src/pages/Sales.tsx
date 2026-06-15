@@ -1,4 +1,3 @@
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs from 'dayjs'
@@ -6,20 +5,16 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
+import { InventoryLineList } from '../components/InventoryLines'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import {
-  InventoryStockOption,
-  inventoryStockOptions,
-  partyOptions,
-  useInventoryStock,
-  useParties
-} from '../utils/lookups'
+import { partyOptions, useInventoryStock, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface SalesItem {
   id?: number
   line_no: number
+  ship_date?: string | null
   inventory_id?: number | null
   item_id?: number | null
   spec?: string | null
@@ -56,8 +51,6 @@ export function Sales() {
   const [form] = Form.useForm()
   const parties = useParties()
   const stock = useInventoryStock()
-  const stockOpts = inventoryStockOptions(stock.data)
-  const stockById = new Map<number, InventoryStockOption>((stock.data ?? []).map((r) => [r.id, r]))
 
   const query = useQuery({
     queryKey: ['sales', statusFilter],
@@ -83,7 +76,12 @@ export function Sales() {
       const body = {
         ...values,
         ship_date: values.ship_date?.format('YYYY-MM-DD') ?? null,
-        items: (values.items ?? []).map((it: any, idx: number) => ({ ...it, line_no: idx + 1 }))
+        items: (values.items ?? []).map((it: any, idx: number) => ({
+          ...it,
+          line_no: idx + 1,
+          ship_date: it.ship_date?.format('YYYY-MM-DD') ?? null,
+          unit_price: it.unit_price ?? 0
+        }))
       }
       return editingId ? api.put(`/sales-orders/${editingId}`, body) : api.post('/sales-orders', body)
     },
@@ -101,7 +99,7 @@ export function Sales() {
     setCreating(true)
     setEditingId(null)
     form.resetFields()
-    form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [{ line_no: 1, quantity: 0, unit_price: 0 }] })
+    form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [{ quantity: 0 }] })
   }
 
   const openEdit = async (row: SalesOrder) => {
@@ -116,6 +114,7 @@ export function Sales() {
       notes: detail.notes,
       items: detail.items.map((it) => ({
         line_no: it.line_no,
+        ship_date: it.ship_date ? dayjs(it.ship_date) : null,
         inventory_id: it.inventory_id,
         item_id: it.item_id,
         spec: it.spec,
@@ -215,92 +214,15 @@ export function Sales() {
             </Form.Item>
           </Space>
 
-          <Form.List name="items">
-            {(fields, { add, remove }) => (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontWeight: 600 }}>销售明细（从库房现存中选择，完成时按所选库存项扣库）</div>
-                {fields.map((field) => (
-                  <Space key={field.key} align="baseline" wrap>
-                    {/* item_id / spec / unit 由所选库存项自动带出，隐藏存储用于提交 */}
-                    <Form.Item {...field} name={[field.name, 'item_id']} hidden>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item {...field} name={[field.name, 'spec']} hidden>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item {...field} name={[field.name, 'unit']} hidden>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      {...field}
-                      name={[field.name, 'inventory_id']}
-                      label="库存项"
-                      rules={[{ required: true, message: '请选择库存项' }]}
-                    >
-                      <Select
-                        style={{ width: 320 }}
-                        showSearch
-                        optionFilterProp="label"
-                        placeholder="从现存库存中选择"
-                        options={stockOpts}
-                        onChange={(invId: number) => {
-                          const inv = stockById.get(invId)
-                          form.setFieldValue(['items', field.name, 'item_id'], inv?.item_id ?? null)
-                          form.setFieldValue(['items', field.name, 'spec'], inv?.spec ?? null)
-                          form.setFieldValue(['items', field.name, 'unit'], inv?.unit ?? '吨')
-                          // 切换库存项后，把超出新结余的数量收敛到上限
-                          if (inv) {
-                            const maxQty = Number(inv.current_quantity)
-                            const curQty = form.getFieldValue(['items', field.name, 'quantity'])
-                            if (Number(curQty) > maxQty) {
-                              form.setFieldValue(['items', field.name, 'quantity'], maxQty)
-                            }
-                          }
-                        }}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      noStyle
-                      shouldUpdate={(prev, cur) =>
-                        prev.items?.[field.name]?.inventory_id !== cur.items?.[field.name]?.inventory_id
-                      }
-                    >
-                      {({ getFieldValue }) => {
-                        const inv = stockById.get(getFieldValue(['items', field.name, 'inventory_id']))
-                        const maxQty = inv ? Number(inv.current_quantity) : undefined
-                        const unit = inv?.unit ?? ''
-                        return (
-                          <Form.Item
-                            {...field}
-                            name={[field.name, 'quantity']}
-                            label={maxQty != null ? `数量(${unit}，≤${maxQty})` : '数量'}
-                            rules={[
-                              { required: true },
-                              {
-                                validator: (_, v) =>
-                                  maxQty != null && Number(v) > maxQty
-                                    ? Promise.reject(new Error(`不能超过结余 ${maxQty}`))
-                                    : Promise.resolve()
-                              }
-                            ]}
-                          >
-                            <InputNumber style={{ width: 150 }} min={0} max={maxQty} step={0.001} />
-                          </Form.Item>
-                        )
-                      }}
-                    </Form.Item>
-                    <Form.Item {...field} name={[field.name, 'unit_price']} label="单价" rules={[{ required: true }]}>
-                      <InputNumber style={{ width: 100 }} min={0} />
-                    </Form.Item>
-                    <MinusCircleOutlined onClick={() => remove(field.name)} />
-                  </Space>
-                ))}
-                <Button type="dashed" onClick={() => add({ quantity: 0, unit_price: 0 })} icon={<PlusOutlined />}>
-                  添加明细
-                </Button>
-              </div>
-            )}
-          </Form.List>
+          <InventoryLineList
+            form={form}
+            name="items"
+            title="销售明细（从库房现存中选择，完成时按所选库存项扣库）"
+            stock={stock.data}
+            dateField="ship_date"
+            dateLabel="发货日期"
+            defaultDateField="ship_date"
+          />
 
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />

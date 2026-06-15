@@ -4,10 +4,20 @@ import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Sel
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { InventoryLineList } from '../components/InventoryLines'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
+import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import {
+  InventoryStockOption,
+  UNIT_OPTIONS,
+  itemOptions,
+  partyOptions,
+  useInventoryStock,
+  useItems,
+  useParties
+} from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface OutsourceOrder {
@@ -15,6 +25,8 @@ interface OutsourceOrder {
   batch_no: string
   party_id: number
   process_type: 'forging' | 'esr' | 'turning' | 'annealing'
+  out_date?: string | null
+  in_date?: string | null
   yield_rate?: string | null
   unit_price?: string | null
   tax_rate?: string | null
@@ -46,6 +58,8 @@ export function Outsource() {
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
+  const stock = useInventoryStock()
+  const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
     queryKey: ['outsource', statusFilter, typeFilter],
@@ -76,6 +90,8 @@ export function Outsource() {
       const mapIn = (it: any, i: number) => ({ ...it, line_no: i + 1, in_date: it.in_date?.format('YYYY-MM-DD') ?? null })
       const body = {
         ...values,
+        out_date: values.out_date?.format('YYYY-MM-DD') ?? null,
+        in_date: values.in_date?.format('YYYY-MM-DD') ?? null,
         outbound_lines: (values.outbound_lines ?? []).map(mapOut),
         inbound_lines: (values.inbound_lines ?? []).map(mapIn)
       }
@@ -105,21 +121,25 @@ export function Outsource() {
     form.setFieldsValue({
       party_id: d.party_id,
       process_type: d.process_type,
+      out_date: d.out_date ? dayjs(d.out_date) : null,
+      in_date: d.in_date ? dayjs(d.in_date) : null,
       unit_price: d.unit_price ? Number(d.unit_price) : null,
       tax_rate: d.tax_rate ? Number(d.tax_rate) : 13,
       need_invoice: d.need_invoice,
       notes: d.notes,
       outbound_lines: d.outbound_lines.map((l) => ({
+        inventory_id: l.inventory_id,
         out_date: l.out_date ? dayjs(l.out_date) : null,
         item_id: l.item_id,
         spec: l.spec,
-        quantity: Number(l.quantity),
         unit: l.unit ?? '吨',
+        quantity: Number(l.quantity),
         unit_price: l.unit_price ? Number(l.unit_price) : null
       })),
       inbound_lines: d.inbound_lines.map((l) => ({
         in_date: l.in_date ? dayjs(l.in_date) : null,
         item_id: l.item_id,
+        owner_id: l.owner_id,
         spec: l.spec,
         quantity: Number(l.quantity),
         unit: l.unit ?? '吨',
@@ -139,7 +159,7 @@ export function Outsource() {
                 <DatePicker />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种">
-                <Select style={{ width: 150 }} showSearch optionFilterProp="label" options={itemOptions(items.data)} />
+                <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'spec']} label="规格">
                 <Input style={{ width: 90 }} />
@@ -150,10 +170,13 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'unit']} label="单位">
                 <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
               </Form.Item>
+              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
+                <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
+              </Form.Item>
               <MinusCircleOutlined onClick={() => remove(field.name)} />
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨', [dateField]: form.getFieldValue(dateField) ?? null })} icon={<PlusOutlined />}>
             添加行
           </Button>
         </div>
@@ -231,6 +254,12 @@ export function Outsource() {
             <Form.Item name="process_type" label="工艺" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={PROCESS_OPTIONS} />
             </Form.Item>
+            <Form.Item name="out_date" label="发出日期">
+              <DatePicker />
+            </Form.Item>
+            <Form.Item name="in_date" label="回厂日期">
+              <DatePicker />
+            </Form.Item>
             <Form.Item name="unit_price" label="加工单价(元/吨)">
               <InputNumber min={0} />
             </Form.Item>
@@ -249,8 +278,21 @@ export function Outsource() {
           </Space>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {renderLines('outbound_lines', 'out_date', '发出（审核时扣本厂库存）')}
-            {renderLines('inbound_lines', 'in_date', '回厂（完成时入本厂库存）')}
+            {' '}
+            <InventoryLineList
+              form={form}
+              name="outbound_lines"
+              title="发出（从本厂现存库存中选择，审核时扣减）"
+              stock={stock.data}
+              dateField="out_date"
+              dateLabel="发出日期"
+              defaultDateField="out_date"
+              filter={(r: InventoryStockOption) =>
+                internalPartyId != null && r.owner?.id === internalPartyId
+              }
+              addLabel="添加发出行"
+            />
+            {renderLines('inbound_lines', 'in_date', '回厂（完成时按归属入库，归属留空入本厂）')}
           </div>
 
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>

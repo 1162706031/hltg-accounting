@@ -14,6 +14,7 @@ OrderStatus = Literal["draft", "pending_review", "approved", "in_progress", "com
 
 class SalesItemBase(BaseModel):
     line_no: int = 1
+    ship_date: date_type | None = None
     inventory_id: int | None = None
     item_id: int | None = None
     spec: str | None = Field(default=None, max_length=80)

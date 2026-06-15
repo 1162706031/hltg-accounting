@@ -6,8 +6,18 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
+import { InventoryLineList } from '../components/InventoryLines'
+import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import {
+  InventoryStockOption,
+  UNIT_OPTIONS,
+  itemOptions,
+  partyOptions,
+  useInventoryStock,
+  useItems,
+  useParties
+} from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 
 interface SmeltingOrder {
@@ -46,6 +56,8 @@ export function Smelting() {
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
+  const stock = useInventoryStock()
+  const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
     queryKey: ['smelting', statusFilter, typeFilter],
@@ -86,7 +98,10 @@ export function Smelting() {
           ...(values.feed_lines ?? []).map((it: any, i: number) => mapLine(it, i, 'in')),
           ...(values.tap_lines ?? []).map((it: any, i: number) => mapLine(it, i, 'out'))
         ],
-        alloy_lines: (values.alloy_lines ?? []).map((it: any) => ({ ...it }))
+        alloy_lines: (values.alloy_lines ?? []).map((it: any) => ({
+          ...it,
+          date: it.date?.format('YYYY-MM-DD') ?? null
+        }))
       }
       delete body.feed_lines
       delete body.tap_lines
@@ -113,7 +128,7 @@ export function Smelting() {
     const d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
     setEditingId(row.id)
     setCreating(false)
-    const toLine = (it: any) => ({
+    const toTapLine = (it: any) => ({
       date: it.date ? dayjs(it.date) : null,
       item_id: it.item_id,
       quantity: Number(it.quantity),
@@ -121,6 +136,16 @@ export function Smelting() {
       spec: it.spec,
       furnace_no: it.furnace_no,
       owner_id: it.owner_id,
+      unit_price: it.unit_price ? Number(it.unit_price) : null
+    })
+    const toInvLine = (it: any) => ({
+      inventory_id: it.inventory_id,
+      date: it.date ? dayjs(it.date) : null,
+      item_id: it.item_id,
+      spec: it.spec,
+      unit: it.unit ?? '吨',
+      owner_id: it.owner_id,
+      quantity: Number(it.quantity),
       unit_price: it.unit_price ? Number(it.unit_price) : null
     })
     form.setFieldsValue({
@@ -132,10 +157,13 @@ export function Smelting() {
       tax_rate: d.tax_rate ? Number(d.tax_rate) : 13,
       need_invoice: d.need_invoice,
       notes: d.notes,
-      feed_lines: d.inbound_lines.filter((l) => l.side === 'in').map(toLine),
-      tap_lines: d.inbound_lines.filter((l) => l.side === 'out').map(toLine),
+      feed_lines: d.inbound_lines.filter((l) => l.side === 'in').map(toInvLine),
+      tap_lines: d.inbound_lines.filter((l) => l.side === 'out').map(toTapLine),
       alloy_lines: d.alloy_lines.map((a) => ({
+        inventory_id: a.inventory_id,
+        date: a.date ? dayjs(a.date) : null,
         item_id: a.item_id,
+        spec: a.spec,
         quantity: Number(a.quantity),
         unit: a.unit ?? '千克',
         unit_price: a.unit_price ? Number(a.unit_price) : null,
@@ -144,15 +172,19 @@ export function Smelting() {
     })
   }
 
-  const renderSteelLines = (name: string, title: string, withOwner: boolean) => (
-    <Form.List name={name}>
+  /** 出钢/出料明细：钢种与归属支持快速新建（QuickCreate）。 */
+  const renderTapLines = () => (
+    <Form.List name="tap_lines">
       {(fields, { add, remove }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontWeight: 600 }}>{title}</div>
+          <div style={{ fontWeight: 600 }}>出钢 / 出料（归属决定入库单位）</div>
           {fields.map((field) => (
             <Space key={field.key} align="baseline" wrap>
-              <Form.Item {...field} name={[field.name, 'item_id']} label="钢种">
-                <Select style={{ width: 150 }} showSearch optionFilterProp="label" options={itemOptions(items.data)} />
+              <Form.Item {...field} name={[field.name, 'date']} label="出钢日期">
+                <DatePicker style={{ width: 140 }} />
+              </Form.Item>
+              <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true }]}>
+                <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'spec']} label="规格">
                 <Input style={{ width: 90 }} />
@@ -166,15 +198,13 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'furnace_no']} label="炉号">
                 <Input style={{ width: 90 }} />
               </Form.Item>
-              {withOwner && (
-                <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
-                  <Select style={{ width: 120 }} allowClear showSearch optionFilterProp="label" options={partyOptions(parties.data)} />
-                </Form.Item>
-              )}
+              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
+                <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
+              </Form.Item>
               <MinusCircleOutlined onClick={() => remove(field.name)} />
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨', date: form.getFieldValue('tap_date') ?? null })} icon={<PlusOutlined />}>
             添加行
           </Button>
         </div>
@@ -263,6 +293,39 @@ export function Smelting() {
             <Form.Item name="tap_date" label="出钢日期">
               <DatePicker />
             </Form.Item>
+          </Space>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <InventoryLineList
+              form={form}
+              name="feed_lines"
+              title="来料 / 投料（从现存库存中选择）"
+              stock={stock.data}
+              dateField="date"
+              dateLabel="来料日期"
+              defaultDateField="feed_date"
+              addLabel="添加来料"
+            />
+            {renderTapLines()}
+            <InventoryLineList
+              form={form}
+              name="alloy_lines"
+              title="补加合金（从本厂现存合金库存中选择）"
+              stock={stock.data}
+              dateField="date"
+              dateLabel="补加日期"
+              defaultDateField="feed_date"
+              filter={(r: InventoryStockOption) =>
+                r.item?.item_type === 'alloy' &&
+                internalPartyId != null &&
+                r.owner?.id === internalPartyId
+              }
+              addLabel="添加合金"
+              selectWidth={280}
+            />
+          </div>
+
+          <Space size="large" wrap style={{ display: 'flex', marginTop: 14 }}>
             <Form.Item name="unit_price" label="加工单价(元/吨)">
               <InputNumber min={0} />
             </Form.Item>
@@ -278,40 +341,26 @@ export function Smelting() {
                 ]}
               />
             </Form.Item>
+            <Form.Item label="预计合计" tooltip="来料/出钢/合金金额 + 加工费(出钢量×加工单价) + 税额(仅需开票时计税)，便于核对">
+              <Form.Item noStyle shouldUpdate>
+                {({ getFieldsValue }) => {
+                  const v = getFieldsValue()
+                  const sumAmount = (lines: any[]) =>
+                    (lines ?? []).reduce(
+                      (s, l) => s + (l?.unit_price != null ? Number(l.quantity || 0) * Number(l.unit_price) : 0),
+                      0
+                    )
+                  const tapQty = (v.tap_lines ?? []).reduce((s: number, l: any) => s + Number(l?.quantity || 0), 0)
+                  const processing = v.unit_price != null ? tapQty * Number(v.unit_price) : 0
+                  const subtotal =
+                    sumAmount(v.feed_lines) + sumAmount(v.tap_lines) + sumAmount(v.alloy_lines) + processing
+                  const rate = v.need_invoice && v.tax_rate != null ? Number(v.tax_rate) : 0
+                  const total = subtotal + (subtotal * rate) / 100
+                  return <span style={{ fontWeight: 600, fontSize: 16 }}>¥{total.toFixed(2)}</span>
+                }}
+              </Form.Item>
+            </Form.Item>
           </Space>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {renderSteelLines('feed_lines', '来料 / 投料', false)}
-            {renderSteelLines('tap_lines', '出钢 / 出料（归属决定入库单位）', true)}
-
-            <Form.List name="alloy_lines">
-              {(fields, { add, remove }) => (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontWeight: 600 }}>补加合金</div>
-                  {fields.map((field) => (
-                    <Space key={field.key} align="baseline" wrap>
-                      <Form.Item {...field} name={[field.name, 'item_id']} label="合金" rules={[{ required: true }]}>
-                        <Select style={{ width: 160 }} showSearch optionFilterProp="label" options={itemOptions(items.data)} />
-                      </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
-                        <InputNumber style={{ width: 100 }} min={0} step={0.001} />
-                      </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'unit']} label="单位">
-                        <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
-                      </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'unit_price']} label="单价">
-                        <InputNumber style={{ width: 110 }} min={0} />
-                      </Form.Item>
-                      <MinusCircleOutlined onClick={() => remove(field.name)} />
-                    </Space>
-                  ))}
-                  <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '千克' })} icon={<PlusOutlined />}>
-                    添加合金
-                  </Button>
-                </div>
-              )}
-            </Form.List>
-          </div>
 
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />

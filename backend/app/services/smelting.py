@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.models.inventory import Inventory, InventoryLog
 from app.models.party import Party
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
-from app.services.inventory import stock_in, stock_out_inventory_obj
+from app.services.inventory import stock_in, stock_out
 
 # 状态机允许的迁移
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
@@ -85,8 +85,12 @@ def recompute_amounts(order: SmeltingOrder) -> None:
 
     subtotal = inbound_amount + outbound_amount + alloy_amount + (order.processing_amount or Decimal("0"))
     order.subtotal = subtotal
-    tax_rate = Decimal(order.tax_rate) if order.tax_rate is not None else Decimal("0")
-    order.tax_amount = (subtotal * tax_rate / 100).quantize(Decimal("0.01"))
+    # 不开票不计税，与销售口径一致
+    if order.need_invoice:
+        tax_rate = Decimal(order.tax_rate) if order.tax_rate is not None else Decimal("0")
+        order.tax_amount = (subtotal * tax_rate / 100).quantize(Decimal("0.01"))
+    else:
+        order.tax_amount = Decimal("0.00")
     order.total_amount = subtotal + order.tax_amount
 
 
@@ -124,36 +128,23 @@ async def resolve_internal_party_id(db: AsyncSession) -> int:
     return pid
 
 
-async def _find_inventory_for_update(db: AsyncSession, *, item_id: int, owner_id: int, spec: str | None):
-    stmt = (
-        select(Inventory)
-        .where(
-            Inventory.item_id == item_id,
-            Inventory.owner_id == owner_id,
-            Inventory.spec == (spec or ""),
-        )
-        .with_for_update()
-    )
-    return await db.scalar(stmt)
-
-
 async def apply_approve_inventory(db: AsyncSession, order: SmeltingOrder) -> None:
-    """审核通过：扣减来料（side=in，归属 owner/订单 party）+ 合金（本厂）库存。"""
-    internal_party_id = await resolve_internal_party_id(db)
+    """审核通过：按明细所选 inventory_id 直接扣减来料（side=in）+ 合金库存。
 
+    前端在创建/编辑时已让用户从现存库存中选定具体库存项并存入 inventory_id，
+    审核时按此 id 精确出库，存什么扣什么，不再凭 item_id+owner+spec 反查。
+    """
     for line in order.inbound_lines:
-        if line.side != "in" or not line.item_id:
+        if line.side != "in":
             continue
-        owner_id = line.owner_id or order.party_id
-        inv = await _find_inventory_for_update(db, item_id=line.item_id, owner_id=owner_id, spec=line.spec)
-        if inv is None:
+        if not line.inventory_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"来料物料(item_id={line.item_id})无对应库存，无法扣减",
+                detail=f"来料明细(line_no={line.line_no})未选择库存项，无法扣减",
             )
-        await stock_out_inventory_obj(
+        await stock_out(
             db,
-            inventory=inv,
+            inventory_id=line.inventory_id,
             quantity=Decimal(line.quantity or 0),
             change_date=line.date or order.feed_date or datetime.utcnow().date(),
             notes=f"冶炼#{order.batch_no}投料",
@@ -163,17 +154,16 @@ async def apply_approve_inventory(db: AsyncSession, order: SmeltingOrder) -> Non
         )
 
     for alloy in order.alloy_lines:
-        inv = await _find_inventory_for_update(db, item_id=alloy.item_id, owner_id=internal_party_id, spec=None)
-        if inv is None:
+        if not alloy.inventory_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"合金物料(item_id={alloy.item_id})无对应本厂库存，无法扣减",
+                detail=f"合金物料(item_id={alloy.item_id})未选择库存项，无法扣减",
             )
-        await stock_out_inventory_obj(
+        await stock_out(
             db,
-            inventory=inv,
+            inventory_id=alloy.inventory_id,
             quantity=Decimal(alloy.quantity or 0),
-            change_date=order.feed_date or datetime.utcnow().date(),
+            change_date=alloy.date or order.feed_date or datetime.utcnow().date(),
             notes=f"冶炼#{order.batch_no}补合金",
             ref_type="smelting_order",
             ref_id=order.id,

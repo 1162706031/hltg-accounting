@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Inventory, InventoryLog
 from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOutbound
-from app.services.inventory import stock_in, stock_out_inventory_obj
+from app.services.inventory import stock_in, stock_out
 from app.services.smelting import resolve_internal_party_id
 
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
@@ -88,6 +88,7 @@ async def load_order(db: AsyncSession, order_id: int) -> OutsourceOrder:
             selectinload(OutsourceOrder.party),
             selectinload(OutsourceOrder.outbound_lines).selectinload(ProcessingOutbound.item),
             selectinload(OutsourceOrder.inbound_lines).selectinload(ProcessingInbound.item),
+            selectinload(OutsourceOrder.inbound_lines).selectinload(ProcessingInbound.owner),
         )
     )
     order = await db.scalar(stmt)
@@ -97,32 +98,19 @@ async def load_order(db: AsyncSession, order_id: int) -> OutsourceOrder:
 
 
 # ---------- 库存联动 ----------
-async def _find_inventory_for_update(db: AsyncSession, *, item_id: int, owner_id: int, spec: str | None):
-    stmt = (
-        select(Inventory)
-        .where(Inventory.item_id == item_id, Inventory.owner_id == owner_id, Inventory.spec == (spec or ""))
-        .with_for_update()
-    )
-    return await db.scalar(stmt)
-
-
 async def apply_approve_inventory(db: AsyncSession, order: OutsourceOrder) -> None:
-    """审核通过：发出扣本厂库存。"""
-    internal_party_id = await resolve_internal_party_id(db)
+    """审核通过：按明细所选 inventory_id 直接扣减本厂库存（发出）。"""
     for line in order.outbound_lines:
-        if not line.item_id:
-            continue
-        inv = await _find_inventory_for_update(db, item_id=line.item_id, owner_id=internal_party_id, spec=line.spec)
-        if inv is None:
+        if not line.inventory_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"发出物料(item_id={line.item_id})无对应本厂库存，无法扣减",
+                detail=f"发出明细(line_no={line.line_no})未选择库存项，无法扣减",
             )
-        await stock_out_inventory_obj(
+        await stock_out(
             db,
-            inventory=inv,
+            inventory_id=line.inventory_id,
             quantity=Decimal(line.quantity or 0),
-            change_date=line.out_date or datetime.utcnow().date(),
+            change_date=line.out_date or order.out_date or datetime.utcnow().date(),
             notes=f"外协#{order.batch_no}发出",
             ref_type="outsource_order",
             ref_id=order.id,
@@ -131,7 +119,7 @@ async def apply_approve_inventory(db: AsyncSession, order: OutsourceOrder) -> No
 
 
 async def apply_complete_inventory(db: AsyncSession, order: OutsourceOrder) -> None:
-    """标记完成：回厂入本厂库存。"""
+    """标记完成：回厂入库，归属取明细行 owner_id，留空回退本厂。"""
     internal_party_id = await resolve_internal_party_id(db)
     for line in order.inbound_lines:
         if not line.item_id:
@@ -139,11 +127,11 @@ async def apply_complete_inventory(db: AsyncSession, order: OutsourceOrder) -> N
         await stock_in(
             db,
             item_id=line.item_id,
-            owner_id=internal_party_id,
+            owner_id=line.owner_id or internal_party_id,
             spec=line.spec,
             unit=line.unit or "吨",
             quantity=Decimal(line.quantity or 0),
-            change_date=line.in_date or datetime.utcnow().date(),
+            change_date=line.in_date or order.in_date or datetime.utcnow().date(),
             notes=f"外协#{order.batch_no}回厂入库",
             ref_type="outsource_order",
             ref_id=order.id,

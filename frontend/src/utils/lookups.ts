@@ -69,12 +69,42 @@ export function inventoryStockOptions(rows?: InventoryStockOption[]) {
   })
 }
 
+/** 物品类型中文标签，用于下拉选项后缀展示。 */
+export const ITEM_TYPE_LABELS: Record<string, string> = {
+  steel_grade: '钢种',
+  raw_material: '原料',
+  alloy: '合金',
+  finished_product: '成品',
+  semi_finished: '半成品',
+  scrap: '废料'
+}
+
+/** 往来单位角色中文标签。 */
+const PARTY_ROLE_LABELS: Array<{ key: keyof PartyOption; label: string }> = [
+  { key: 'is_internal', label: '本厂' },
+  { key: 'is_customer', label: '客户' },
+  { key: 'is_supplier', label: '供应商' },
+  { key: 'is_processor', label: '外协厂' }
+]
+
+/** 单位角色文字，如「客户/供应商」。 */
+function partyRoleText(p: PartyOption): string {
+  return PARTY_ROLE_LABELS.filter((r) => p[r.key]).map((r) => r.label).join('/')
+}
+
 export function partyOptions(parties?: PartyOption[]) {
-  return (parties ?? []).map((p) => ({ value: p.id, label: p.short_name ? `${p.name}（${p.short_name}）` : p.name }))
+  return (parties ?? []).map((p) => {
+    const name = p.short_name ? `${p.name}（${p.short_name}）` : p.name
+    const role = partyRoleText(p)
+    return { value: p.id, label: role ? `${name} · ${role}` : name }
+  })
 }
 
 export function itemOptions(items?: ItemOption[]) {
-  return (items ?? []).map((i) => ({ value: i.id, label: i.name }))
+  return (items ?? []).map((i) => {
+    const type = ITEM_TYPE_LABELS[i.item_type] ?? i.item_type
+    return { value: i.id, label: type ? `${i.name} · ${type}` : i.name }
+  })
 }
 
 /** 统一的单位下拉选项（中文）。 */

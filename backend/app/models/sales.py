@@ -44,6 +44,7 @@ class SalesOrderItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("sales_order.id", ondelete="CASCADE"), nullable=False)
     line_no: Mapped[int] = mapped_column(default=1)
+    ship_date: Mapped[date | None] = mapped_column(Date)
     inventory_id: Mapped[int | None] = mapped_column(ForeignKey("inventory.id"))
     item_id: Mapped[int | None] = mapped_column(ForeignKey("item.id"))
     spec: Mapped[str | None] = mapped_column(String(80))
