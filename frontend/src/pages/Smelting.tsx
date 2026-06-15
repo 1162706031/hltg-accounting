@@ -282,7 +282,7 @@ export function Smelting() {
         <Form form={form} layout="vertical">
           <Space size="large" wrap style={{ display: 'flex' }}>
             <Form.Item name="party_id" label="业务单位" rules={[{ required: true }]}>
-              <Select style={{ width: 200 }} showSearch optionFilterProp="label" options={partyOptions(parties.data)} />
+              <PartySelect options={partyOptions(parties.data)} placeholder="业务单位" style={{ width: 200 }} />
             </Form.Item>
             <Form.Item name="order_type" label="类型" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={ORDER_TYPE_OPTIONS} />

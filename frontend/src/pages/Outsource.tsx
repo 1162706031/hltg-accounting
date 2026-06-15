@@ -252,7 +252,7 @@ export function Outsource() {
         <Form form={form} layout="vertical">
           <Space size="large" wrap style={{ display: 'flex' }}>
             <Form.Item name="party_id" label="外协厂" rules={[{ required: true }]}>
-              <Select style={{ width: 200 }} showSearch optionFilterProp="label" options={partyOptions(parties.data)} />
+              <PartySelect options={partyOptions(parties.data)} placeholder="外协厂" style={{ width: 200 }} />
             </Form.Item>
             <Form.Item name="process_type" label="工艺" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={PROCESS_OPTIONS} />
