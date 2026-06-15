@@ -21,7 +21,8 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 }
 
 LOCKED_STATUSES = {"completed"}
-DELETABLE_STATUSES = {"draft", "rejected"}
+# 除已完成外均可删除（采购/销售；已完成已联动库存，保留记录）
+DELETABLE_STATUSES = {"draft", "pending_review", "approved", "in_progress", "rejected"}
 UNAUDITABLE_STATUSES = {"approved", "in_progress", "completed"}
 
 

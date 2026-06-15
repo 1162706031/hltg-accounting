@@ -10,7 +10,7 @@ export function Login() {
   return (
     <div className="login-shell">
       <div className="login-panel">
-        <h1 className="login-title">汇隆特钢 ERP</h1>
+        <h1 className="login-title">旭峰新材料 ERP</h1>
         <p className="login-subtitle">会计、库存、对账一体化管理</p>
         <Form
           layout="vertical"

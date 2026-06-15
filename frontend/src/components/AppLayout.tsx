@@ -60,7 +60,7 @@ export function AppLayout() {
       <Sider width={216} theme="light">
         <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 18px', gap: 10 }}>
           <ToolOutlined />
-          <Typography.Text strong>汇隆特钢 ERP</Typography.Text>
+          <Typography.Text strong>旭峰新材料 ERP</Typography.Text>
         </div>
         <Menu
           mode="inline"

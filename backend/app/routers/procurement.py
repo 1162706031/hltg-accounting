@@ -143,7 +143,7 @@ async def delete_order(order_id: int, db: AsyncSession = Depends(get_db)):
     if order is None:
         raise HTTPException(status_code=404, detail="采购订单不存在")
     if order.status not in DELETABLE_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅草稿/驳回状态的订单可删除")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已完成的订单不可删除")
     await db.delete(order)
     await db.commit()
     return {"message": "采购订单已删除"}
@@ -156,7 +156,7 @@ async def batch_delete_orders(payload: BatchDeleteRequest, db: AsyncSession = De
     skipped: list[dict[str, object]] = []
     for order in rows:
         if order.status not in DELETABLE_STATUSES:
-            skipped.append({"id": order.id, "reason": "仅草稿/驳回状态的订单可删除"})
+            skipped.append({"id": order.id, "reason": "已完成的订单不可删除"})
             continue
         await db.delete(order)
         deleted += 1

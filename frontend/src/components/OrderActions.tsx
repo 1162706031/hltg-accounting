@@ -14,10 +14,12 @@ interface Props {
   /** 失效查询用的 queryKey 前缀 */
   invalidateKey: string
   onEdit?: () => void
+  /** 是否对「除已完成外」的所有状态显示删除按钮（采购/销售）。默认仅草稿/驳回可删。 */
+  deletableUnlessCompleted?: boolean
 }
 
 /** 订单工作流操作按钮组（提交/审核/驳回/开始/完成/反审核/编辑/删除）。 */
-export function OrderActions({ resource, orderId, status, role, invalidateKey, onEdit }: Props) {
+export function OrderActions({ resource, orderId, status, role, invalidateKey, onEdit, deletableUnlessCompleted }: Props) {
   const { message, modal } = AntApp.useApp()
   const queryClient = useQueryClient()
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -25,6 +27,7 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
   const actions = availableActions(status)
   const canReview = role === 'reviewer' || role === 'admin'
   const isAdmin = role === 'admin'
+  const showDelete = deletableUnlessCompleted ? status !== 'completed' : actions.deletable
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [invalidateKey] })
 
@@ -93,7 +96,7 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
           反审核
         </Button>
       )}
-      {actions.deletable && (
+      {showDelete && (
         <Button
           type="link"
           size="small"
