@@ -128,8 +128,8 @@ export function Procurement() {
             title: '操作',
             width: 340,
             render: (_, row) => (
-              <Space size="small">
-                <Button size="small" onClick={() => setDetail(row)}>
+              <Space size={0} wrap>
+                <Button type="link" size="small" onClick={() => setDetail(row)}>
                   查看
                 </Button>
                 <OrderActions

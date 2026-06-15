@@ -249,8 +249,8 @@ export function Smelting() {
             title: '操作',
             width: 340,
             render: (_, row) => (
-              <Space size="small">
-                <Button size="small" onClick={() => setDetailId(row.id)}>
+              <Space size={0} wrap>
+                <Button type="link" size="small" onClick={() => setDetailId(row.id)}>
                   查看
                 </Button>
                 <OrderActions

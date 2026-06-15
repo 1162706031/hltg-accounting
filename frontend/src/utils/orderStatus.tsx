@@ -47,11 +47,11 @@ export function availableActions(status: OrderStatus): {
     case 'draft':
       return { submit: true, editable: true, deletable: true }
     case 'pending_review':
-      return { approve: true, reject: true }
+      return { approve: true, reject: true, editable: true }
     case 'approved':
-      return { start: true, unaudit: true }
+      return { start: true, unaudit: true, editable: true }
     case 'in_progress':
-      return { complete: true, unaudit: true }
+      return { complete: true, unaudit: true, editable: true }
     case 'completed':
       return { unaudit: true }
     case 'rejected':

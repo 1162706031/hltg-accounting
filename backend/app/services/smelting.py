@@ -31,15 +31,15 @@ _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "rejected": {"draft", "pending_review"},
 }
 
-# 已审核及之后不可再编辑业务字段
-_LOCKED_STATUSES = {"approved", "in_progress", "completed"}
+# 已完成不可再编辑业务字段
+_LOCKED_STATUSES = {"completed"}
 
 
 def assert_editable(order: SmeltingOrder) -> None:
     if order.status in _LOCKED_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="订单已审核/进行中/已完成，禁止修改业务字段",
+            detail="订单已完成，禁止修改业务字段",
         )
 
 

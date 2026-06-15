@@ -28,12 +28,12 @@ _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "rejected": {"draft", "pending_review"},
 }
 
-_LOCKED_STATUSES = {"approved", "in_progress", "completed"}
+_LOCKED_STATUSES = {"completed"}
 
 
 def assert_editable(order: OutsourceOrder) -> None:
     if order.status in _LOCKED_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已审核/进行中/已完成，禁止修改业务字段")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已完成，禁止修改业务字段")
 
 
 def _line_amount(quantity, unit_price) -> Decimal | None:
@@ -62,16 +62,20 @@ def recompute_amounts(order: OutsourceOrder) -> None:
     if order.yield_rate is None and out_total > 0:
         order.yield_rate = (in_total / out_total).quantize(Decimal("0.0001"))
 
-    # 加工金额 = 发出总量 × 加工单价（外协按发出计费）
+    # 加工金额 = 回厂总量 × 加工单价（外协按回厂计费）
     if order.unit_price is not None:
-        order.amount = (out_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
+        order.amount = (in_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
     else:
         order.amount = None
 
     subtotal = (order.amount or Decimal("0")) + line_amount_sum
     order.subtotal = subtotal
-    tax_rate = Decimal(order.tax_rate) if order.tax_rate is not None else Decimal("0")
-    order.tax_amount = (subtotal * tax_rate / 100).quantize(Decimal("0.01"))
+    # 不开票不计税，与冶炼/销售口径一致
+    if order.need_invoice:
+        tax_rate = Decimal(order.tax_rate) if order.tax_rate is not None else Decimal("0")
+        order.tax_amount = (subtotal * tax_rate / 100).quantize(Decimal("0.01"))
+    else:
+        order.tax_amount = Decimal("0.00")
     order.total_amount = subtotal + order.tax_amount
 
 

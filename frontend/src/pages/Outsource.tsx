@@ -170,6 +170,9 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'unit']} label="单位">
                 <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
               </Form.Item>
+              <Form.Item {...field} name={[field.name, 'unit_price']} label="单价(可选)">
+                <InputNumber style={{ width: 110 }} min={0} placeholder="可不填" />
+              </Form.Item>
               <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
@@ -216,8 +219,8 @@ export function Outsource() {
             title: '操作',
             width: 340,
             render: (_, row) => (
-              <Space size="small">
-                <Button size="small" onClick={() => setDetailId(row.id)}>
+              <Space size={0} wrap>
+                <Button type="link" size="small" onClick={() => setDetailId(row.id)}>
                   查看
                 </Button>
                 <OrderActions
@@ -260,21 +263,6 @@ export function Outsource() {
             <Form.Item name="in_date" label="回厂日期">
               <DatePicker />
             </Form.Item>
-            <Form.Item name="unit_price" label="加工单价(元/吨)">
-              <InputNumber min={0} />
-            </Form.Item>
-            <Form.Item name="tax_rate" label="税率(%)">
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="need_invoice" label="需开票">
-              <Select
-                style={{ width: 80 }}
-                options={[
-                  { value: false, label: '否' },
-                  { value: true, label: '是' }
-                ]}
-              />
-            </Form.Item>
           </Space>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -294,6 +282,42 @@ export function Outsource() {
             />
             {renderLines('inbound_lines', 'in_date', '回厂（完成时按归属入库，归属留空入本厂）')}
           </div>
+
+          <Space size="large" wrap style={{ display: 'flex', marginTop: 14 }}>
+            <Form.Item name="unit_price" label="加工单价(元/吨)">
+              <InputNumber min={0} />
+            </Form.Item>
+            <Form.Item name="tax_rate" label="税率(%)">
+              <InputNumber min={0} max={100} />
+            </Form.Item>
+            <Form.Item name="need_invoice" label="需开票">
+              <Select
+                style={{ width: 80 }}
+                options={[
+                  { value: false, label: '否' },
+                  { value: true, label: '是' }
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="预计合计" tooltip="发出/回厂金额 + 加工费(回厂量×加工单价) + 税额(仅需开票时计税)，便于核对">
+              <Form.Item noStyle shouldUpdate>
+                {({ getFieldsValue }) => {
+                  const v = getFieldsValue()
+                  const sumAmount = (lines: any[]) =>
+                    (lines ?? []).reduce(
+                      (s, l) => s + (l?.unit_price != null ? Number(l.quantity || 0) * Number(l.unit_price) : 0),
+                      0
+                    )
+                  const inQty = (v.inbound_lines ?? []).reduce((s: number, l: any) => s + Number(l?.quantity || 0), 0)
+                  const processing = v.unit_price != null ? inQty * Number(v.unit_price) : 0
+                  const subtotal = sumAmount(v.outbound_lines) + sumAmount(v.inbound_lines) + processing
+                  const rate = v.need_invoice && v.tax_rate != null ? Number(v.tax_rate) : 0
+                  const total = subtotal + (subtotal * rate) / 100
+                  return <span style={{ fontWeight: 600, fontSize: 16 }}>¥{total.toFixed(2)}</span>
+                }}
+              </Form.Item>
+            </Form.Item>
+          </Space>
 
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />

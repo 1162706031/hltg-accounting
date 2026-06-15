@@ -20,7 +20,7 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "rejected": {"draft", "pending_review"},
 }
 
-LOCKED_STATUSES = {"approved", "in_progress", "completed"}
+LOCKED_STATUSES = {"completed"}
 DELETABLE_STATUSES = {"draft", "rejected"}
 UNAUDITABLE_STATUSES = {"approved", "in_progress", "completed"}
 
@@ -32,7 +32,7 @@ def check_transition(current: str, target: str) -> None:
 
 def assert_editable(current: str) -> None:
     if current in LOCKED_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已审核/进行中/已完成，禁止修改业务字段")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已完成，禁止修改业务字段")
 
 
 async def rollback_inventory_by_ref(db: AsyncSession, *, ref_type: str, ref_id: int) -> None:
