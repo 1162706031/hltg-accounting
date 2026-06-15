@@ -520,14 +520,16 @@ CREATE TABLE inventory (
 ) ENGINE=InnoDB COMMENT='统一库存 — 物品类型通过 JOIN item.item_type 读取，不冗余存储';
 
 -- 以下子表先于 inventory 创建，库存外键在 inventory 建好后统一补充
+-- ON DELETE SET NULL：库存项删除时仅置空明细行指针，单据自带 item/spec/数量快照不受影响，
+-- 撤销/反审核按 inventory_log 追溯回滚，不依赖此指针
 ALTER TABLE sales_order_item
-    ADD CONSTRAINT fk_soi_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+    ADD CONSTRAINT fk_soi_inventory FOREIGN KEY (inventory_id) REFERENCES inventory(id) ON DELETE SET NULL;
 ALTER TABLE smelting_inbound
-    ADD CONSTRAINT fk_si_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+    ADD CONSTRAINT fk_si_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id) ON DELETE SET NULL;
 ALTER TABLE alloy_addition
-    ADD CONSTRAINT fk_aa_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+    ADD CONSTRAINT fk_aa_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id) ON DELETE SET NULL;
 ALTER TABLE processing_outbound
-    ADD CONSTRAINT fk_po_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id);
+    ADD CONSTRAINT fk_po_inv FOREIGN KEY (inventory_id) REFERENCES inventory(id) ON DELETE SET NULL;
 
 
 -- 库存变动日志（独立自包含，不与其他表外键联动，不可修改）

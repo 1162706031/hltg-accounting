@@ -59,7 +59,7 @@ class ProcessingOutbound(Base):
     line_no: Mapped[int] = mapped_column(default=1)
     out_date: Mapped[date | None] = mapped_column(Date)
     item_id: Mapped[int | None] = mapped_column(ForeignKey("item.id"))
-    inventory_id: Mapped[int | None] = mapped_column(ForeignKey("inventory.id"))
+    inventory_id: Mapped[int | None] = mapped_column(ForeignKey("inventory.id", ondelete="SET NULL"))
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 3), default=0)
     unit: Mapped[str] = mapped_column(String(10), default="吨")
     spec: Mapped[str | None] = mapped_column(String(80))
