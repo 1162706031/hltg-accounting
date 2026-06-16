@@ -15,11 +15,21 @@ import {
   Tag
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
+import {
+  firstLinkedOrder,
+  formatLinkedOrders,
+  linkedOrderKeysFromRecord,
+  linkedOrdersFromKeys,
+  orderKey,
+  OrderRefType,
+  ReconciliationOrderRow,
+  refTypeOptions
+} from '../utils/linkedOrders'
 import { partyOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
@@ -27,7 +37,6 @@ import { canManageData } from '../utils/permissions'
 const { RangePicker } = DatePicker
 
 type PaymentDirection = 'pay' | 'receive'
-type OrderRefType = 'smelting_order' | 'outsource_order' | 'procurement_order' | 'sales_order'
 
 interface PartyLite {
   id: number
@@ -45,6 +54,7 @@ interface Payment {
   method?: string | null
   ref_type?: OrderRefType | string | null
   ref_id?: number | null
+  linked_orders?: Array<{ ref_type: string; ref_id: number; batch_no?: string | null }> | null
   notes?: string | null
 }
 
@@ -56,6 +66,7 @@ interface PaymentFormValues {
   method?: string | null
   ref_type?: OrderRefType | null
   ref_id?: number | null
+  linked_order_keys?: string[]
   notes?: string | null
 }
 
@@ -64,14 +75,6 @@ const directionMap: Record<PaymentDirection, { label: string; color: string }> =
   pay: { label: '付款', color: 'blue' }
 }
 
-const refTypeOptions: Array<{ value: OrderRefType; label: string }> = [
-  { value: 'smelting_order', label: '冶炼' },
-  { value: 'outsource_order', label: '外协' },
-  { value: 'procurement_order', label: '采购' },
-  { value: 'sales_order', label: '销售' }
-]
-
-const refTypeLabels = Object.fromEntries(refTypeOptions.map((item) => [item.value, item.label]))
 const moneyFormatter = new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function money(value?: string | number | null) {
@@ -79,15 +82,19 @@ function money(value?: string | number | null) {
   return moneyFormatter.format(Number.isFinite(n) ? n : 0)
 }
 
-function buildPayload(values: PaymentFormValues) {
+function buildPayload(values: PaymentFormValues, reconciliationRows: ReconciliationOrderRow[]) {
+  const rowsByKey = new Map(reconciliationRows.map((row) => [orderKey(row.ref_type, row.ref_id), row]))
+  const linkedOrders = linkedOrdersFromKeys(values.linked_order_keys, rowsByKey)
+  const firstOrder = firstLinkedOrder(values.linked_order_keys)
   return {
     party_id: values.party_id,
     direction: values.direction,
     pay_date: values.pay_date ? values.pay_date.format('YYYY-MM-DD') : null,
     amount: values.amount ?? 0,
     method: values.method || null,
-    ref_type: values.ref_type || null,
-    ref_id: values.ref_id || null,
+    ref_type: firstOrder?.ref_type || values.ref_type || null,
+    ref_id: firstOrder?.ref_id || values.ref_id || null,
+    linked_orders: linkedOrders.length ? linkedOrders : null,
     notes: values.notes || null
   }
 }
@@ -101,6 +108,7 @@ function rowToForm(row: Payment): PaymentFormValues {
     method: row.method ?? '',
     ref_type: (row.ref_type as OrderRefType | null) ?? null,
     ref_id: row.ref_id ?? null,
+    linked_order_keys: linkedOrderKeysFromRecord(row),
     notes: row.notes ?? ''
   }
 }
@@ -121,6 +129,7 @@ export function Payments() {
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<Payment | null>(null)
   const [form] = Form.useForm<PaymentFormValues>()
+  const selectedPartyId = Form.useWatch('party_id', form)
 
   const parties = useParties()
   const partyOpts = partyOptions(parties.data)
@@ -142,6 +151,39 @@ export function Payments() {
         })
       ).data
   })
+
+  const reconciliationQuery = useQuery({
+    queryKey: ['reconciliations', 'payment-linked-orders', selectedPartyId],
+    enabled: open && Boolean(selectedPartyId),
+    queryFn: async () =>
+      (
+        await api.get<PageResult<ReconciliationOrderRow>>('/reconciliations', {
+          params: { page: 1, page_size: 200, party_id: selectedPartyId }
+        })
+      ).data
+  })
+
+  const reconciliationRows = useMemo(
+    () =>
+      (reconciliationQuery.data?.items ?? []).filter(
+        (row) => row.ref_type && row.ref_id && row.recon_status !== 'disabled'
+      ),
+    [reconciliationQuery.data?.items]
+  )
+
+  const reconciliationOptions = useMemo(
+    () =>
+      reconciliationRows.map((row) => {
+        const debit = Number(row.debit ?? 0)
+        const credit = Number(row.credit ?? 0)
+        const amount = Math.max(Number.isFinite(debit) ? debit : 0, Number.isFinite(credit) ? credit : 0)
+        return {
+          value: orderKey(row.ref_type, row.ref_id),
+          label: `${row.biz_date ?? '未定日期'}｜${row.biz_desc ?? '对账记录'}｜¥${money(amount)}`
+        }
+      }),
+    [reconciliationRows]
+  )
 
   const rows = query.data?.items ?? []
   const totalReceive = rows.filter((r) => r.direction === 'receive').reduce((sum, r) => sum + Number(r.amount || 0), 0)
@@ -208,7 +250,7 @@ export function Payments() {
 
   const submitForm = () => {
     form.validateFields().then((values) => {
-      const payload = buildPayload(values)
+      const payload = buildPayload(values, reconciliationRows)
       if (editing) updateMut.mutate({ id: editing.id, payload })
       else createMut.mutate(payload)
     })
@@ -327,9 +369,9 @@ export function Payments() {
           { title: '方式', dataIndex: 'method', width: 110, render: (v) => v || '—' },
           {
             title: '关联订单',
-            width: 140,
-            render: (_, row) =>
-              row.ref_type || row.ref_id ? `${row.ref_type ? refTypeLabels[row.ref_type] ?? row.ref_type : '订单'} #${row.ref_id ?? '—'}` : '—'
+            width: 220,
+            ellipsis: true,
+            render: (_, row) => formatLinkedOrders(row)
           },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v || '—' },
           {
@@ -402,10 +444,26 @@ export function Payments() {
             <Form.Item name="method" label="方式">
               <Input placeholder="电汇 / 电承 / 现金" maxLength={20} />
             </Form.Item>
-            <Form.Item name="ref_type" label="关联订单类型">
+            <Form.Item name="linked_order_keys" label="从用户对账记录导入关联订单" className="grid-span-2">
+              <Select
+                allowClear
+                mode="multiple"
+                loading={reconciliationQuery.isFetching}
+                disabled={!selectedPartyId}
+                placeholder={selectedPartyId ? '选择已导入用户对账记录' : '请先选择往来单位'}
+                options={reconciliationOptions}
+                onChange={(keys) => {
+                  const firstOrder = firstLinkedOrder(keys)
+                  if (firstOrder) {
+                    form.setFieldsValue({ ref_type: firstOrder.ref_type as OrderRefType, ref_id: firstOrder.ref_id })
+                  }
+                }}
+              />
+            </Form.Item>
+            <Form.Item name="ref_type" label="手动关联订单类型">
               <Select allowClear options={refTypeOptions} />
             </Form.Item>
-            <Form.Item name="ref_id" label="关联订单ID">
+            <Form.Item name="ref_id" label="手动关联订单ID">
               <InputNumber min={1} precision={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="notes" label="备注" className="grid-span-2">
@@ -429,7 +487,7 @@ export function Payments() {
                 { label: '方式', value: detail.method },
                 {
                   label: '关联订单',
-                  value: detail.ref_type || detail.ref_id ? `${detail.ref_type ? refTypeLabels[detail.ref_type] ?? detail.ref_type : '订单'} #${detail.ref_id ?? '—'}` : '—'
+                  value: formatLinkedOrders(detail)
                 },
                 { label: '备注', value: detail.notes, span: 2 }
               ]

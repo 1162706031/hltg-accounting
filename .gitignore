@@ -42,6 +42,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Docker image exports
+docker-images/
+
 # Coverage
 htmlcov/
 .coverage
