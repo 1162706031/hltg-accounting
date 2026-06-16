@@ -1,55 +1,419 @@
-import { useQuery } from '@tanstack/react-query'
-import { Button, Table, Tag } from 'antd'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  App as AntApp,
+  Button,
+  Card,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tag
+} from 'antd'
+import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
+import { PartySelect } from '../components/QuickCreate'
+import { useAuth } from '../utils/AuthContext'
+import { partyOptions, useParties } from '../utils/lookups'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
+
+const { RangePicker } = DatePicker
+
+type InvoiceDirection = 'issue' | 'receive'
+type OrderRefType = 'smelting_order' | 'outsource_order' | 'procurement_order' | 'sales_order'
+
+interface PartyLite {
+  id: number
+  name: string
+  short_name?: string | null
+}
 
 interface Invoice {
   id: number
   party_id: number
-  direction: 'issue' | 'receive'
+  party?: PartyLite | null
+  direction: InvoiceDirection
   invoice_date?: string | null
   invoice_no?: string | null
   amount: string
+  ref_type?: OrderRefType | string | null
+  ref_id?: number | null
   notes?: string | null
 }
 
+interface InvoiceFormValues {
+  party_id: number
+  direction: InvoiceDirection
+  invoice_date?: Dayjs | null
+  invoice_no?: string | null
+  amount: number
+  ref_type?: OrderRefType | null
+  ref_id?: number | null
+  notes?: string | null
+}
+
+const directionMap: Record<InvoiceDirection, { label: string; color: string }> = {
+  issue: { label: '已开发票', color: 'purple' },
+  receive: { label: '已收发票', color: 'cyan' }
+}
+
+const refTypeOptions: Array<{ value: OrderRefType; label: string }> = [
+  { value: 'smelting_order', label: '冶炼' },
+  { value: 'outsource_order', label: '外协' },
+  { value: 'procurement_order', label: '采购' },
+  { value: 'sales_order', label: '销售' }
+]
+
+const refTypeLabels = Object.fromEntries(refTypeOptions.map((item) => [item.value, item.label]))
+const moneyFormatter = new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+function money(value?: string | number | null) {
+  const n = Number(value ?? 0)
+  return moneyFormatter.format(Number.isFinite(n) ? n : 0)
+}
+
+function buildPayload(values: InvoiceFormValues) {
+  return {
+    party_id: values.party_id,
+    direction: values.direction,
+    invoice_date: values.invoice_date ? values.invoice_date.format('YYYY-MM-DD') : null,
+    invoice_no: values.invoice_no || null,
+    amount: values.amount ?? 0,
+    ref_type: values.ref_type || null,
+    ref_id: values.ref_id || null,
+    notes: values.notes || null
+  }
+}
+
+function rowToForm(row: Invoice): InvoiceFormValues {
+  return {
+    party_id: row.party_id,
+    direction: row.direction,
+    invoice_date: row.invoice_date ? dayjs(row.invoice_date) : null,
+    invoice_no: row.invoice_no ?? '',
+    amount: Number(row.amount ?? 0),
+    ref_type: (row.ref_type as OrderRefType | null) ?? null,
+    ref_id: row.ref_id ?? null,
+    notes: row.notes ?? ''
+  }
+}
+
 export function Invoices() {
+  const qc = useQueryClient()
+  const { message, modal } = AntApp.useApp()
+  const { user } = useAuth()
+  const canManage = canManageData(user?.role)
+  const [partyFilter, setPartyFilter] = useState<number | undefined>()
+  const [directionFilter, setDirectionFilter] = useState<InvoiceDirection | undefined>()
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [editing, setEditing] = useState<Invoice | null>(null)
+  const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<Invoice | null>(null)
+  const [form] = Form.useForm<InvoiceFormValues>()
+
+  const parties = useParties()
+  const partyOpts = partyOptions(parties.data)
+
   const query = useQuery({
-    queryKey: ['invoices'],
-    queryFn: async () => (await api.get<PageResult<Invoice>>('/invoices', { params: { page_size: 100 } })).data
+    queryKey: ['invoices', partyFilter, directionFilter, dateRange?.[0]?.format('YYYY-MM-DD'), dateRange?.[1]?.format('YYYY-MM-DD'), search, page, pageSize],
+    queryFn: async () =>
+      (
+        await api.get<PageResult<Invoice>>('/invoices', {
+          params: {
+            page,
+            page_size: pageSize,
+            party_id: partyFilter,
+            direction: directionFilter,
+            date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
+            date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
+            q: search || undefined
+          }
+        })
+      ).data
   })
+
+  const rows = query.data?.items ?? []
+  const totalIssue = rows.filter((r) => r.direction === 'issue').reduce((sum, r) => sum + Number(r.amount || 0), 0)
+  const totalReceive = rows.filter((r) => r.direction === 'receive').reduce((sum, r) => sum + Number(r.amount || 0), 0)
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['invoices'] })
+    qc.invalidateQueries({ queryKey: ['party'] })
+    qc.invalidateQueries({ queryKey: ['reconciliations'] })
+  }
+
+  const createMut = useMutation({
+    mutationFn: (payload: ReturnType<typeof buildPayload>) => api.post('/invoices', payload).then((r) => r.data),
+    onSuccess: () => {
+      message.success('开票记录已创建')
+      invalidateAll()
+      setOpen(false)
+      form.resetFields()
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail ?? '创建失败')
+  })
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: ReturnType<typeof buildPayload> }) =>
+      api.put(`/invoices/${id}`, payload).then((r) => r.data),
+    onSuccess: () => {
+      message.success('开票记录已保存')
+      invalidateAll()
+      setOpen(false)
+      setEditing(null)
+      form.resetFields()
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail ?? '保存失败')
+  })
+
+  const singleDeleteMut = useMutation({
+    mutationFn: (id: number) => api.delete(`/invoices/${id}`).then((r) => r.data),
+    onSuccess: (res: { message: string }) => {
+      message.success(res.message)
+      invalidateAll()
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail ?? '删除失败')
+  })
+
+  const batchDeleteMut = useMutation({
+    mutationFn: (ids: number[]) => api.post('/invoices/batch-delete', { ids }).then((r) => r.data),
+    onSuccess: (res: { message: string }) => {
+      message.success(res.message)
+      setSelectedIds([])
+      invalidateAll()
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail ?? '批量删除失败')
+  })
+
+  const openCreate = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+
+  const openEdit = (row: Invoice) => {
+    setEditing(row)
+    setOpen(true)
+  }
+
+  const submitForm = () => {
+    form.validateFields().then((values) => {
+      const payload = buildPayload(values)
+      if (editing) updateMut.mutate({ id: editing.id, payload })
+      else createMut.mutate(payload)
+    })
+  }
+
+  const handleBatchDelete = () => {
+    if (!selectedIds.length) return
+    modal.confirm({
+      title: `确认删除选中的 ${selectedIds.length} 条开票记录？`,
+      okButtonProps: { danger: true },
+      onOk: () => batchDeleteMut.mutateAsync(selectedIds)
+    })
+  }
 
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">开票记录</h1>
+        {canManage && (
+          <Space>
+            <Button type="primary" onClick={openCreate}>
+              + 新建开票
+            </Button>
+            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
+              批量删除
+            </Button>
+          </Space>
+        )}
       </div>
-      <Table
+
+      <div className="recon-summary-grid">
+        <Card size="small">
+          <Statistic title="本页已开发票" value={totalIssue} precision={2} prefix="¥" />
+        </Card>
+        <Card size="small">
+          <Statistic title="本页已收发票" value={totalReceive} precision={2} prefix="¥" />
+        </Card>
+        <Card size="small">
+          <Statistic title="本页开收净额" value={totalIssue - totalReceive} precision={2} prefix="¥" />
+        </Card>
+      </div>
+
+      <Space wrap className="toolbar">
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="单位筛选"
+          style={{ width: 220 }}
+          value={partyFilter}
+          onChange={(v) => {
+            setPartyFilter(v)
+            setPage(1)
+          }}
+          options={partyOpts}
+        />
+        <Select
+          allowClear
+          placeholder="方向筛选"
+          style={{ width: 140 }}
+          value={directionFilter}
+          onChange={(v) => {
+            setDirectionFilter(v)
+            setPage(1)
+          }}
+          options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))}
+        />
+        <RangePicker
+          value={dateRange}
+          onChange={(range) => {
+            setDateRange(range)
+            setPage(1)
+          }}
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索单位/发票号/备注"
+          style={{ width: 240 }}
+          onSearch={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
+        />
+      </Space>
+
+      <Table<Invoice>
         rowKey="id"
         loading={query.isLoading}
-        dataSource={query.data?.items}
-        pagination={false}
+        dataSource={rows}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
+        rowSelection={
+          canManage
+            ? {
+                selectedRowKeys: selectedIds,
+                onChange: (keys) => setSelectedIds(keys as number[])
+              }
+            : undefined
+        }
         columns={[
-          { title: '日期', dataIndex: 'invoice_date' },
-          { title: '单位ID', dataIndex: 'party_id' },
-          { title: '方向', dataIndex: 'direction', render: (value) => <Tag color={value === 'issue' ? 'purple' : 'cyan'}>{value === 'issue' ? '已开发票' : '已收发票'}</Tag> },
-          { title: '发票号', dataIndex: 'invoice_no' },
-          { title: '金额', dataIndex: 'amount' },
-          { title: '备注', dataIndex: 'notes' },
+          { title: '日期', dataIndex: 'invoice_date', width: 120, render: (v) => v ?? '—' },
+          { title: '往来单位', render: (_, row) => row.party?.short_name || row.party?.name || `#${row.party_id}` },
+          {
+            title: '方向',
+            dataIndex: 'direction',
+            width: 110,
+            render: (value: InvoiceDirection) => <Tag color={directionMap[value].color}>{directionMap[value].label}</Tag>
+          },
+          { title: '发票号', dataIndex: 'invoice_no', width: 160, render: (v) => v || '—' },
+          { title: '金额', dataIndex: 'amount', width: 130, align: 'right', render: (v) => money(v) },
+          {
+            title: '关联订单',
+            width: 140,
+            render: (_, row) =>
+              row.ref_type || row.ref_id ? `${row.ref_type ? refTypeLabels[row.ref_type] ?? row.ref_type : '订单'} #${row.ref_id ?? '—'}` : '—'
+          },
+          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v || '—' },
           {
             title: '操作',
-            width: 90,
+            width: 190,
             render: (_, row) => (
-              <Button size="small" onClick={() => setDetail(row)}>
-                查看
-              </Button>
+              <Space size="small">
+                <Button size="small" onClick={() => setDetail(row)}>
+                  查看
+                </Button>
+                {canManage && (
+                  <>
+                    <Button size="small" onClick={() => openEdit(row)}>
+                      编辑
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() =>
+                        modal.confirm({
+                          title: '确认删除这条开票记录？',
+                          okButtonProps: { danger: true },
+                          onOk: () => singleDeleteMut.mutateAsync(row.id)
+                        })
+                      }
+                    >
+                      删除
+                    </Button>
+                  </>
+                )}
+              </Space>
             )
           }
         ]}
       />
+
+      <Modal
+        title={editing ? '编辑开票' : '新建开票'}
+        open={open}
+        onCancel={() => {
+          setOpen(false)
+          setEditing(null)
+          form.resetFields()
+        }}
+        onOk={submitForm}
+        confirmLoading={createMut.isPending || updateMut.isPending}
+        destroyOnClose
+        width={720}
+      >
+        <Form
+          key={editing ? `edit-${editing.id}` : 'create'}
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={editing ? rowToForm(editing) : { direction: 'issue', invoice_date: dayjs(), amount: 0 }}
+        >
+          <div className="modal-form-grid">
+            <Form.Item name="party_id" label="往来单位" rules={[{ required: true, message: '请选择往来单位' }]}>
+              <PartySelect options={partyOpts} placeholder="选择开票对象" />
+            </Form.Item>
+            <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
+              <Select options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))} />
+            </Form.Item>
+            <Form.Item name="invoice_date" label="日期">
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}>
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="invoice_no" label="发票号">
+              <Input maxLength={50} />
+            </Form.Item>
+            <Form.Item name="ref_type" label="关联订单类型">
+              <Select allowClear options={refTypeOptions} />
+            </Form.Item>
+            <Form.Item name="ref_id" label="关联订单ID">
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="notes" label="备注" className="grid-span-2">
+              <Input.TextArea rows={3} maxLength={200} />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
 
       <DetailModal
         open={!!detail}
@@ -59,10 +423,14 @@ export function Invoices() {
           detail
             ? [
                 { label: '日期', value: detail.invoice_date },
-                { label: '单位ID', value: detail.party_id },
-                { label: '方向', value: detail.direction === 'issue' ? '已开发票' : '已收发票' },
+                { label: '往来单位', value: detail.party?.name || `#${detail.party_id}` },
+                { label: '方向', value: directionMap[detail.direction].label },
                 { label: '发票号', value: detail.invoice_no },
-                { label: '金额', value: detail.amount },
+                { label: '金额', value: `¥${money(detail.amount)}` },
+                {
+                  label: '关联订单',
+                  value: detail.ref_type || detail.ref_id ? `${detail.ref_type ? refTypeLabels[detail.ref_type] ?? detail.ref_type : '订单'} #${detail.ref_id ?? '—'}` : '—'
+                },
                 { label: '备注', value: detail.notes, span: 2 }
               ]
             : []

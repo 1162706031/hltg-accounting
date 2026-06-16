@@ -24,7 +24,7 @@ from app.services.inventory import (
     stock_in,
     stock_out,
 )
-from app.utils.deps import get_current_user
+from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depends(get_current_user)])
 
@@ -101,7 +101,7 @@ async def list_inventory_logs(
 async def create_stock_in(
     payload: InventoryInRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         inventory = await stock_in(db, **payload.model_dump(), created_by=current_user.id)
@@ -114,7 +114,7 @@ async def create_stock_out(
     inventory_id: int,
     payload: InventoryOutRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         inventory = await stock_out(db, inventory_id=inventory_id, **payload.model_dump(), created_by=current_user.id)
@@ -127,7 +127,7 @@ async def create_stock_adjust(
     inventory_id: int,
     payload: InventoryAdjustRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         inventory = await stock_adjust(db, inventory_id=inventory_id, **payload.model_dump(), created_by=current_user.id)
@@ -139,7 +139,7 @@ async def create_stock_adjust(
 async def delete_inventory(
     inventory_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         inventory = await db.get(Inventory, inventory_id)
@@ -158,7 +158,7 @@ async def delete_inventory(
 async def batch_delete_inventory(
     payload: BatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     deleted = 0
     skipped: list[dict[str, object]] = []

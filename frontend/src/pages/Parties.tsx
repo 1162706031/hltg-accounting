@@ -16,6 +16,9 @@ import {
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
+import { useAuth } from '../utils/AuthContext'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 type RoleKey = 'is_internal' | 'is_customer' | 'is_supplier' | 'is_processor'
 
@@ -161,9 +164,13 @@ function PartyDetailPanel({ partyId }: { partyId: number }) {
 export function Parties() {
   const qc = useQueryClient()
   const { message, modal } = AntApp.useApp()
+  const { user } = useAuth()
+  const canManage = canManageData(user?.role)
 
   const [roleFilter, setRoleFilter] = useState<RoleKey | undefined>()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [editing, setEditing] = useState<Party | null>(null)
   const [open, setOpen] = useState(false)
@@ -171,9 +178,9 @@ export function Parties() {
   const [form] = Form.useForm<FormValues>()
 
   const query = useQuery({
-    queryKey: ['parties', roleFilter, search],
+    queryKey: ['parties', roleFilter, search, page, pageSize],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page_size: 200 }
+      const params: Record<string, string | number> = { page, page_size: pageSize }
       if (roleFilter) params[roleFilter] = 1
       if (search) params.q = search
       return (await api.get<PageResult<Party>>('/parties', { params })).data
@@ -295,14 +302,16 @@ export function Parties() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">往来单位</h1>
-        <Space>
-          <Button type="primary" onClick={openCreate}>
-            + 新建单位
-          </Button>
-          <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-            批量删除
-          </Button>
-        </Space>
+        {canManage && (
+          <Space>
+            <Button type="primary" onClick={openCreate}>
+              + 新建单位
+            </Button>
+            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
+              批量删除
+            </Button>
+          </Space>
+        )}
       </div>
 
       <Space wrap className="toolbar">
@@ -311,14 +320,26 @@ export function Parties() {
           placeholder="角色筛选"
           style={{ width: 140 }}
           value={roleFilter}
-          onChange={(v) => setRoleFilter(v)}
+          onChange={(v) => {
+            setRoleFilter(v)
+            setPage(1)
+          }}
           options={ROLES.map((r) => ({ value: r.key, label: r.label }))}
         />
         <Input.Search
           allowClear
           placeholder="搜索名称/简称"
           style={{ width: 240 }}
-          onSearch={setSearch}
+          onSearch={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
         />
       </Space>
 
@@ -326,13 +347,17 @@ export function Parties() {
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="middle"
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
-        rowSelection={{
-          selectedRowKeys: selectedIds,
-          onChange: (keys) => setSelectedIds(keys as number[])
-        }}
+        rowSelection={
+          canManage
+            ? {
+                selectedRowKeys: selectedIds,
+                onChange: (keys) => setSelectedIds(keys as number[])
+              }
+            : undefined
+        }
         expandable={{
           expandedRowRender: (row) => <PartyDetailPanel partyId={row.id} />
         }}
@@ -382,22 +407,26 @@ export function Parties() {
                 <Button size="small" onClick={() => setDetail(row)}>
                   查看
                 </Button>
-                <Button size="small" onClick={() => openEdit(row)}>
-                  编辑
-                </Button>
-                <Button
-                  size="small"
-                  danger
-                  onClick={() =>
-                    modal.confirm({
-                      title: `确认删除 ${row.name}？`,
-                      okButtonProps: { danger: true },
-                      onOk: () => singleDeleteMut.mutateAsync(row.id)
-                    })
-                  }
-                >
-                  删除
-                </Button>
+                {canManage && (
+                  <>
+                    <Button size="small" onClick={() => openEdit(row)}>
+                      编辑
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() =>
+                        modal.confirm({
+                          title: `确认删除 ${row.name}？`,
+                          okButtonProps: { danger: true },
+                          onOk: () => singleDeleteMut.mutateAsync(row.id)
+                        })
+                      }
+                    >
+                      删除
+                    </Button>
+                  </>
+                )}
               </Space>
             )
           }

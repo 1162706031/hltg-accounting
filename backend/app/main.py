@@ -14,6 +14,7 @@ from app.routers import (
     inventory,
     invoices,
     items,
+    operation_logs,
     outsource,
     parties,
     payments,
@@ -23,6 +24,7 @@ from app.routers import (
     smelting,
     users,
 )
+from app.utils.operation_log import operation_log_middleware
 
 settings = get_settings()
 
@@ -36,6 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.middleware("http")(operation_log_middleware)
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -47,6 +51,7 @@ app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(parties.router, prefix=settings.api_prefix)
 app.include_router(items.router, prefix=settings.api_prefix)
 app.include_router(inventory.router, prefix=settings.api_prefix)
+app.include_router(operation_logs.router, prefix=settings.api_prefix)
 app.include_router(payments.router, prefix=settings.api_prefix)
 app.include_router(invoices.router, prefix=settings.api_prefix)
 app.include_router(reconciliations.router, prefix=settings.api_prefix)

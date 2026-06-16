@@ -3,6 +3,7 @@ import { App as AntApp, Button, Form, Input, Modal, Select, Space, Table, Tag } 
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 
 interface User {
   id: number
@@ -29,12 +30,14 @@ export function Users() {
   const [creating, setCreating] = useState(false)
   const [pwTarget, setPwTarget] = useState<User | null>(null)
   const [detail, setDetail] = useState<User | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [form] = Form.useForm()
   const [pwForm] = Form.useForm()
 
   const query = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => (await api.get<PageResult<User>>('/users', { params: { page_size: 200 } })).data
+    queryKey: ['users', page, pageSize],
+    queryFn: async () => (await api.get<PageResult<User>>('/users', { params: { page, page_size: pageSize } })).data
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -111,7 +114,7 @@ export function Users() {
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
           { title: '用户名', dataIndex: 'username' },

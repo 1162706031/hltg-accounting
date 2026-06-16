@@ -16,7 +16,7 @@ from app.schemas.party import (
     PartyRead,
     PartyUpdate,
 )
-from app.utils.deps import get_current_user
+from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/parties", tags=["parties"], dependencies=[Depends(get_current_user)])
 
@@ -68,7 +68,11 @@ async def list_parties(
 
 
 @router.post("", response_model=PartyRead, status_code=status.HTTP_201_CREATED)
-async def create_party(payload: PartyCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_party(
+    payload: PartyCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "accountant")),
+):
     party = Party(**payload.model_dump())
     db.add(party)
     await db.commit()
@@ -122,7 +126,12 @@ async def get_party_balance(party_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{party_id}", response_model=PartyRead)
-async def update_party(party_id: int, payload: PartyUpdate, db: AsyncSession = Depends(get_db)):
+async def update_party(
+    party_id: int,
+    payload: PartyUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     party = await db.get(Party, party_id)
     if party is None:
         raise HTTPException(status_code=404, detail="往来单位不存在")
@@ -134,7 +143,11 @@ async def update_party(party_id: int, payload: PartyUpdate, db: AsyncSession = D
 
 
 @router.delete("/{party_id}")
-async def delete_party(party_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_party(
+    party_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     party = await db.get(Party, party_id)
     if party is None:
         raise HTTPException(status_code=404, detail="往来单位不存在")
@@ -147,7 +160,11 @@ async def delete_party(party_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/batch-delete")
-async def batch_delete_parties(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
+async def batch_delete_parties(
+    payload: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     parties = list(await db.scalars(select(Party).where(Party.id.in_(payload.ids))))
     deleted = 0
     skipped: list[dict[str, object]] = []

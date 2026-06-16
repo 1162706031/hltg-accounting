@@ -3,6 +3,7 @@ import { DatePicker, Input, Select, Space, Table, Tag } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 
 interface InventoryLog {
   id: number
@@ -48,14 +49,17 @@ export function InventoryLogs() {
   const [changeType, setChangeType] = useState<string | undefined>()
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const query = useQuery({
-    queryKey: ['inventory-logs', changeType, range?.toString(), q],
+    queryKey: ['inventory-logs', changeType, range?.toString(), q, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<InventoryLog>>('/inventory/logs', {
           params: {
-            page_size: 200,
+            page,
+            page_size: pageSize,
             change_type: changeType,
             date_from: range?.[0].format('YYYY-MM-DD'),
             date_to: range?.[1].format('YYYY-MM-DD'),
@@ -76,7 +80,10 @@ export function InventoryLogs() {
           placeholder="变动类型"
           style={{ width: 140 }}
           value={changeType}
-          onChange={(v) => setChangeType(v)}
+          onChange={(v) => {
+            setChangeType(v)
+            setPage(1)
+          }}
           options={[
             { value: 'in', label: '入库' },
             { value: 'out', label: '出库' },
@@ -87,20 +94,32 @@ export function InventoryLogs() {
         />
         <DatePicker.RangePicker
           value={range as [Dayjs, Dayjs] | null}
-          onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
+          onChange={(v) => {
+            setRange(v as [Dayjs, Dayjs] | null)
+            setPage(1)
+          }}
         />
         <Input.Search
           allowClear
           placeholder="物品名称 / 规格"
           style={{ width: 220 }}
-          onSearch={setQ}
+          onSearch={(v) => {
+            setQ(v)
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setQ('')
+              setPage(1)
+            }
+          }}
         />
       </Space>
       <Table
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="small"
         scroll={{ x: 1200 }}
         columns={[

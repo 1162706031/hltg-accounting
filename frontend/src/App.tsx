@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { RequireAuth } from './components/RequireAuth'
+import { RequireRole } from './components/RequireRole'
 import { Audit } from './pages/Audit'
 import { Dashboard } from './pages/Dashboard'
 import { Inventory } from './pages/Inventory'
@@ -8,6 +9,7 @@ import { InventoryLogs } from './pages/InventoryLogs'
 import { Invoices } from './pages/Invoices'
 import { Items } from './pages/Items'
 import { Login } from './pages/Login'
+import { OperationLogs } from './pages/OperationLogs'
 import { Outsource } from './pages/Outsource'
 import { Parties } from './pages/Parties'
 import { Payments } from './pages/Payments'
@@ -39,9 +41,38 @@ export default function App() {
               <Route path="reconciliation" element={<Reconciliation />} />
               <Route path="payments" element={<Payments />} />
               <Route path="invoices" element={<Invoices />} />
-              <Route path="audit" element={<Audit />} />
-              <Route path="users" element={<Users />} />
-              <Route path="settings" element={<Placeholder title="系统设置" />} />
+              <Route
+                path="audit"
+                element={
+                  <RequireRole roles={['admin', 'reviewer']}>
+                    <Audit />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="operation-logs"
+                element={
+                  <RequireRole roles={['admin']}>
+                    <OperationLogs />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="users"
+                element={
+                  <RequireRole roles={['admin']}>
+                    <Users />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="settings"
+                element={
+                  <RequireRole roles={['admin']}>
+                    <Placeholder title="系统设置" />
+                  </RequireRole>
+                }
+              />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

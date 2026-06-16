@@ -14,6 +14,9 @@ import {
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
+import { useAuth } from '../utils/AuthContext'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 type ItemType = 'steel_grade' | 'raw_material' | 'alloy' | 'finished_product' | 'semi_finished' | 'scrap'
 
@@ -52,10 +55,14 @@ interface FormValues {
 export function Items() {
   const qc = useQueryClient()
   const { message, modal } = AntApp.useApp()
+  const { user } = useAuth()
+  const canManage = canManageData(user?.role)
 
   const [typeFilter, setTypeFilter] = useState<ItemType | undefined>()
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [editing, setEditing] = useState<Item | null>(null)
   const [open, setOpen] = useState(false)
@@ -63,9 +70,9 @@ export function Items() {
   const [form] = Form.useForm<FormValues>()
 
   const query = useQuery({
-    queryKey: ['items', typeFilter, activeFilter, search],
+    queryKey: ['items', typeFilter, activeFilter, search, page, pageSize],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page_size: 200 }
+      const params: Record<string, string | number> = { page, page_size: pageSize }
       if (typeFilter) params.item_type = typeFilter
       if (activeFilter !== 'all') params.is_active = activeFilter === 'active' ? 1 : 0
       if (search) params.q = search
@@ -178,14 +185,16 @@ export function Items() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">物品管理</h1>
-        <Space>
-          <Button type="primary" onClick={openCreate}>
-            + 新建物品
-          </Button>
-          <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-            批量删除
-          </Button>
-        </Space>
+        {canManage && (
+          <Space>
+            <Button type="primary" onClick={openCreate}>
+              + 新建物品
+            </Button>
+            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
+              批量删除
+            </Button>
+          </Space>
+        )}
       </div>
 
       <Space wrap className="toolbar">
@@ -194,14 +203,20 @@ export function Items() {
           placeholder="类型筛选"
           style={{ width: 140 }}
           value={typeFilter}
-          onChange={(v) => setTypeFilter(v)}
+          onChange={(v) => {
+            setTypeFilter(v)
+            setPage(1)
+          }}
           options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))}
         />
         <Select
           placeholder="状态筛选"
           style={{ width: 120 }}
           value={activeFilter}
-          onChange={(v) => setActiveFilter(v)}
+          onChange={(v) => {
+            setActiveFilter(v)
+            setPage(1)
+          }}
           options={[
             { value: 'all', label: '全部' },
             { value: 'active', label: '启用' },
@@ -212,7 +227,16 @@ export function Items() {
           allowClear
           placeholder="搜索名称/规格"
           style={{ width: 240 }}
-          onSearch={setSearch}
+          onSearch={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
         />
       </Space>
 
@@ -220,13 +244,17 @@ export function Items() {
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="middle"
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
-        rowSelection={{
-          selectedRowKeys: selectedIds,
-          onChange: (keys) => setSelectedIds(keys as number[])
-        }}
+        rowSelection={
+          canManage
+            ? {
+                selectedRowKeys: selectedIds,
+                onChange: (keys) => setSelectedIds(keys as number[])
+              }
+            : undefined
+        }
         columns={[
           { title: '名称', dataIndex: 'name' },
           {
@@ -241,6 +269,7 @@ export function Items() {
               <Switch
                 size="small"
                 checked={v}
+                disabled={!canManage}
                 loading={toggleActiveMut.isPending && toggleActiveMut.variables?.id === row.id}
                 onChange={(checked) => toggleActiveMut.mutate({ id: row.id, isActive: checked })}
               />
@@ -255,22 +284,26 @@ export function Items() {
                 <Button size="small" onClick={() => setDetail(row)}>
                   查看
                 </Button>
-                <Button size="small" onClick={() => openEdit(row)}>
-                  编辑
-                </Button>
-                <Button
-                  size="small"
-                  danger
-                  onClick={() =>
-                    modal.confirm({
-                      title: `确认删除 ${row.name}？`,
-                      okButtonProps: { danger: true },
-                      onOk: () => singleDeleteMut.mutateAsync(row.id)
-                    })
-                  }
-                >
-                  删除
-                </Button>
+                {canManage && (
+                  <>
+                    <Button size="small" onClick={() => openEdit(row)}>
+                      编辑
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() =>
+                        modal.confirm({
+                          title: `确认删除 ${row.name}？`,
+                          okButtonProps: { danger: true },
+                          onOk: () => singleDeleteMut.mutateAsync(row.id)
+                        })
+                      }
+                    >
+                      删除
+                    </Button>
+                  </>
+                )}
               </Space>
             )
           }
