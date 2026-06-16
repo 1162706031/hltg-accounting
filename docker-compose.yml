@@ -1,6 +1,6 @@
 services:
   backend:
-    image: hltg-accounting-backend:amd64
+    image: bd2cee1faebf
     platform: linux/amd64
     container_name: hltg-accounting-backend
     restart: unless-stopped
@@ -18,10 +18,12 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
       TZ: Asia/Shanghai
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    networks:
+      - app-network
 
   frontend:
-    image: hltg-accounting-frontend:amd64
+    image: e802e4a7f072
     platform: linux/amd64
     container_name: hltg-accounting-frontend
     restart: unless-stopped
@@ -29,3 +31,9 @@ services:
       - backend
     ports:
       - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
