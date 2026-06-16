@@ -9,6 +9,7 @@ from app.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, TokenP
 from app.schemas.user import UserRead
 from app.utils.auth import create_token, get_subject
 from app.utils.deps import get_current_user
+from app.utils.operation_log import write_operation_log
 from app.utils.security import verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,6 +34,15 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="用户已停用")
 
     tokens = build_token_pair(user)
+    await write_operation_log(
+        db,
+        user_id=user.id,
+        action="LOGIN",
+        target_type="user",
+        target_id=user.id,
+        summary=f"登录 user #{user.id}",
+        detail={"username": user.username},
+    )
     return LoginResponse(**tokens.model_dump(), user=UserRead.model_validate(user))
 
 

@@ -19,6 +19,8 @@ import {
   useParties
 } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 interface OutsourceOrder {
   id: number
@@ -49,9 +51,12 @@ const PROCESS_OPTIONS = [
 export function Outsource() {
   const { message } = AntApp.useApp()
   const { user } = useAuth()
+  const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -62,12 +67,13 @@ export function Outsource() {
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
-    queryKey: ['outsource', statusFilter, typeFilter],
+    queryKey: ['outsource', statusFilter, typeFilter, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<OutsourceOrder>>('/outsource-orders', {
           params: {
-            page_size: 100,
+            page,
+            page_size: pageSize,
             ...(statusFilter ? { status: statusFilter } : {}),
             ...(typeFilter ? { process_type: typeFilter } : {})
           }
@@ -191,21 +197,39 @@ export function Outsource() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">外协加工</h1>
-        <Button type="primary" onClick={openCreate}>
-          + 新建外协单
-        </Button>
+        {canManage && (
+          <Button type="primary" onClick={openCreate}>
+            + 新建外协单
+          </Button>
+        )}
       </div>
       <div className="toolbar">
         <span>工艺：</span>
-        <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]} />
+        <Select
+          value={typeFilter}
+          style={{ width: 130 }}
+          onChange={(v) => {
+            setTypeFilter(v)
+            setPage(1)
+          }}
+          options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]}
+        />
         <span>状态：</span>
-        <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        <Select
+          value={statusFilter}
+          style={{ width: 140 }}
+          onChange={(v) => {
+            setStatusFilter(v)
+            setPage(1)
+          }}
+          options={STATUS_FILTER_OPTIONS}
+        />
       </div>
       <Table<OutsourceOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },

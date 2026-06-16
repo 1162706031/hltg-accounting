@@ -17,7 +17,10 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
+import { useAuth } from '../utils/AuthContext'
 import { ItemOption, PartyOption, UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 interface InventoryRow {
   id: number
@@ -61,9 +64,13 @@ interface InForm {
 export function Inventory() {
   const qc = useQueryClient()
   const { message } = AntApp.useApp()
+  const { user } = useAuth()
+  const canManage = canManageData(user?.role)
   const [typeFilter, setTypeFilter] = useState<string | undefined>()
   const [ownerFilter, setOwnerFilter] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<number[]>([])
   const [inOpen, setInOpen] = useState(false)
   const [outTarget, setOutTarget] = useState<InventoryRow | null>(null)
@@ -79,12 +86,13 @@ export function Inventory() {
   const itemOpts = itemOptions(itemList)
 
   const list = useQuery({
-    queryKey: ['inventory', typeFilter, ownerFilter, search],
+    queryKey: ['inventory', typeFilter, ownerFilter, search, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<InventoryRow>>('/inventory', {
           params: {
-            page_size: 200,
+            page,
+            page_size: pageSize,
             item_type: typeFilter,
             owner_id: ownerFilter,
             q: search || undefined
@@ -164,14 +172,16 @@ export function Inventory() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">库房管理</h1>
-        <Space>
-          <Button type="primary" onClick={() => setInOpen(true)}>
-            + 入库
-          </Button>
-          <Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>
-            批量删除
-          </Button>
-        </Space>
+        {canManage && (
+          <Space>
+            <Button type="primary" onClick={() => setInOpen(true)}>
+              + 入库
+            </Button>
+            <Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>
+              批量删除
+            </Button>
+          </Space>
+        )}
       </div>
       <div className="toolbar">
         <Select
@@ -179,7 +189,10 @@ export function Inventory() {
           placeholder="类型筛选"
           style={{ width: 140 }}
           value={typeFilter}
-          onChange={setTypeFilter}
+          onChange={(v) => {
+            setTypeFilter(v)
+            setPage(1)
+          }}
           options={Object.entries(itemTypeLabels).map(([v, l]) => ({ value: v, label: l }))}
         />
         <Select
@@ -187,7 +200,10 @@ export function Inventory() {
           placeholder="归属筛选"
           style={{ width: 180 }}
           value={ownerFilter}
-          onChange={setOwnerFilter}
+          onChange={(v) => {
+            setOwnerFilter(v)
+            setPage(1)
+          }}
           options={partyOpts}
           showSearch
           optionFilterProp="label"
@@ -196,20 +212,32 @@ export function Inventory() {
           placeholder="搜索物品/规格"
           allowClear
           style={{ width: 220 }}
-          onSearch={setSearch}
-          onChange={(e) => !e.target.value && setSearch('')}
+          onSearch={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
         />
       </div>
       <Table
         rowKey="id"
         loading={list.isLoading}
         dataSource={list.data?.items}
-        pagination={false}
+        pagination={tablePagination(list.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
-        rowSelection={{
-          selectedRowKeys: selected,
-          onChange: (keys) => setSelected(keys as number[])
-        }}
+        rowSelection={
+          canManage
+            ? {
+                selectedRowKeys: selected,
+                onChange: (keys) => setSelected(keys as number[])
+              }
+            : undefined
+        }
         columns={[
           {
             title: '类型',
@@ -237,16 +265,20 @@ export function Inventory() {
                 <Button size="small" onClick={() => setDetail(row)}>
                   查看
                 </Button>
-                <Button
-                  size="small"
-                  onClick={() => setOutTarget(row)}
-                  disabled={Number(row.current_quantity) === 0}
-                >
-                  出库
-                </Button>
-                <Button size="small" onClick={() => setAdjustTarget(row)}>
-                  盘点调整
-                </Button>
+                {canManage && (
+                  <>
+                    <Button
+                      size="small"
+                      onClick={() => setOutTarget(row)}
+                      disabled={Number(row.current_quantity) === 0}
+                    >
+                      出库
+                    </Button>
+                    <Button size="small" onClick={() => setAdjustTarget(row)}>
+                      盘点调整
+                    </Button>
+                  </>
+                )}
               </Space>
             )
           }

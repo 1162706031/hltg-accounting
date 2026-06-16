@@ -4,6 +4,7 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   FileDoneOutlined,
+  FileSearchOutlined,
   FileTextOutlined,
   InboxOutlined,
   LogoutOutlined,
@@ -36,8 +37,9 @@ const menuItems = [
   { key: '/payments', icon: <PayCircleOutlined />, label: '收付款' },
   { key: '/invoices', icon: <FileDoneOutlined />, label: '开票记录' },
   { key: '/audit', icon: <AuditOutlined />, label: '审核中心', roles: ['reviewer', 'admin'] },
+  { key: '/operation-logs', icon: <FileSearchOutlined />, label: '操作日志', roles: ['admin'] },
   { key: '/users', icon: <UserOutlined />, label: '用户管理', roles: ['admin'] },
-  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' }
+  { key: '/settings', icon: <SettingOutlined />, label: '系统设置', roles: ['admin'] }
 ]
 
 export function AppLayout() {

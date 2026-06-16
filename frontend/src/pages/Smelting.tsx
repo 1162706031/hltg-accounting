@@ -19,6 +19,8 @@ import {
   useParties
 } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 interface SmeltingOrder {
   id: number
@@ -29,7 +31,10 @@ interface SmeltingOrder {
   tap_date?: string | null
   yield_pct?: string | null
   unit_price?: string | null
+  processing_amount?: string | null
   tax_rate?: string | null
+  tax_amount?: string | null
+  subtotal?: string | null
   total_amount?: string | null
   need_invoice: boolean
   status: OrderStatus
@@ -47,9 +52,12 @@ const ORDER_TYPE_OPTIONS = [
 export function Smelting() {
   const { message } = AntApp.useApp()
   const { user } = useAuth()
+  const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -60,12 +68,13 @@ export function Smelting() {
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
-    queryKey: ['smelting', statusFilter, typeFilter],
+    queryKey: ['smelting', statusFilter, typeFilter, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<SmeltingOrder>>('/smelting-orders', {
           params: {
-            page_size: 100,
+            page,
+            page_size: pageSize,
             ...(statusFilter ? { status: statusFilter } : {}),
             ...(typeFilter ? { order_type: typeFilter } : {})
           }
@@ -216,21 +225,39 @@ export function Smelting() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">冶炼加工</h1>
-        <Button type="primary" onClick={openCreate}>
-          + 新建冶炼单
-        </Button>
+        {canManage && (
+          <Button type="primary" onClick={openCreate}>
+            + 新建冶炼单
+          </Button>
+        )}
       </div>
       <div className="toolbar">
         <span>类型：</span>
-        <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...ORDER_TYPE_OPTIONS]} />
+        <Select
+          value={typeFilter}
+          style={{ width: 130 }}
+          onChange={(v) => {
+            setTypeFilter(v)
+            setPage(1)
+          }}
+          options={[{ value: '', label: '全部' }, ...ORDER_TYPE_OPTIONS]}
+        />
         <span>状态：</span>
-        <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        <Select
+          value={statusFilter}
+          style={{ width: 140 }}
+          onChange={(v) => {
+            setStatusFilter(v)
+            setPage(1)
+          }}
+          options={STATUS_FILTER_OPTIONS}
+        />
       </div>
       <Table<SmeltingOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },
@@ -383,10 +410,13 @@ export function Smelting() {
                   value: ORDER_TYPE_OPTIONS.find((o) => o.value === detailQuery.data!.order_type)?.label
                 },
                 { label: '单位', value: detailQuery.data.party?.name },
-                { label: '投料日', value: detailQuery.data.feed_date },
-                { label: '出钢日', value: detailQuery.data.tap_date },
+                { label: '投料日期', value: detailQuery.data.feed_date },
+                { label: '出钢日期', value: detailQuery.data.tap_date },
                 { label: '成锭率', value: detailQuery.data.yield_pct != null ? `${detailQuery.data.yield_pct}%` : '—' },
                 { label: '加工单价', value: detailQuery.data.unit_price },
+                { label: '加工费', value: detailQuery.data.processing_amount },
+                { label: '小计', value: detailQuery.data.subtotal },
+                { label: '税额', value: detailQuery.data.tax_amount },
                 { label: '税率', value: detailQuery.data.tax_rate != null ? `${detailQuery.data.tax_rate}%` : '—' },
                 { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
                 { label: '合计', value: detailQuery.data.total_amount },
@@ -402,25 +432,19 @@ export function Smelting() {
                   title: '投料',
                   rowKey: 'id',
                   dataSource: (detailQuery.data.inbound_lines ?? []).filter((l: any) => l.side === 'in'),
-                  columns: steelLineColumns
+                  columns: feedLineColumns
                 },
                 {
                   title: '出钢',
                   rowKey: 'id',
                   dataSource: (detailQuery.data.inbound_lines ?? []).filter((l: any) => l.side === 'out'),
-                  columns: steelLineColumns
+                  columns: tapLineColumns
                 },
                 {
                   title: '补加合金',
                   rowKey: 'id',
                   dataSource: detailQuery.data.alloy_lines ?? [],
-                  columns: [
-                    { title: '合金', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
-                    { title: '数量', dataIndex: 'quantity', align: 'right' },
-                    { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
-                    { title: '单价', dataIndex: 'unit_price', align: 'right', render: (v: any) => v ?? '—' },
-                    { title: '金额', dataIndex: 'amount', align: 'right', render: (v: any) => v ?? '—' }
-                  ]
+                  columns: alloyLineColumns
                 }
               ]
             : []
@@ -430,11 +454,39 @@ export function Smelting() {
   )
 }
 
-const steelLineColumns = [
+const feedLineColumns = [
+  { title: '日期', dataIndex: 'date', render: (v: string) => v ?? '—' },
+  { title: '库存项', dataIndex: 'inventory_id', render: (v: number) => (v ? `#${v}` : '—') },
+  { title: '物品', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
+  { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
+  { title: '数量', dataIndex: 'quantity', align: 'right' as const },
+  { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '备注', dataIndex: 'notes', render: (v: string) => v ?? '—' }
+]
+
+const tapLineColumns = [
+  { title: '日期', dataIndex: 'date', render: (v: string) => v ?? '—' },
   { title: '钢种', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
   { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
   { title: '数量', dataIndex: 'quantity', align: 'right' as const },
   { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
   { title: '炉号', dataIndex: 'furnace_no', render: (v: string) => v ?? '—' },
-  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' }
+  { title: '归属', render: (_: any, r: any) => r.owner?.name ?? (r.owner_id ? `#${r.owner_id}` : '—') },
+  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '备注', dataIndex: 'notes', render: (v: string) => v ?? '—' }
+]
+
+const alloyLineColumns = [
+  { title: '日期', dataIndex: 'date', render: (v: string) => v ?? '—' },
+  { title: '库存项', dataIndex: 'inventory_id', render: (v: number) => (v ? `#${v}` : '—') },
+  { title: '合金', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
+  { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
+  { title: '数量', dataIndex: 'quantity', align: 'right' as const },
+  { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
+  { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' },
+  { title: '备注', dataIndex: 'notes', render: (v: string) => v ?? '—' }
 ]

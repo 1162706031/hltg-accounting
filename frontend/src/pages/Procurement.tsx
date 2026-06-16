@@ -9,6 +9,8 @@ import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
 import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
+import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { canManageData } from '../utils/permissions'
 
 interface ProcurementOrder {
   id: number
@@ -34,8 +36,11 @@ interface ProcurementOrder {
 export function Procurement() {
   const { message } = AntApp.useApp()
   const { user } = useAuth()
+  const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
   const [creating, setCreating] = useState(false)
   const [detail, setDetail] = useState<ProcurementOrder | null>(null)
@@ -44,11 +49,11 @@ export function Procurement() {
   const items = useItems()
 
   const query = useQuery({
-    queryKey: ['procurement', statusFilter],
+    queryKey: ['procurement', statusFilter, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<ProcurementOrder>>('/procurement-orders', {
-          params: { page_size: 100, ...(statusFilter ? { status: statusFilter } : {}) }
+          params: { page, page_size: pageSize, ...(statusFilter ? { status: statusFilter } : {}) }
         })
       ).data
   })
@@ -99,19 +104,29 @@ export function Procurement() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">采购管理</h1>
-        <Button type="primary" onClick={openCreate}>
-          + 新建采购单
-        </Button>
+        {canManage && (
+          <Button type="primary" onClick={openCreate}>
+            + 新建采购单
+          </Button>
+        )}
       </div>
       <div className="toolbar">
         <span>状态：</span>
-        <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        <Select
+          value={statusFilter}
+          style={{ width: 140 }}
+          onChange={(v) => {
+            setStatusFilter(v)
+            setPage(1)
+          }}
+          options={STATUS_FILTER_OPTIONS}
+        />
       </div>
       <Table<ProcurementOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
-        pagination={false}
+        pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
           { title: '批次号', dataIndex: 'batch_no' },

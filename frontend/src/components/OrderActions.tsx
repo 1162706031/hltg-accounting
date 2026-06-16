@@ -3,6 +3,7 @@ import { App as AntApp, Button, Input, Modal, Space } from 'antd'
 import { useState } from 'react'
 import { api } from '../api/client'
 import { availableActions, OrderStatus } from '../utils/orderStatus'
+import { canManageData, canReview, isAdmin } from '../utils/permissions'
 
 interface Props {
   /** 订单 REST 路径前缀，例如 'smelting-orders' */
@@ -25,8 +26,9 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
   const actions = availableActions(status)
-  const canReview = role === 'reviewer' || role === 'admin'
-  const isAdmin = role === 'admin'
+  const canManage = canManageData(role)
+  const canAudit = canReview(role)
+  const canUnaudit = isAdmin(role)
   const showDelete = deletableUnlessCompleted ? status !== 'completed' : actions.deletable
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [invalidateKey] })
@@ -52,37 +54,37 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
 
   return (
     <Space size={0} wrap>
-      {actions.editable && onEdit && (
+      {canManage && actions.editable && onEdit && (
         <Button type="link" size="small" onClick={onEdit}>
           编辑
         </Button>
       )}
-      {actions.submit && (
+      {canManage && actions.submit && (
         <Button type="link" size="small" onClick={() => act.mutate({ action: 'submit' })}>
           提交审核
         </Button>
       )}
-      {actions.approve && canReview && (
+      {actions.approve && canAudit && (
         <Button type="link" size="small" onClick={() => act.mutate({ action: 'approve' })}>
           通过
         </Button>
       )}
-      {actions.reject && canReview && (
+      {actions.reject && canAudit && (
         <Button type="link" size="small" danger onClick={() => setRejectOpen(true)}>
           驳回
         </Button>
       )}
-      {actions.start && (
+      {canManage && actions.start && (
         <Button type="link" size="small" onClick={() => act.mutate({ action: 'start' })}>
           开始
         </Button>
       )}
-      {actions.complete && (
+      {canManage && actions.complete && (
         <Button type="link" size="small" onClick={() => act.mutate({ action: 'complete' })}>
           完成
         </Button>
       )}
-      {actions.unaudit && isAdmin && (
+      {actions.unaudit && canUnaudit && (
         <Button
           type="link"
           size="small"
@@ -96,7 +98,7 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
           反审核
         </Button>
       )}
-      {showDelete && (
+      {canManage && showDelete && (
         <Button
           type="link"
           size="small"

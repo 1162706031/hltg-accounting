@@ -74,7 +74,7 @@ async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
 async def create_order(
     payload: SmeltingOrderCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         if await db.get(Party, payload.party_id) is None:
@@ -107,7 +107,12 @@ async def create_order(
 
 
 @router.put("/{order_id}", response_model=SmeltingOrderRead)
-async def update_order(order_id: int, payload: SmeltingOrderUpdate, db: AsyncSession = Depends(get_db)):
+async def update_order(
+    order_id: int,
+    payload: SmeltingOrderUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     async with db.begin():
         order = await load_order(db, order_id)
         assert_editable(order)
@@ -132,7 +137,11 @@ async def update_order(order_id: int, payload: SmeltingOrderUpdate, db: AsyncSes
 
 
 @router.delete("/{order_id}")
-async def delete_order(order_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     order = await db.get(SmeltingOrder, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="冶炼订单不存在")
@@ -144,7 +153,11 @@ async def delete_order(order_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/batch-delete")
-async def batch_delete_orders(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
+async def batch_delete_orders(
+    payload: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     rows = list(await db.scalars(select(SmeltingOrder).where(SmeltingOrder.id.in_(payload.ids))))
     deleted = 0
     skipped: list[dict[str, object]] = []
@@ -160,7 +173,11 @@ async def batch_delete_orders(payload: BatchDeleteRequest, db: AsyncSession = De
 
 # ---------- 状态机 ----------
 @router.post("/{order_id}/submit", response_model=SmeltingOrderRead)
-async def submit_order(order_id: int, db: AsyncSession = Depends(get_db)):
+async def submit_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     async with db.begin():
         order = await load_order(db, order_id)
         check_transition(order, "pending_review")
@@ -202,7 +219,11 @@ async def reject_order(
 
 
 @router.post("/{order_id}/start", response_model=SmeltingOrderRead)
-async def start_order(order_id: int, db: AsyncSession = Depends(get_db)):
+async def start_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     async with db.begin():
         order = await load_order(db, order_id)
         check_transition(order, "in_progress")
@@ -211,7 +232,11 @@ async def start_order(order_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{order_id}/complete", response_model=SmeltingOrderRead)
-async def complete_order(order_id: int, db: AsyncSession = Depends(get_db)):
+async def complete_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     async with db.begin():
         order = await load_order(db, order_id)
         check_transition(order, "completed")

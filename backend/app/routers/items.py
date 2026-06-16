@@ -10,7 +10,7 @@ from app.models.outsource import OutsourceOrder, ProcessingOutbound
 from app.models.smelting import SmeltingInbound, SmeltingOrder
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.item import ItemCreate, ItemRead, ItemType, ItemUpdate
-from app.utils.deps import get_current_user
+from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
 
@@ -85,7 +85,11 @@ async def list_items(
 
 
 @router.post("", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
-async def create_item(payload: ItemCreate, db: AsyncSession = Depends(get_db)):
+async def create_item(
+    payload: ItemCreate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     item = Item(**payload.model_dump())
     db.add(item)
     try:
@@ -106,7 +110,12 @@ async def get_item(item_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{item_id}", response_model=ItemRead)
-async def update_item(item_id: int, payload: ItemUpdate, db: AsyncSession = Depends(get_db)):
+async def update_item(
+    item_id: int,
+    payload: ItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     item = await db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
@@ -122,7 +131,11 @@ async def update_item(item_id: int, payload: ItemUpdate, db: AsyncSession = Depe
 
 
 @router.post("/{item_id}/toggle-active", response_model=ItemRead)
-async def toggle_item_active(item_id: int, db: AsyncSession = Depends(get_db)):
+async def toggle_item_active(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     """停用/启用切换；停用前进行业务约束检查。"""
     item = await db.get(Item, item_id)
     if item is None:
@@ -141,7 +154,11 @@ async def toggle_item_active(item_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{item_id}")
-async def delete_item(item_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     item = await db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
@@ -154,7 +171,11 @@ async def delete_item(item_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/batch-delete")
-async def batch_delete_items(payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)):
+async def batch_delete_items(
+    payload: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
     items = await db.scalars(select(Item).where(Item.id.in_(payload.ids)))
     deleted = 0
     skipped: list[dict] = []

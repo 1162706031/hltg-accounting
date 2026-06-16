@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.party import PartyRead
 
 PaymentDirection = Literal["pay", "receive"]
 InvoiceDirection = Literal["issue", "receive"]
@@ -46,6 +47,7 @@ class PaymentUpdate(BaseModel):
 
 class PaymentRead(PaymentBase, ORMModel):
     id: int
+    party: PartyRead | None = None
     linked_orders: list[dict[str, Any]] | None = None
     created_by: int | None
     created_at: datetime
@@ -81,6 +83,7 @@ class InvoiceUpdate(BaseModel):
 
 class InvoiceRead(InvoiceBase, ORMModel):
     id: int
+    party: PartyRead | None = None
     linked_orders: list[dict[str, Any]] | None = None
     created_by: int | None
     created_at: datetime

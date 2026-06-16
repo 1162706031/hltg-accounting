@@ -3,6 +3,7 @@ import { App as AntApp, Button, Input, Modal, Select, Space, Table, Tag } from '
 import { useState } from 'react'
 import { api } from '../api/client'
 import { OrderStatusTag } from '../utils/orderStatus'
+import { DEFAULT_PAGE_SIZE, localTablePagination } from '../utils/pagination'
 
 interface PendingAudit {
   order_kind: 'smelting' | 'outsource' | 'procurement' | 'sales'
@@ -26,6 +27,7 @@ export function Audit() {
   const { message } = AntApp.useApp()
   const queryClient = useQueryClient()
   const [kind, setKind] = useState('')
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [rejectTarget, setRejectTarget] = useState<PendingAudit | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -81,7 +83,7 @@ export function Audit() {
         rowKey={(r) => `${r.order_kind}-${r.order_id}`}
         loading={query.isLoading}
         dataSource={query.data}
-        pagination={false}
+        pagination={localTablePagination(query.data?.length ?? 0, pageSize, setPageSize)}
         columns={[
           {
             title: '类型',
