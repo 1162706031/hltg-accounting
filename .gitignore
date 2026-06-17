@@ -41,6 +41,7 @@ Thumbs.db
 
 # Logs
 *.log
+.superpowers/
 
 # Docker image exports
 docker-images/
