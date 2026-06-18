@@ -58,8 +58,8 @@ export function AppLayout() {
       .sort((a, b) => b.length - a.length)[0] ?? '/'
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={216} theme="light">
+    <Layout className="app-shell" style={{ minHeight: '100vh' }}>
+      <Sider className="app-sider" width={216} theme="light">
         <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 18px', gap: 10 }}>
           <ToolOutlined />
           <Typography.Text strong>旭峰新材料 ERP</Typography.Text>
@@ -72,8 +72,9 @@ export function AppLayout() {
           style={{ borderInlineEnd: 0 }}
         />
       </Sider>
-      <Layout>
+      <Layout className="app-main">
         <Header
+          className="app-header"
           style={{
             height: 56,
             display: 'flex',
@@ -95,7 +96,7 @@ export function AppLayout() {
             退出
           </Button>
         </Header>
-        <Content style={{ padding: 20 }}>
+        <Content className="app-content" style={{ padding: 20 }}>
           <Outlet />
         </Content>
       </Layout>

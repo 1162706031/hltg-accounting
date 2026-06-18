@@ -60,6 +60,7 @@ export function DetailModal({
                 columns={t.columns}
                 dataSource={t.dataSource}
                 pagination={false}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: '无明细' }}
               />
             </div>

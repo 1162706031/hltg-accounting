@@ -128,6 +128,7 @@ function PartyDetailPanel({ partyId }: { partyId: number }) {
         size="small"
         dataSource={data.lines}
         pagination={false}
+        scroll={{ x: 1120 }}
         locale={{ emptyText: '暂无往来明细' }}
         columns={[
           {
@@ -137,21 +138,21 @@ function PartyDetailPanel({ partyId }: { partyId: number }) {
             render: (v: string | null) => (v ? REF_TYPE_LABELS[v] ?? v : '—')
           },
           { title: '业务日期', dataIndex: 'biz_date', width: 110, render: (v) => v ?? '—' },
-          { title: '业务摘要', dataIndex: 'biz_desc', ellipsis: true, render: (v) => v ?? '—' },
-          { title: '钢种', dataIndex: 'steel_grade', width: 90, render: (v) => v ?? '—' },
-          { title: '借方', dataIndex: 'debit', width: 110, align: 'right', render: (v) => money(v) },
-          { title: '贷方', dataIndex: 'credit', width: 110, align: 'right', render: (v) => money(v) },
+          { title: '业务摘要', dataIndex: 'biz_desc', width: 220, ellipsis: true, render: (v) => v ?? '—' },
+          { title: '钢种', dataIndex: 'steel_grade', width: 100, render: (v) => v ?? '—' },
+          { title: '借方', dataIndex: 'debit', width: 120, align: 'right', render: (v) => money(v) },
+          { title: '贷方', dataIndex: 'credit', width: 120, align: 'right', render: (v) => money(v) },
           {
             title: '发票类型',
             dataIndex: 'invoice_direction',
-            width: 100,
+            width: 130,
             render: (v: BalanceLine['invoice_direction']) =>
               v === 'issue' ? '应开发票' : v === 'receive' ? '应收发票' : '—'
           },
           {
             title: '发票金额',
             dataIndex: 'invoice_amount',
-            width: 110,
+            width: 130,
             align: 'right',
             render: (v) => (v != null ? money(v) : '—')
           }
@@ -349,6 +350,7 @@ export function Parties() {
         dataSource={query.data?.items}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="middle"
+        scroll={{ x: 1780 }}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={
           canManage
@@ -362,10 +364,11 @@ export function Parties() {
           expandedRowRender: (row) => <PartyDetailPanel partyId={row.id} />
         }}
         columns={[
-          { title: '名称', dataIndex: 'name' },
-          { title: '简称', dataIndex: 'short_name', render: (v) => v || '—' },
+          { title: '名称', dataIndex: 'name', width: 200 },
+          { title: '简称', dataIndex: 'short_name', width: 130, render: (v) => v || '—' },
           {
             title: '角色',
+            width: 190,
             render: (_, row) => (
               <>
                 {ROLES.filter((r) => row[r.key]).map((r) => (
@@ -376,29 +379,33 @@ export function Parties() {
               </>
             )
           },
-          { title: '联系人', dataIndex: 'contact', render: (v) => v || '—' },
-          { title: '电话', dataIndex: 'phone', render: (v) => v || '—' },
+          { title: '联系人', dataIndex: 'contact', width: 130, render: (v) => v || '—' },
+          { title: '电话', dataIndex: 'phone', width: 150, render: (v) => v || '—' },
           {
             title: '应收未收',
+            width: 130,
             align: 'right',
             render: (_, row) => money(balanceById.get(row.id)?.net_receivable)
           },
           {
             title: '应付未付',
+            width: 130,
             align: 'right',
             render: (_, row) => money(balanceById.get(row.id)?.net_payable)
           },
           {
             title: '应开未开发票',
+            width: 160,
             align: 'right',
             render: (_, row) => money(balanceById.get(row.id)?.net_to_issue)
           },
           {
             title: '应收未收发票',
+            width: 160,
             align: 'right',
             render: (_, row) => money(balanceById.get(row.id)?.net_to_receive)
           },
-          { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v || '—' },
+          { title: '备注', dataIndex: 'notes', width: 220, ellipsis: true, render: (v) => v || '—' },
           {
             title: '操作',
             width: 200,

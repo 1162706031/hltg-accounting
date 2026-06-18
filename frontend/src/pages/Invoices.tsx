@@ -348,6 +348,7 @@ export function Invoices() {
         loading={query.isLoading}
         dataSource={rows}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
+        scroll={{ x: 1180 }}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={
           canManage
