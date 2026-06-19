@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, exists, func, or_, select, text
+from sqlalchemy import Select, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -27,11 +27,12 @@ from app.schemas.reconciliation import (
     ReconciliationStatusUpdate,
     ReconciliationUpdate,
 )
+from app.services.party_balance import list_party_balances as load_party_balances
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/reconciliations", tags=["reconciliations"], dependencies=[Depends(get_current_user)])
 
-IMPORTABLE_STATUSES = ("approved", "in_progress", "completed")
+IMPORTABLE_STATUSES = ("approved", "completed")
 PROCESS_LABELS = {"forging": "锻造", "esr": "电渣", "turning": "车加工", "annealing": "退火"}
 
 
@@ -563,5 +564,4 @@ async def batch_delete_reconciliations(
 
 @router.get("/balances", response_model=list[PartyBalanceRead])
 async def list_party_balances(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(text("SELECT * FROM v_party_balance ORDER BY party_id DESC"))
-    return [PartyBalanceRead(**dict(row._mapping)) for row in result]
+    return [PartyBalanceRead(**row) for row in await load_party_balances(db)]

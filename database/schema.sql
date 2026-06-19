@@ -151,7 +151,7 @@ CREATE TABLE smelting_order (
     total_amount      DECIMAL(12,2) DEFAULT NULL COMMENT '合计(含税)',
     need_invoice      BOOLEAN       DEFAULT FALSE COMMENT '是否需要开票 — 从订单导入对账时判断',
     status            ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
-                      COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
+                      COMMENT 'draft=草稿 in_progress=进行中/已扣库 pending_review=待审核 approved=已审核 completed=已完成 rejected=驳回',
     notes             TEXT          DEFAULT NULL,
     created_by        BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by        BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -250,7 +250,7 @@ CREATE TABLE outsource_order (
 
     need_invoice  BOOLEAN       DEFAULT FALSE COMMENT '是否需要开票 — 从订单导入对账时判断',
     status        ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
-                  COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
+                  COMMENT 'draft=草稿 in_progress=进行中/已扣库 pending_review=待审核 approved=已审核 completed=已完成 rejected=驳回',
     notes         TEXT          DEFAULT NULL,
     created_by    BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by    BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -343,7 +343,7 @@ CREATE TABLE procurement_order (
 
     need_invoice      BOOLEAN       DEFAULT FALSE COMMENT '是否需要开票 — 从订单导入对账时判断',
     status            ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
-                      COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
+                      COMMENT 'draft=草稿 in_progress=进行中 pending_review=待审核 approved=已审核 completed=已完成 rejected=驳回',
     notes             TEXT          DEFAULT NULL,
     created_by        BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by        BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -385,7 +385,7 @@ CREATE TABLE sales_order (
 
     need_invoice    BOOLEAN       DEFAULT FALSE COMMENT '是否需要开票 — 从订单导入对账时判断',
     status          ENUM('draft','pending_review','approved','in_progress','completed','rejected') NOT NULL DEFAULT 'draft'
-                    COMMENT 'draft=草稿 pending_review=待审核 approved=已审核 in_progress=进行中 completed=已完成 rejected=驳回',
+                    COMMENT 'draft=草稿 in_progress=进行中 pending_review=待审核 approved=已审核 completed=已完成 rejected=驳回',
     notes           TEXT          DEFAULT NULL,
     created_by      BIGINT UNSIGNED DEFAULT NULL COMMENT '录入人',
     audited_by      BIGINT UNSIGNED DEFAULT NULL COMMENT '审核人',
@@ -434,11 +434,11 @@ CREATE TABLE sales_order_item (
 -- 收付款记录 (独立记录, 按往来单位筛选; 关联订单可选多选, 仅做参考)
 CREATE TABLE payment (
     id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    party_id    BIGINT UNSIGNED NOT NULL COMMENT '往来单位 — 收款/付款对象',
-    direction   ENUM('pay','receive') NOT NULL COMMENT '付款 / 收款',
+    party_id    BIGINT UNSIGNED NOT NULL COMMENT '往来单位 — 收付款对象',
+    direction   ENUM('pay','receive') NOT NULL COMMENT '按往来单位视角：pay=该单位付款(我方收款) receive=该单位收款(我方付款)',
     pay_date    DATE          DEFAULT NULL COMMENT '收付款日期',
     amount      DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT '金额',
-    method      VARCHAR(20)   DEFAULT NULL COMMENT '付款方式: 电汇 / 电承 / 现金 ...',
+    method      VARCHAR(20)   DEFAULT NULL COMMENT '收付方式: 电汇 / 电承 / 现金 ...',
 
     -- 关联订单 (可选, 可多选, 仅做参考标注 — design §4.9b)
     ref_type    VARCHAR(30)   DEFAULT NULL COMMENT '主关联订单类型 (可选)',
@@ -700,8 +700,10 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         party_id,
-        SUM(CASE WHEN direction = 'receive' THEN amount ELSE 0 END) AS total_received,
-        SUM(CASE WHEN direction = 'pay'     THEN amount ELSE 0 END) AS total_paid
+        -- payment.direction 按往来单位视角：
+        -- pay=该单位付款(我方收款)，receive=该单位收款(我方付款)
+        SUM(CASE WHEN direction = 'pay'     THEN amount ELSE 0 END) AS total_received,
+        SUM(CASE WHEN direction = 'receive' THEN amount ELSE 0 END) AS total_paid
     FROM payment
     GROUP BY party_id
 ) pay ON pay.party_id = p.id

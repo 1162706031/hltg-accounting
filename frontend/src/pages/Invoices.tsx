@@ -71,8 +71,8 @@ interface InvoiceFormValues {
 }
 
 const directionMap: Record<InvoiceDirection, { label: string; color: string }> = {
-  issue: { label: '已开发票', color: 'purple' },
-  receive: { label: '已收发票', color: 'cyan' }
+  issue: { label: '往来单位已收发票', color: 'purple' },
+  receive: { label: '往来单位已开发票', color: 'cyan' }
 }
 
 const moneyFormatter = new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -434,7 +434,7 @@ export function Invoices() {
             <Form.Item name="party_id" label="往来单位" rules={[{ required: true, message: '请选择往来单位' }]}>
               <PartySelect options={partyOpts} placeholder="选择开票对象" />
             </Form.Item>
-            <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
+            <Form.Item name="direction" label="方向（按往来单位)" rules={[{ required: true }]}>
               <Select options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))} />
             </Form.Item>
             <Form.Item name="invoice_date" label="日期">

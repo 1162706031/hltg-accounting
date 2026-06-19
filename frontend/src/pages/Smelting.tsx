@@ -59,6 +59,7 @@ export function Smelting() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [form] = Form.useForm()
@@ -120,6 +121,7 @@ export function Smelting() {
       message.success('已保存')
       setCreating(false)
       setEditingId(null)
+      setEditingStatus(null)
       form.resetFields()
       invalidate()
     },
@@ -129,6 +131,7 @@ export function Smelting() {
   const openCreate = () => {
     setCreating(true)
     setEditingId(null)
+    setEditingStatus(null)
     form.resetFields()
     form.setFieldsValue({ order_type: 'ext_smelting', tax_rate: 13, need_invoice: false, feed_lines: [], tap_lines: [], alloy_lines: [] })
   }
@@ -136,6 +139,7 @@ export function Smelting() {
   const openEdit = async (row: SmeltingOrder) => {
     const d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
     setEditingId(row.id)
+    setEditingStatus(d.status)
     setCreating(false)
     const toTapLine = (it: any) => ({
       date: it.date ? dayjs(it.date) : null,
@@ -221,6 +225,8 @@ export function Smelting() {
     </Form.List>
   )
 
+  const stockOutLocked = editingStatus != null && editingStatus !== 'draft' && editingStatus !== 'rejected'
+
   return (
     <div className="page">
       <div className="page-header">
@@ -301,6 +307,7 @@ export function Smelting() {
         onCancel={() => {
           setCreating(false)
           setEditingId(null)
+          setEditingStatus(null)
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -315,7 +322,7 @@ export function Smelting() {
               <Select style={{ width: 130 }} options={ORDER_TYPE_OPTIONS} />
             </Form.Item>
             <Form.Item name="feed_date" label="投料日期">
-              <DatePicker />
+              <DatePicker disabled={stockOutLocked} />
             </Form.Item>
             <Form.Item name="tap_date" label="出钢日期">
               <DatePicker />
@@ -332,6 +339,8 @@ export function Smelting() {
               dateLabel="来料日期"
               defaultDateField="feed_date"
               addLabel="添加来料"
+              disabled={stockOutLocked}
+              disabledReason="已扣库，禁止修改"
             />
             {renderTapLines()}
             <InventoryLineList
@@ -349,6 +358,8 @@ export function Smelting() {
               }
               addLabel="添加合金"
               selectWidth={280}
+              disabled={stockOutLocked}
+              disabledReason="已扣库，禁止修改"
             />
           </div>
 

@@ -154,7 +154,6 @@ export function Procurement() {
                   role={user?.role}
                   invalidateKey="procurement"
                   onEdit={() => openEdit(row)}
-                  deletableUnlessCompleted
                 />
               </Space>
             )

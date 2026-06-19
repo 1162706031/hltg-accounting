@@ -1,9 +1,9 @@
 """冶炼加工业务逻辑：费用计算、状态机、库存联动。
 
 库存联动节点（设计 §8.5.2）：
-- pending_review → approved：扣减来料库存（side=in）+ 合金库存
-- in_progress → completed：出钢入库（side=out，按明细 owner_id 归属）
-- 反审核（任意 → draft，仅 admin）：回滚已扣来料/合金 + 移除已入出钢库存
+- draft → in_progress：扣减来料库存（side=in）+ 合金库存
+- approved → completed：出钢入库（side=out，按明细 owner_id 归属）
+- 撤销/反审核（任意 → draft）：回滚已扣来料/合金 + 移除已入出钢库存
 
 所有联动都在调用方的事务内执行，保证原子性。
 """
@@ -23,24 +23,57 @@ from app.services.inventory import stock_in, stock_out
 
 # 状态机允许的迁移
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"pending_review"},
-    "pending_review": {"approved", "rejected"},
-    "approved": {"in_progress"},
-    "in_progress": {"completed"},
+    "draft": {"in_progress"},
+    "in_progress": {"pending_review", "draft"},
+    "pending_review": {"approved", "in_progress"},
+    "approved": {"completed", "rejected"},
     "completed": set(),
-    "rejected": {"draft", "pending_review"},
+    "rejected": {"draft", "in_progress"},
 }
 
-# 已完成不可再编辑业务字段
-_LOCKED_STATUSES = {"completed"}
+_EDITABLE_STATUSES = {"draft", "in_progress", "rejected"}
+STOCK_OUT_LOCKED_STATUSES = {"in_progress", "pending_review", "approved", "completed"}
 
 
 def assert_editable(order: SmeltingOrder) -> None:
-    if order.status in _LOCKED_STATUSES:
+    if order.status not in _EDITABLE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="订单已完成，禁止修改业务字段",
+            detail="当前状态禁止修改业务字段",
         )
+
+
+def _normalize_stock_out_lines(lines) -> list[dict[str, object]]:
+    fields = ("side", "date", "item_id", "inventory_id", "quantity", "unit", "spec", "unit_price")
+    stock_out_lines = [line for line in lines if line.side == "in"]
+    return [
+        {field: getattr(line, field) for field in fields}
+        for line in sorted(stock_out_lines, key=lambda line: (line.line_no, getattr(line, "id", 0)))
+    ]
+
+
+def _normalize_alloy_lines(lines) -> list[dict[str, object]]:
+    fields = ("item_id", "inventory_id", "date", "quantity", "unit", "spec", "unit_price")
+    return [
+        {field: getattr(line, field) for field in fields}
+        for line in sorted(lines, key=lambda line: (line.date or datetime.min.date(), getattr(line, "id", 0)))
+    ]
+
+
+def assert_stock_out_lines_unchanged(
+    order: SmeltingOrder,
+    inbound_lines,
+    alloy_lines,
+) -> None:
+    """已扣库存的投料/合金明细不允许被修改、删除或新增。"""
+    if order.status not in STOCK_OUT_LOCKED_STATUSES:
+        return
+    if inbound_lines is not None and _normalize_stock_out_lines(order.inbound_lines) != _normalize_stock_out_lines(
+        inbound_lines
+    ):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，投料明细已扣库，禁止修改")
+    if alloy_lines is not None and _normalize_alloy_lines(order.alloy_lines) != _normalize_alloy_lines(alloy_lines):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，合金明细已扣库，禁止修改")
 
 
 def _line_amount(quantity, unit_price) -> Decimal | None:
@@ -128,11 +161,11 @@ async def resolve_internal_party_id(db: AsyncSession) -> int:
     return pid
 
 
-async def apply_approve_inventory(db: AsyncSession, order: SmeltingOrder) -> None:
-    """审核通过：按明细所选 inventory_id 直接扣减来料（side=in）+ 合金库存。
+async def apply_start_inventory(db: AsyncSession, order: SmeltingOrder) -> None:
+    """开始加工：按明细所选 inventory_id 直接扣减来料（side=in）+ 合金库存。
 
     前端在创建/编辑时已让用户从现存库存中选定具体库存项并存入 inventory_id，
-    审核时按此 id 精确出库，存什么扣什么，不再凭 item_id+owner+spec 反查。
+    开始时按此 id 精确出库，存什么扣什么，不再凭 item_id+owner+spec 反查。
     """
     for line in order.inbound_lines:
         if line.side != "in":

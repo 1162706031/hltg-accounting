@@ -51,7 +51,7 @@ export function Audit() {
     mutationFn: async ({ row, reason }: { row: PendingAudit; reason: string }) =>
       api.post(`/${KIND_META[row.order_kind].path}/${row.order_id}/reject`, { reason }),
     onSuccess: () => {
-      message.success('已驳回')
+      message.success('已驳回，订单已退回进行中')
       setRejectTarget(null)
       setRejectReason('')
       queryClient.invalidateQueries({ queryKey: ['pending-audits'] })

@@ -58,6 +58,7 @@ export function Outsource() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [form] = Form.useForm()
@@ -107,6 +108,7 @@ export function Outsource() {
       message.success('已保存')
       setCreating(false)
       setEditingId(null)
+      setEditingStatus(null)
       form.resetFields()
       invalidate()
     },
@@ -116,6 +118,7 @@ export function Outsource() {
   const openCreate = () => {
     setCreating(true)
     setEditingId(null)
+    setEditingStatus(null)
     form.resetFields()
     form.setFieldsValue({ process_type: 'forging', tax_rate: 13, need_invoice: false, outbound_lines: [], inbound_lines: [] })
   }
@@ -123,6 +126,7 @@ export function Outsource() {
   const openEdit = async (row: OutsourceOrder) => {
     const d = (await api.get<OutsourceOrder>(`/outsource-orders/${row.id}`)).data
     setEditingId(row.id)
+    setEditingStatus(d.status)
     setCreating(false)
     form.setFieldsValue({
       party_id: d.party_id,
@@ -192,6 +196,8 @@ export function Outsource() {
       )}
     </Form.List>
   )
+
+  const stockOutLocked = editingStatus != null && editingStatus !== 'draft' && editingStatus !== 'rejected'
 
   return (
     <div className="page">
@@ -268,6 +274,7 @@ export function Outsource() {
         onCancel={() => {
           setCreating(false)
           setEditingId(null)
+          setEditingStatus(null)
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -282,7 +289,7 @@ export function Outsource() {
               <Select style={{ width: 130 }} options={PROCESS_OPTIONS} />
             </Form.Item>
             <Form.Item name="out_date" label="发出日期">
-              <DatePicker />
+              <DatePicker disabled={stockOutLocked} />
             </Form.Item>
             <Form.Item name="in_date" label="回厂日期">
               <DatePicker />
@@ -294,7 +301,7 @@ export function Outsource() {
             <InventoryLineList
               form={form}
               name="outbound_lines"
-              title="发出（从本厂现存库存中选择，审核时扣减）"
+              title="发出（从本厂现存库存中选择，开始时扣减）"
               stock={stock.data}
               dateField="out_date"
               dateLabel="发出日期"
@@ -303,6 +310,8 @@ export function Outsource() {
                 internalPartyId != null && r.owner?.id === internalPartyId
               }
               addLabel="添加发出行"
+              disabled={stockOutLocked}
+              disabledReason="已扣库，禁止修改"
             />
             {renderLines('inbound_lines', 'in_date', '回厂（完成时按归属入库，归属留空入本厂）')}
           </div>

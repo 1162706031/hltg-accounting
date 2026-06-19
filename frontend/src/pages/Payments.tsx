@@ -71,8 +71,8 @@ interface PaymentFormValues {
 }
 
 const directionMap: Record<PaymentDirection, { label: string; color: string }> = {
-  receive: { label: '收款', color: 'green' },
-  pay: { label: '付款', color: 'blue' }
+  pay: { label: '往来单位付款', color: 'green' },
+  receive: { label: '往来单位收款', color: 'blue' }
 }
 
 const moneyFormatter = new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -186,8 +186,8 @@ export function Payments() {
   )
 
   const rows = query.data?.items ?? []
-  const totalReceive = rows.filter((r) => r.direction === 'receive').reduce((sum, r) => sum + Number(r.amount || 0), 0)
-  const totalPay = rows.filter((r) => r.direction === 'pay').reduce((sum, r) => sum + Number(r.amount || 0), 0)
+  const totalPartyPaid = rows.filter((r) => r.direction === 'pay').reduce((sum, r) => sum + Number(r.amount || 0), 0)
+  const totalPartyReceived = rows.filter((r) => r.direction === 'receive').reduce((sum, r) => sum + Number(r.amount || 0), 0)
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['payments'] })
@@ -283,13 +283,13 @@ export function Payments() {
 
       <div className="recon-summary-grid">
         <Card size="small">
-          <Statistic title="本页收款合计" value={totalReceive} precision={2} prefix="¥" />
+          <Statistic title="本页往来单位付款合计" value={totalPartyPaid} precision={2} prefix="¥" />
         </Card>
         <Card size="small">
-          <Statistic title="本页付款合计" value={totalPay} precision={2} prefix="¥" />
+          <Statistic title="本页往来单位收款合计" value={totalPartyReceived} precision={2} prefix="¥" />
         </Card>
         <Card size="small">
-          <Statistic title="本页净收付" value={totalReceive - totalPay} precision={2} prefix="¥" />
+          <Statistic title="本页往来单位净付款" value={totalPartyPaid - totalPartyReceived} precision={2} prefix="¥" />
         </Card>
       </div>
 
@@ -427,13 +427,13 @@ export function Payments() {
           form={form}
           layout="vertical"
           preserve={false}
-          initialValues={editing ? rowToForm(editing) : { direction: 'receive', pay_date: dayjs(), amount: 0 }}
+          initialValues={editing ? rowToForm(editing) : { direction: 'pay', pay_date: dayjs(), amount: 0 }}
         >
           <div className="modal-form-grid">
             <Form.Item name="party_id" label="往来单位" rules={[{ required: true, message: '请选择往来单位' }]}>
-              <PartySelect options={partyOpts} placeholder="选择收付款对象" />
+              <PartySelect options={partyOpts} placeholder="选择往来单位" />
             </Form.Item>
-            <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
+            <Form.Item name="direction" label="收付方向（按往来单位）" rules={[{ required: true }]}>
               <Select options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))} />
             </Form.Item>
             <Form.Item name="pay_date" label="日期">

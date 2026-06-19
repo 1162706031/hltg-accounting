@@ -15,12 +15,10 @@ interface Props {
   /** 失效查询用的 queryKey 前缀 */
   invalidateKey: string
   onEdit?: () => void
-  /** 是否对「除已完成外」的所有状态显示删除按钮（采购/销售）。默认仅草稿/驳回可删。 */
-  deletableUnlessCompleted?: boolean
 }
 
 /** 订单工作流操作按钮组（提交/审核/驳回/开始/完成/反审核/编辑/删除）。 */
-export function OrderActions({ resource, orderId, status, role, invalidateKey, onEdit, deletableUnlessCompleted }: Props) {
+export function OrderActions({ resource, orderId, status, role, invalidateKey, onEdit }: Props) {
   const { message, modal } = AntApp.useApp()
   const queryClient = useQueryClient()
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -29,7 +27,14 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
   const canManage = canManageData(role)
   const canAudit = canReview(role)
   const canUnaudit = isAdmin(role)
-  const showDelete = deletableUnlessCompleted ? status !== 'completed' : actions.deletable
+  const showDelete = actions.deletable
+
+  const startWarning =
+    resource === 'smelting-orders'
+      ? '开始后会从仓库扣除已添加的投料和合金库存，投料/合金明细将被锁定，确认开始？'
+      : resource === 'outsource-orders'
+        ? '开始后会从仓库扣除已添加的外协发出库存，发出明细将被锁定，确认开始？'
+        : undefined
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [invalidateKey] })
 
@@ -51,6 +56,24 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
     },
     onError: (e: any) => message.error(e.response?.data?.detail ?? '删除失败')
   })
+
+  const startOrder = () => {
+    if (!startWarning) {
+      act.mutate({ action: 'start' })
+      return
+    }
+    modal.confirm({
+      title: startWarning,
+      onOk: () => act.mutateAsync({ action: 'start' })
+    })
+  }
+
+  const cancelOrder = () => {
+    modal.confirm({
+      title: '撤销后将回滚该订单已产生的库存联动，并回到草稿，确认撤销？',
+      onOk: () => act.mutateAsync({ action: 'unaudit' })
+    })
+  }
 
   return (
     <Space size={0} wrap>
@@ -75,8 +98,13 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
         </Button>
       )}
       {canManage && actions.start && (
-        <Button type="link" size="small" onClick={() => act.mutate({ action: 'start' })}>
+        <Button type="link" size="small" onClick={startOrder}>
           开始
+        </Button>
+      )}
+      {canManage && actions.cancel && (
+        <Button type="link" size="small" onClick={cancelOrder}>
+          撤销
         </Button>
       )}
       {canManage && actions.complete && (

@@ -181,7 +181,6 @@ export function Sales() {
                   role={user?.role}
                   invalidateKey="sales"
                   onEdit={() => openEdit(row)}
-                  deletableUnlessCompleted
                 />
               </Space>
             )

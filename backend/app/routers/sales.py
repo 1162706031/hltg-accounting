@@ -140,7 +140,7 @@ async def delete_order(
     if order is None:
         raise HTTPException(status_code=404, detail="销售订单不存在")
     if order.status not in DELETABLE_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="已完成的订单不可删除")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅草稿/驳回状态的订单可删除")
     await db.delete(order)
     await db.commit()
     return {"message": "销售订单已删除"}
@@ -157,7 +157,7 @@ async def batch_delete_orders(
     skipped: list[dict[str, object]] = []
     for order in rows:
         if order.status not in DELETABLE_STATUSES:
-            skipped.append({"id": order.id, "reason": "已完成的订单不可删除"})
+            skipped.append({"id": order.id, "reason": "仅草稿/驳回状态的订单可删除"})
             continue
         await db.delete(order)
         deleted += 1
@@ -201,8 +201,8 @@ async def reject_order(
 ):
     async with db.begin():
         order = await _load(db, order_id)
-        check_transition(order.status, "rejected")
-        order.status = "rejected"
+        check_transition(order.status, "in_progress")
+        order.status = "in_progress"
         order.audited_by = current_user.id
         order.audited_at = datetime.utcnow()
         order.notes = f"{order.notes or ''}\n[驳回] {payload.reason}".strip()
@@ -254,12 +254,17 @@ async def complete_order(
 
 @router.post("/{order_id}/unaudit", response_model=SalesOrderRead)
 async def unaudit_order(
-    order_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+    order_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     async with db.begin():
         order = await _load(db, order_id)
         if order.status not in UNAUDITABLE_STATUSES:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅已审核/进行中/已完成订单可反审核")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前状态不可撤销")
+        if order.status in {"in_progress", "pending_review"}:
+            if current_user.role not in {"admin", "accountant"}:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限撤销该订单")
+        elif current_user.role != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可反审核该订单")
         await rollback_inventory_by_ref(db, ref_type="sales_order", ref_id=order.id)
         order.status = "draft"
         order.audited_by = None

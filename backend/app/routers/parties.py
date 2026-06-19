@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, func, or_, select, text
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -16,6 +16,7 @@ from app.schemas.party import (
     PartyRead,
     PartyUpdate,
 )
+from app.services.party_balance import get_party_balance_summary
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/parties", tags=["parties"], dependencies=[Depends(get_current_user)])
@@ -95,15 +96,7 @@ async def get_party_balance(party_id: int, db: AsyncSession = Depends(get_db)):
     if party is None:
         raise HTTPException(status_code=404, detail="往来单位不存在")
 
-    summary = (
-        await db.execute(
-            text(
-                "SELECT net_receivable, net_payable, net_to_issue, net_to_receive "
-                "FROM v_party_balance WHERE party_id = :pid"
-            ),
-            {"pid": party_id},
-        )
-    ).first()
+    summary = await get_party_balance_summary(db, party_id)
 
     rows = await db.scalars(
         select(PartyReconciliation)
@@ -117,10 +110,10 @@ async def get_party_balance(party_id: int, db: AsyncSession = Depends(get_db)):
     return PartyBalanceDetail(
         party_id=party_id,
         party_name=party.name,
-        net_receivable=summary.net_receivable if summary else 0,
-        net_payable=summary.net_payable if summary else 0,
-        net_to_issue=summary.net_to_issue if summary else 0,
-        net_to_receive=summary.net_to_receive if summary else 0,
+        net_receivable=summary["net_receivable"] if summary else 0,
+        net_payable=summary["net_payable"] if summary else 0,
+        net_to_issue=summary["net_to_issue"] if summary else 0,
+        net_to_receive=summary["net_to_receive"] if summary else 0,
         lines=[PartyBalanceLine.model_validate(row, from_attributes=True) for row in rows],
     )
 

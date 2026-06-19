@@ -39,23 +39,24 @@ export function availableActions(status: OrderStatus): {
   reject?: boolean
   start?: boolean
   complete?: boolean
+  cancel?: boolean
   unaudit?: boolean
   editable?: boolean
   deletable?: boolean
 } {
   switch (status) {
     case 'draft':
-      return { submit: true, editable: true, deletable: true }
-    case 'pending_review':
-      return { approve: true, reject: true, editable: true }
-    case 'approved':
-      return { start: true, unaudit: true, editable: true }
+      return { start: true, editable: true, deletable: true }
     case 'in_progress':
-      return { complete: true, unaudit: true, editable: true }
+      return { submit: true, cancel: true, editable: true }
+    case 'pending_review':
+      return { approve: true, reject: true, cancel: true }
+    case 'approved':
+      return { complete: true, unaudit: true }
     case 'completed':
       return { unaudit: true }
     case 'rejected':
-      return { submit: true, editable: true, deletable: true }
+      return { start: true, editable: true, deletable: true }
     default:
       return {}
   }

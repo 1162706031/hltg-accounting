@@ -19,13 +19,15 @@ from app.schemas.outsource import (
 )
 from app.services.batch import generate_batch_no
 from app.services.outsource import (
-    apply_approve_inventory,
     apply_complete_inventory,
+    apply_start_inventory,
     assert_editable,
+    assert_stock_out_lines_unchanged,
     check_transition,
     load_order,
     recompute_amounts,
     rollback_inventory,
+    STOCK_OUT_LOCKED_STATUSES,
 )
 from app.utils.deps import get_current_user, require_roles
 
@@ -116,15 +118,19 @@ async def update_order(
     async with db.begin():
         order = await load_order(db, order_id)
         assert_editable(order)
+        assert_stock_out_lines_unchanged(order, payload.outbound_lines)
 
         data = payload.model_dump(exclude_unset=True, exclude={"outbound_lines", "inbound_lines"})
+        if order.status in STOCK_OUT_LOCKED_STATUSES and data.get("out_date", order.out_date) != order.out_date:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，发出日期已扣库，禁止修改")
         for key, value in data.items():
             setattr(order, key, value)
 
         if payload.outbound_lines is not None:
-            order.outbound_lines.clear()
-            for line in payload.outbound_lines:
-                order.outbound_lines.append(ProcessingOutbound(**line.model_dump()))
+            if order.status not in STOCK_OUT_LOCKED_STATUSES:
+                order.outbound_lines.clear()
+                for line in payload.outbound_lines:
+                    order.outbound_lines.append(ProcessingOutbound(**line.model_dump()))
         if payload.inbound_lines is not None:
             order.inbound_lines.clear()
             for line in payload.inbound_lines:
@@ -193,7 +199,6 @@ async def approve_order(
     async with db.begin():
         order = await load_order(db, order_id)
         check_transition(order, "approved")
-        await apply_approve_inventory(db, order)
         order.status = "approved"
         order.audited_by = current_user.id
         order.audited_at = datetime.utcnow()
@@ -209,8 +214,8 @@ async def reject_order(
 ):
     async with db.begin():
         order = await load_order(db, order_id)
-        check_transition(order, "rejected")
-        order.status = "rejected"
+        check_transition(order, "in_progress")
+        order.status = "in_progress"
         order.audited_by = current_user.id
         order.audited_at = datetime.utcnow()
         order.notes = f"{order.notes or ''}\n[驳回] {payload.reason}".strip()
@@ -226,6 +231,7 @@ async def start_order(
     async with db.begin():
         order = await load_order(db, order_id)
         check_transition(order, "in_progress")
+        await apply_start_inventory(db, order)
         order.status = "in_progress"
     return await load_order(db, order_id)
 
@@ -248,12 +254,18 @@ async def complete_order(
 async def unaudit_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("admin")),
+    current_user: User = Depends(get_current_user),
 ):
     async with db.begin():
         order = await load_order(db, order_id)
-        if order.status not in {"approved", "in_progress", "completed"}:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅已审核/进行中/已完成订单可反审核")
+        if order.status in {"in_progress", "pending_review"}:
+            if current_user.role not in {"admin", "accountant"}:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限撤销该订单")
+        elif order.status in {"approved", "completed"}:
+            if current_user.role != "admin":
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可反审核该订单")
+        else:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前状态不可撤销")
         await rollback_inventory(db, order)
         order.status = "draft"
         order.audited_by = None

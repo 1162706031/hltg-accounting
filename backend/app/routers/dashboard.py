@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -10,6 +10,7 @@ from app.models.outsource import OutsourceOrder
 from app.models.procurement import ProcurementOrder
 from app.models.sales import SalesOrder
 from app.models.smelting import SmeltingOrder
+from app.services.party_balance import list_party_balances
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
@@ -73,9 +74,8 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
 @router.get("/party-balances")
 async def party_balances(db: AsyncSession = Depends(get_db)):
-    """各往来单位余额，来自视图 v_party_balance。"""
-    result = await db.execute(text("SELECT * FROM v_party_balance ORDER BY party_id DESC"))
-    return [dict(row._mapping) for row in result]
+    """各往来单位余额。"""
+    return await list_party_balances(db)
 
 
 @router.get("/pending-audits", response_model=list[PendingAuditItem])

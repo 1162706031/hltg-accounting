@@ -1,9 +1,9 @@
 """外协加工业务逻辑：费用计算、成材率、状态机、库存联动。
 
 库存联动节点（设计 §8.5.2）：
-- pending_review → approved：发出扣本厂库存（outbound）
-- in_progress → completed：回厂入本厂库存（inbound）
-- 反审核（仅 admin）：按 inventory_log 反向冲销
+- draft → in_progress：发出扣本厂库存（outbound）
+- approved → completed：回厂入本厂库存（inbound）
+- 撤销/反审核：按 inventory_log 反向冲销
 """
 
 from datetime import datetime
@@ -20,20 +20,37 @@ from app.services.inventory import stock_in, stock_out
 from app.services.smelting import resolve_internal_party_id
 
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"pending_review"},
-    "pending_review": {"approved", "rejected"},
-    "approved": {"in_progress"},
-    "in_progress": {"completed"},
+    "draft": {"in_progress"},
+    "in_progress": {"pending_review", "draft"},
+    "pending_review": {"approved", "in_progress"},
+    "approved": {"completed", "rejected"},
     "completed": set(),
-    "rejected": {"draft", "pending_review"},
+    "rejected": {"draft", "in_progress"},
 }
 
-_LOCKED_STATUSES = {"completed"}
+_EDITABLE_STATUSES = {"draft", "in_progress", "rejected"}
+STOCK_OUT_LOCKED_STATUSES = {"in_progress", "pending_review", "approved", "completed"}
 
 
 def assert_editable(order: OutsourceOrder) -> None:
-    if order.status in _LOCKED_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已完成，禁止修改业务字段")
+    if order.status not in _EDITABLE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前状态禁止修改业务字段")
+
+
+def _normalize_outbound_lines(lines) -> list[dict[str, object]]:
+    fields = ("out_date", "item_id", "inventory_id", "quantity", "unit", "spec", "unit_price")
+    return [
+        {field: getattr(line, field) for field in fields}
+        for line in sorted(lines, key=lambda line: (line.line_no, getattr(line, "id", 0)))
+    ]
+
+
+def assert_stock_out_lines_unchanged(order: OutsourceOrder, outbound_lines) -> None:
+    """已扣库存的发出明细不允许被修改、删除或新增。"""
+    if order.status not in STOCK_OUT_LOCKED_STATUSES or outbound_lines is None:
+        return
+    if _normalize_outbound_lines(order.outbound_lines) != _normalize_outbound_lines(outbound_lines):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，发出明细已扣库，禁止修改")
 
 
 def _line_amount(quantity, unit_price) -> Decimal | None:
@@ -102,8 +119,8 @@ async def load_order(db: AsyncSession, order_id: int) -> OutsourceOrder:
 
 
 # ---------- 库存联动 ----------
-async def apply_approve_inventory(db: AsyncSession, order: OutsourceOrder) -> None:
-    """审核通过：按明细所选 inventory_id 直接扣减本厂库存（发出）。"""
+async def apply_start_inventory(db: AsyncSession, order: OutsourceOrder) -> None:
+    """开始加工：按明细所选 inventory_id 直接扣减本厂库存（发出）。"""
     for line in order.outbound_lines:
         if not line.inventory_id:
             raise HTTPException(

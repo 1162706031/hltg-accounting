@@ -23,6 +23,10 @@ interface InventoryLineListProps {
   dateLabel?: string
   /** 总体日期的 Form 字段名（如 feed_date / out_date）；新增行时以它的值作默认日期。 */
   defaultDateField?: string
+  /** 禁用整组明细，用于已经扣减库存后锁定原始出库内容。 */
+  disabled?: boolean
+  /** 禁用时展示在标题后的说明。 */
+  disabledReason?: string
 }
 
 /**
@@ -42,7 +46,9 @@ export function InventoryLineList({
   selectWidth = 320,
   dateField,
   dateLabel = '日期',
-  defaultDateField
+  defaultDateField,
+  disabled = false,
+  disabledReason
 }: InventoryLineListProps) {
   const rows = (stock ?? []).filter((r) => (filter ? filter(r) : true))
   const byId = new Map<number, InventoryStockOption>(rows.map((r) => [r.id, r]))
@@ -57,7 +63,12 @@ export function InventoryLineList({
     <Form.List name={name}>
       {(fields, { add, remove }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontWeight: 600 }}>{title}</div>
+          <div style={{ fontWeight: 600 }}>
+            {title}
+            {disabled && disabledReason ? (
+              <span style={{ marginLeft: 8, color: '#8c8c8c', fontWeight: 400 }}>{disabledReason}</span>
+            ) : null}
+          </div>
           {fields.map((field) => (
             <Space key={field.key} align="baseline" wrap>
               {/* item_id / spec / unit / owner_id 由所选库存项自动带出，隐藏存储用于提交 */}
@@ -75,7 +86,7 @@ export function InventoryLineList({
               </Form.Item>
               {dateField && (
                 <Form.Item {...field} name={[field.name, dateField]} label={dateLabel}>
-                  <DatePicker style={{ width: 140 }} />
+                  <DatePicker style={{ width: 140 }} disabled={disabled} />
                 </Form.Item>
               )}
               <Form.Item
@@ -90,6 +101,7 @@ export function InventoryLineList({
                   optionFilterProp="label"
                   placeholder="从现存库存中选择"
                   options={options}
+                  disabled={disabled}
                   onChange={(invId: number) => {
                     const inv = byId.get(invId)
                     form.setFieldValue([name, field.name, 'item_id'], inv?.item_id ?? null)
@@ -131,19 +143,25 @@ export function InventoryLineList({
                         }
                       ]}
                     >
-                      <InputNumber style={{ width: 150 }} min={0} max={maxQty} step={0.001} />
+                      <InputNumber style={{ width: 150 }} min={0} max={maxQty} step={0.001} disabled={disabled} />
                     </Form.Item>
                   )
                 }}
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'unit_price']} label="单价(可选)">
-                <InputNumber style={{ width: 110 }} min={0} placeholder="可不填" />
+                <InputNumber style={{ width: 110 }} min={0} placeholder="可不填" disabled={disabled} />
               </Form.Item>
-              <MinusCircleOutlined onClick={() => remove(field.name)} />
+              <MinusCircleOutlined
+                style={disabled ? { color: '#bfbfbf', cursor: 'not-allowed' } : undefined}
+                onClick={() => {
+                  if (!disabled) remove(field.name)
+                }}
+              />
             </Space>
           ))}
           <Button
             type="dashed"
+            disabled={disabled}
             onClick={() => {
               const row: Record<string, unknown> = { quantity: 0 }
               if (dateField && defaultDateField) {

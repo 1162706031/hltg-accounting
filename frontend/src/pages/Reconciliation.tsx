@@ -516,7 +516,7 @@ export function Reconciliation() {
             <Statistic title="应收发票合计" value={money(rowSummary.receive)} prefix="¥" />
           </div>
         </Card>
-        <Card size="small" title="净额">
+        <Card size="small" title="净额(我方)">
           <div className="summary-pair-grid">
             <Statistic title="应收未收" value={money(balanceSummary?.net_receivable)} prefix="¥" />
             <Statistic title="应付未付" value={money(balanceSummary?.net_payable)} prefix="¥" />

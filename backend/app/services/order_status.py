@@ -12,18 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.inventory import Inventory, InventoryLog
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"pending_review"},
-    "pending_review": {"approved", "rejected"},
-    "approved": {"in_progress"},
-    "in_progress": {"completed"},
+    "draft": {"in_progress"},
+    "in_progress": {"pending_review", "draft"},
+    "pending_review": {"approved", "in_progress"},
+    "approved": {"completed", "rejected"},
     "completed": set(),
-    "rejected": {"draft", "pending_review"},
+    "rejected": {"draft", "in_progress"},
 }
 
-LOCKED_STATUSES = {"completed"}
-# 除已完成外均可删除（采购/销售；已完成已联动库存，保留记录）
-DELETABLE_STATUSES = {"draft", "pending_review", "approved", "in_progress", "rejected"}
-UNAUDITABLE_STATUSES = {"approved", "in_progress", "completed"}
+EDITABLE_STATUSES = {"draft", "in_progress", "rejected"}
+DELETABLE_STATUSES = {"draft", "rejected"}
+UNAUDITABLE_STATUSES = {"in_progress", "pending_review", "approved", "completed"}
 
 
 def check_transition(current: str, target: str) -> None:
@@ -32,8 +31,8 @@ def check_transition(current: str, target: str) -> None:
 
 
 def assert_editable(current: str) -> None:
-    if current in LOCKED_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已完成，禁止修改业务字段")
+    if current not in EDITABLE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前状态禁止修改业务字段")
 
 
 async def rollback_inventory_by_ref(db: AsyncSession, *, ref_type: str, ref_id: int) -> None:
