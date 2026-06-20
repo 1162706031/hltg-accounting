@@ -2,11 +2,12 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.item import Item
 from app.models.party import Party
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.user import User
@@ -70,7 +71,21 @@ async def list_orders(
     if order_status:
         stmt = stmt.where(SalesOrder.status == order_status)
     if q:
-        stmt = stmt.where(SalesOrder.batch_no.like(f"%{q}%"))
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                SalesOrder.batch_no.like(like),
+                SalesOrder.notes.like(like),
+                SalesOrder.party.has(or_(Party.name.like(like), Party.short_name.like(like))),
+                SalesOrder.items.any(
+                    or_(
+                        SalesOrderItem.spec.like(like),
+                        SalesOrderItem.notes.like(like),
+                        SalesOrderItem.item.has(Item.name.like(like)),
+                    )
+                ),
+            )
+        )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))

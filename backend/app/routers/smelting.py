@@ -1,11 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.item import Item
 from app.models.party import Party
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
 from app.models.user import User
@@ -24,6 +25,7 @@ from app.services.smelting import (
     assert_editable,
     assert_stock_out_lines_unchanged,
     check_transition,
+    get_yield_excluded_item_ids,
     load_order,
     recompute_amounts,
     rollback_inventory,
@@ -55,7 +57,30 @@ async def list_orders(
     if order_status:
         stmt = stmt.where(SmeltingOrder.status == order_status)
     if q:
-        stmt = stmt.where(SmeltingOrder.batch_no.like(f"%{q}%"))
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                SmeltingOrder.batch_no.like(like),
+                SmeltingOrder.notes.like(like),
+                SmeltingOrder.party.has(or_(Party.name.like(like), Party.short_name.like(like))),
+                SmeltingOrder.inbound_lines.any(
+                    or_(
+                        SmeltingInbound.spec.like(like),
+                        SmeltingInbound.furnace_no.like(like),
+                        SmeltingInbound.notes.like(like),
+                        SmeltingInbound.item.has(Item.name.like(like)),
+                        SmeltingInbound.owner.has(or_(Party.name.like(like), Party.short_name.like(like))),
+                    )
+                ),
+                SmeltingOrder.alloy_lines.any(
+                    or_(
+                        AlloyAddition.spec.like(like),
+                        AlloyAddition.notes.like(like),
+                        AlloyAddition.item.has(Item.name.like(like)),
+                    )
+                ),
+            )
+        )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
@@ -102,7 +127,10 @@ async def create_order(
             order.inbound_lines.append(SmeltingInbound(**line.model_dump()))
         for alloy in payload.alloy_lines:
             order.alloy_lines.append(AlloyAddition(**alloy.model_dump()))
-        recompute_amounts(order)
+        excluded_item_ids = await get_yield_excluded_item_ids(
+            db, (line.item_id for line in order.inbound_lines if line.side == "out")
+        )
+        recompute_amounts(order, excluded_item_ids)
         db.add(order)
 
     return await load_order(db, order.id)
@@ -144,7 +172,10 @@ async def update_order(
                 for alloy in payload.alloy_lines:
                     order.alloy_lines.append(AlloyAddition(**alloy.model_dump()))
 
-        recompute_amounts(order)
+        excluded_item_ids = await get_yield_excluded_item_ids(
+            db, (line.item_id for line in order.inbound_lines if line.side == "out")
+        )
+        recompute_amounts(order, excluded_item_ids)
 
     return await load_order(db, order_id)
 

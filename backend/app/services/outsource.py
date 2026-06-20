@@ -59,10 +59,11 @@ def _line_amount(quantity, unit_price) -> Decimal | None:
     return (Decimal(quantity) * Decimal(unit_price)).quantize(Decimal("0.01"))
 
 
-def recompute_amounts(order: OutsourceOrder) -> None:
-    """重算费用与成材率。成材率 = 回厂总量 / 发出总量（未手动填写时自动算，假定同单位）。"""
+def recompute_amounts(order: OutsourceOrder, yield_excluded_item_ids: set[int] | None = None) -> None:
+    """重算费用与成材率。成材率 = 有效回厂总量 / 发出总量（raw_material/scrap 不计成品）。"""
+    yield_excluded_item_ids = yield_excluded_item_ids or set()
     out_total = Decimal("0")
-    in_total = Decimal("0")
+    yield_in_total = Decimal("0")
     line_amount_sum = Decimal("0")
 
     for line in order.outbound_lines:
@@ -72,16 +73,16 @@ def recompute_amounts(order: OutsourceOrder) -> None:
             line_amount_sum += line.amount
     for line in order.inbound_lines:
         line.amount = _line_amount(line.quantity, line.unit_price)
-        in_total += Decimal(line.quantity or 0)
+        if line.item_id not in yield_excluded_item_ids:
+            yield_in_total += Decimal(line.quantity or 0)
         if line.amount:
             line_amount_sum += line.amount
 
-    if order.yield_rate is None and out_total > 0:
-        order.yield_rate = (in_total / out_total).quantize(Decimal("0.0001"))
+    order.yield_rate = (yield_in_total / out_total).quantize(Decimal("0.0001")) if out_total > 0 else None
 
-    # 加工金额 = 回厂总量 × 加工单价（外协按回厂计费）
+    # 加工金额 = 有效回厂总量 × 加工单价；raw_material/scrap 回厂不计加工费。
     if order.unit_price is not None:
-        order.amount = (in_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
+        order.amount = (yield_in_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
     else:
         order.amount = None
 

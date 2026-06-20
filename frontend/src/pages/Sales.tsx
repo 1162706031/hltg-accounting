@@ -48,6 +48,8 @@ export function Sales() {
   const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
+  const [partyId, setPartyId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -58,11 +60,17 @@ export function Sales() {
   const stock = useInventoryStock()
 
   const query = useQuery({
-    queryKey: ['sales', statusFilter, page, pageSize],
+    queryKey: ['sales', statusFilter, partyId, search, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<SalesOrder>>('/sales-orders', {
-          params: { page, page_size: pageSize, ...(statusFilter ? { status: statusFilter } : {}) }
+          params: {
+            page,
+            page_size: pageSize,
+            ...(statusFilter ? { status: statusFilter } : {}),
+            ...(partyId ? { party_id: partyId } : {}),
+            ...(search ? { q: search } : {})
+          }
         })
       ).data
   })
@@ -151,6 +159,35 @@ export function Sales() {
             setPage(1)
           }}
           options={STATUS_FILTER_OPTIONS}
+        />
+        <span>往来单位：</span>
+        <Select
+          allowClear
+          showSearch
+          placeholder="全部单位"
+          value={partyId}
+          style={{ width: 220 }}
+          optionFilterProp="label"
+          options={partyOptions(parties.data)}
+          onChange={(v) => {
+            setPartyId(v)
+            setPage(1)
+          }}
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索批次/客户/物品/规格"
+          style={{ width: 280 }}
+          onSearch={(v) => {
+            setSearch(v.trim())
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
         />
       </div>
       <Table<SalesOrder>

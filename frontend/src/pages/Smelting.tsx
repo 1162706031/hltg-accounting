@@ -10,6 +10,7 @@ import { InventoryLineList } from '../components/InventoryLines'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
 import {
+  countsForProcessingFee,
   InventoryStockOption,
   UNIT_OPTIONS,
   itemOptions,
@@ -56,6 +57,8 @@ export function Smelting() {
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [partyId, setPartyId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -69,7 +72,7 @@ export function Smelting() {
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
-    queryKey: ['smelting', statusFilter, typeFilter, page, pageSize],
+    queryKey: ['smelting', statusFilter, typeFilter, partyId, search, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<SmeltingOrder>>('/smelting-orders', {
@@ -77,7 +80,9 @@ export function Smelting() {
             page,
             page_size: pageSize,
             ...(statusFilter ? { status: statusFilter } : {}),
-            ...(typeFilter ? { order_type: typeFilter } : {})
+            ...(typeFilter ? { order_type: typeFilter } : {}),
+            ...(partyId ? { party_id: partyId } : {}),
+            ...(search ? { q: search } : {})
           }
         })
       ).data
@@ -258,6 +263,35 @@ export function Smelting() {
           }}
           options={STATUS_FILTER_OPTIONS}
         />
+        <span>往来单位：</span>
+        <Select
+          allowClear
+          showSearch
+          placeholder="全部单位"
+          value={partyId}
+          style={{ width: 220 }}
+          optionFilterProp="label"
+          options={partyOptions(parties.data)}
+          onChange={(v) => {
+            setPartyId(v)
+            setPage(1)
+          }}
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索批次/单位/物品/规格/炉号"
+          style={{ width: 280 }}
+          onSearch={(v) => {
+            setSearch(v.trim())
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
+        />
       </div>
       <Table<SmeltingOrder>
         rowKey="id"
@@ -341,6 +375,7 @@ export function Smelting() {
               addLabel="添加来料"
               disabled={stockOutLocked}
               disabledReason="已扣库，禁止修改"
+              allowFillAllQuantity
             />
             {renderTapLines()}
             <InventoryLineList
@@ -379,7 +414,7 @@ export function Smelting() {
                 ]}
               />
             </Form.Item>
-            <Form.Item label="预计合计" tooltip="来料/出钢/合金金额 + 加工费(出钢量×加工单价) + 税额(仅需开票时计税)，便于核对">
+            <Form.Item label="预计合计" tooltip="来料/出钢/合金金额 + 加工费(有效出钢量×加工单价) + 税额(仅需开票时计税)，便于核对">
               <Form.Item noStyle shouldUpdate>
                 {({ getFieldsValue }) => {
                   const v = getFieldsValue()
@@ -388,8 +423,12 @@ export function Smelting() {
                       (s, l) => s + (l?.unit_price != null ? Number(l.quantity || 0) * Number(l.unit_price) : 0),
                       0
                     )
-                  const tapQty = (v.tap_lines ?? []).reduce((s: number, l: any) => s + Number(l?.quantity || 0), 0)
-                  const processing = v.unit_price != null ? tapQty * Number(v.unit_price) : 0
+                  const processingQty = (v.tap_lines ?? []).reduce(
+                    (s: number, l: any) =>
+                      s + (countsForProcessingFee(l?.item_id, items.data) ? Number(l?.quantity || 0) : 0),
+                    0
+                  )
+                  const processing = v.unit_price != null ? processingQty * Number(v.unit_price) : 0
                   const subtotal =
                     sumAmount(v.feed_lines) + sumAmount(v.tap_lines) + sumAmount(v.alloy_lines) + processing
                   const rate = v.need_invoice && v.tax_rate != null ? Number(v.tax_rate) : 0

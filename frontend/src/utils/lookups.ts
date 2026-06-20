@@ -17,6 +17,13 @@ export interface ItemOption {
   item_type: string
 }
 
+export const PROCESSING_FEE_EXCLUDED_ITEM_TYPES = new Set(['raw_material', 'scrap'])
+
+export function countsForProcessingFee(itemId: number | null | undefined, items?: ItemOption[]) {
+  const item = (items ?? []).find((it) => it.id === itemId)
+  return item == null || !PROCESSING_FEE_EXCLUDED_ITEM_TYPES.has(item.item_type)
+}
+
 export interface InventoryStockOption {
   id: number
   item_id: number | null

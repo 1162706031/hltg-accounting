@@ -1,11 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.item import Item
 from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOutbound
 from app.models.party import Party
 from app.models.user import User
@@ -29,6 +30,7 @@ from app.services.outsource import (
     rollback_inventory,
     STOCK_OUT_LOCKED_STATUSES,
 )
+from app.services.smelting import get_yield_excluded_item_ids
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/outsource-orders", tags=["outsource"], dependencies=[Depends(get_current_user)])
@@ -56,7 +58,30 @@ async def list_orders(
     if order_status:
         stmt = stmt.where(OutsourceOrder.status == order_status)
     if q:
-        stmt = stmt.where(OutsourceOrder.batch_no.like(f"%{q}%"))
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                OutsourceOrder.batch_no.like(like),
+                OutsourceOrder.process_type.like(like),
+                OutsourceOrder.notes.like(like),
+                OutsourceOrder.party.has(or_(Party.name.like(like), Party.short_name.like(like))),
+                OutsourceOrder.outbound_lines.any(
+                    or_(
+                        ProcessingOutbound.spec.like(like),
+                        ProcessingOutbound.notes.like(like),
+                        ProcessingOutbound.item.has(Item.name.like(like)),
+                    )
+                ),
+                OutsourceOrder.inbound_lines.any(
+                    or_(
+                        ProcessingInbound.spec.like(like),
+                        ProcessingInbound.notes.like(like),
+                        ProcessingInbound.item.has(Item.name.like(like)),
+                        ProcessingInbound.owner.has(or_(Party.name.like(like), Party.short_name.like(like))),
+                    )
+                ),
+            )
+        )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
@@ -102,7 +127,8 @@ async def create_order(
             order.outbound_lines.append(ProcessingOutbound(**line.model_dump()))
         for line in payload.inbound_lines:
             order.inbound_lines.append(ProcessingInbound(**line.model_dump()))
-        recompute_amounts(order)
+        excluded_item_ids = await get_yield_excluded_item_ids(db, (line.item_id for line in order.inbound_lines))
+        recompute_amounts(order, excluded_item_ids)
         db.add(order)
 
     return await load_order(db, order.id)
@@ -136,7 +162,8 @@ async def update_order(
             for line in payload.inbound_lines:
                 order.inbound_lines.append(ProcessingInbound(**line.model_dump()))
 
-        recompute_amounts(order)
+        excluded_item_ids = await get_yield_excluded_item_ids(db, (line.item_id for line in order.inbound_lines))
+        recompute_amounts(order, excluded_item_ids)
 
     return await load_order(db, order_id)
 

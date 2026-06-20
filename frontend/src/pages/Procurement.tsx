@@ -39,6 +39,8 @@ export function Procurement() {
   const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
+  const [partyId, setPartyId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
@@ -49,11 +51,17 @@ export function Procurement() {
   const items = useItems()
 
   const query = useQuery({
-    queryKey: ['procurement', statusFilter, page, pageSize],
+    queryKey: ['procurement', statusFilter, partyId, search, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<ProcurementOrder>>('/procurement-orders', {
-          params: { page, page_size: pageSize, ...(statusFilter ? { status: statusFilter } : {}) }
+          params: {
+            page,
+            page_size: pageSize,
+            ...(statusFilter ? { status: statusFilter } : {}),
+            ...(partyId ? { party_id: partyId } : {}),
+            ...(search ? { q: search } : {})
+          }
         })
       ).data
   })
@@ -120,6 +128,35 @@ export function Procurement() {
             setPage(1)
           }}
           options={STATUS_FILTER_OPTIONS}
+        />
+        <span>往来单位：</span>
+        <Select
+          allowClear
+          showSearch
+          placeholder="全部单位"
+          value={partyId}
+          style={{ width: 220 }}
+          optionFilterProp="label"
+          options={partyOptions(parties.data)}
+          onChange={(v) => {
+            setPartyId(v)
+            setPage(1)
+          }}
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索批次/供应商/物品/规格"
+          style={{ width: 280 }}
+          onSearch={(v) => {
+            setSearch(v.trim())
+            setPage(1)
+          }}
+          onChange={(e) => {
+            if (!e.target.value) {
+              setSearch('')
+              setPage(1)
+            }
+          }}
         />
       </div>
       <Table<ProcurementOrder>

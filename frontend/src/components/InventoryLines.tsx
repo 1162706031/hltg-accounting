@@ -27,6 +27,8 @@ interface InventoryLineListProps {
   disabled?: boolean
   /** 禁用时展示在标题后的说明。 */
   disabledReason?: string
+  /** 是否允许一键填入所选库存项的全部结余数量。 */
+  allowFillAllQuantity?: boolean
 }
 
 /**
@@ -48,7 +50,8 @@ export function InventoryLineList({
   dateLabel = '日期',
   defaultDateField,
   disabled = false,
-  disabledReason
+  disabledReason,
+  allowFillAllQuantity = false
 }: InventoryLineListProps) {
   const rows = (stock ?? []).filter((r) => (filter ? filter(r) : true))
   const byId = new Map<number, InventoryStockOption>(rows.map((r) => [r.id, r]))
@@ -128,6 +131,12 @@ export function InventoryLineList({
                   const inv = byId.get(getFieldValue([name, field.name, 'inventory_id']))
                   const maxQty = inv ? Number(inv.current_quantity) : undefined
                   const unit = inv?.unit ?? ''
+                  const quantityPath = [name, field.name, 'quantity']
+                  const fillAll = () => {
+                    if (maxQty == null) return
+                    form.setFieldValue(quantityPath, maxQty)
+                    form.validateFields([quantityPath]).catch(() => undefined)
+                  }
                   return (
                     <Form.Item
                       {...field}
@@ -143,7 +152,25 @@ export function InventoryLineList({
                         }
                       ]}
                     >
-                      <InputNumber style={{ width: 150 }} min={0} max={maxQty} step={0.001} disabled={disabled} />
+                      <InputNumber
+                        style={{ width: allowFillAllQuantity ? 190 : 150 }}
+                        min={0}
+                        max={maxQty}
+                        step={0.001}
+                        disabled={disabled}
+                        addonAfter={
+                          allowFillAllQuantity ? (
+                            <Button
+                              type="link"
+                              size="small"
+                              disabled={disabled || maxQty == null}
+                              onClick={fillAll}
+                            >
+                              全部
+                            </Button>
+                          ) : undefined
+                        }
+                      />
                     </Form.Item>
                   )
                 }}

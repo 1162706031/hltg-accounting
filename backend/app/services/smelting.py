@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.inventory import Inventory, InventoryLog
+from app.models.item import Item
 from app.models.party import Party
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
 from app.services.inventory import stock_in, stock_out
@@ -33,6 +34,7 @@ _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 
 _EDITABLE_STATUSES = {"draft", "in_progress", "rejected"}
 STOCK_OUT_LOCKED_STATUSES = {"in_progress", "pending_review", "approved", "completed"}
+YIELD_EXCLUDED_ITEM_TYPES = {"raw_material", "scrap"}
 
 
 def assert_editable(order: SmeltingOrder) -> None:
@@ -82,10 +84,19 @@ def _line_amount(quantity, unit_price) -> Decimal | None:
     return (Decimal(quantity) * Decimal(unit_price)).quantize(Decimal("0.01"))
 
 
-def recompute_amounts(order: SmeltingOrder) -> None:
+async def get_yield_excluded_item_ids(db: AsyncSession, item_ids) -> set[int]:
+    ids = {int(item_id) for item_id in item_ids if item_id}
+    if not ids:
+        return set()
+    rows = await db.scalars(select(Item.id).where(Item.id.in_(ids), Item.item_type.in_(YIELD_EXCLUDED_ITEM_TYPES)))
+    return set(rows)
+
+
+def recompute_amounts(order: SmeltingOrder, yield_excluded_item_ids: set[int] | None = None) -> None:
     """重算每行金额与费用汇总（设计 §5.4 计算逻辑）。单价为空的行不计入。"""
+    yield_excluded_item_ids = yield_excluded_item_ids or set()
     feed_total = Decimal("0")
-    tap_total = Decimal("0")
+    yield_tap_total = Decimal("0")
     inbound_amount = Decimal("0")
     outbound_amount = Decimal("0")
 
@@ -96,7 +107,8 @@ def recompute_amounts(order: SmeltingOrder) -> None:
             if line.amount:
                 inbound_amount += line.amount
         else:
-            tap_total += Decimal(line.quantity or 0)
+            if line.item_id not in yield_excluded_item_ids:
+                yield_tap_total += Decimal(line.quantity or 0)
             if line.amount:
                 outbound_amount += line.amount
 
@@ -106,13 +118,12 @@ def recompute_amounts(order: SmeltingOrder) -> None:
         if alloy.amount:
             alloy_amount += alloy.amount
 
-    # 成锭率：出钢总量 / 投料总量；仅在未手动填写时自动计算（假定投料/出钢同单位）
-    if order.yield_pct is None and feed_total > 0:
-        order.yield_pct = (tap_total / feed_total * 100).quantize(Decimal("0.01"))
+    # 成锭率：有效出钢总量 / 投料总量；raw_material/scrap 产出不计为成品。
+    order.yield_pct = (yield_tap_total / feed_total * 100).quantize(Decimal("0.01")) if feed_total > 0 else None
 
-    # 加工金额 = 出钢总重 × 加工单价
+    # 加工金额 = 有效出钢总重 × 加工单价；raw_material/scrap 产出不计加工费。
     if order.unit_price is not None:
-        order.processing_amount = (tap_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
+        order.processing_amount = (yield_tap_total * Decimal(order.unit_price)).quantize(Decimal("0.01"))
     else:
         order.processing_amount = None
 
