@@ -271,7 +271,7 @@ async def complete_order(
                 unit=order.unit,
                 quantity=Decimal(order.quantity or 0),
                 change_date=order.purchase_date or datetime.utcnow().date(),
-                notes=f"采购#{order.batch_no}入库",
+                notes=f"批次号：{order.batch_no}；采购入库",
                 ref_type="procurement_order",
                 ref_id=order.id,
                 created_by=order.created_by,

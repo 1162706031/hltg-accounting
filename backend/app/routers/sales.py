@@ -264,7 +264,7 @@ async def complete_order(
                 inventory_id=line.inventory_id,
                 quantity=Decimal(line.quantity or 0),
                 change_date=line.ship_date or order.ship_date or datetime.utcnow().date(),
-                notes=f"销售#{order.batch_no}出库",
+                notes=f"批次号：{order.batch_no}；销售出库",
                 ref_type="sales_order",
                 ref_id=order.id,
                 created_by=order.created_by,

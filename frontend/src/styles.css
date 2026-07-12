@@ -146,7 +146,9 @@ body {
 }
 
 .line-list-header {
-  padding: 9px 10px;
+  min-height: 50px;
+  padding: 8px 10px;
+  align-items: center;
   color: #595959;
   font-weight: 600;
   background: #fafafa;
@@ -161,9 +163,11 @@ body {
 
 .line-list-header > span {
   display: inline-flex;
+  min-height: 32px;
   align-items: center;
   justify-content: center;
   text-align: center;
+  white-space: nowrap;
 }
 
 .line-editor-row {

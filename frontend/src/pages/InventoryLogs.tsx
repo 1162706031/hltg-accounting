@@ -152,12 +152,13 @@ export function InventoryLogs() {
           {
             title: '备注',
             key: 'source',
-            width: 200,
+            width: 260,
             render: (_, row) => {
+              if (row.notes) return row.notes
               if (row.ref_type && refTypeLabels[row.ref_type]) {
                 return `${refTypeLabels[row.ref_type]} #${row.ref_id ?? ''}`
               }
-              return row.notes ?? '—'
+              return '—'
             }
           }
         ]}
