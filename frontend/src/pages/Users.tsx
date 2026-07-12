@@ -115,6 +115,7 @@ export function Users() {
         loading={query.isLoading}
         dataSource={query.data?.items}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
+        scroll={{ x: 1000 }}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
           { title: '用户名', dataIndex: 'username' },
@@ -128,6 +129,8 @@ export function Users() {
           { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v?.slice(0, 10) },
           {
             title: '操作',
+            fixed: 'right' as const,
+            width: 290,
             render: (_, row) => (
               <Space>
                 <Button type="link" onClick={() => setDetail(row)}>

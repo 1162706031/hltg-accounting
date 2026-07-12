@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
@@ -46,6 +46,10 @@ async def list_orders(
     order_type: str | None = None,
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),
+    feed_date_from: date | None = None,
+    feed_date_to: date | None = None,
+    tap_date_from: date | None = None,
+    tap_date_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -56,6 +60,14 @@ async def list_orders(
         stmt = stmt.where(SmeltingOrder.party_id == party_id)
     if order_status:
         stmt = stmt.where(SmeltingOrder.status == order_status)
+    if feed_date_from:
+        stmt = stmt.where(SmeltingOrder.feed_date >= feed_date_from)
+    if feed_date_to:
+        stmt = stmt.where(SmeltingOrder.feed_date <= feed_date_to)
+    if tap_date_from:
+        stmt = stmt.where(SmeltingOrder.tap_date >= tap_date_from)
+    if tap_date_to:
+        stmt = stmt.where(SmeltingOrder.tap_date <= tap_date_to)
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(
@@ -111,8 +123,6 @@ async def create_order(
             batch_no=batch_no,
             party_id=payload.party_id,
             order_type=payload.order_type,
-            feed_date=payload.feed_date,
-            tap_date=payload.tap_date,
             casting_loss_kg=payload.casting_loss_kg,
             casting_loss_pct=payload.casting_loss_pct,
             yield_pct=payload.yield_pct,
@@ -148,9 +158,10 @@ async def update_order(
         assert_editable(order)
         assert_stock_out_lines_unchanged(order, payload.inbound_lines, payload.alloy_lines)
 
-        data = payload.model_dump(exclude_unset=True, exclude={"inbound_lines", "alloy_lines"})
-        if order.status in STOCK_OUT_LOCKED_STATUSES and data.get("feed_date", order.feed_date) != order.feed_date:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，投料日期已扣库，禁止修改")
+        data = payload.model_dump(
+            exclude_unset=True,
+            exclude={"inbound_lines", "alloy_lines", "feed_date", "tap_date"},
+        )
         for key, value in data.items():
             setattr(order, key, value)
 

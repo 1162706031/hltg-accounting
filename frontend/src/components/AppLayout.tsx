@@ -1,73 +1,132 @@
 import {
-  AuditOutlined,
-  BankOutlined,
   DashboardOutlined,
-  DeploymentUnitOutlined,
-  FileDoneOutlined,
-  FileSearchOutlined,
-  FileTextOutlined,
   InboxOutlined,
   LogoutOutlined,
   PayCircleOutlined,
   ProductOutlined,
-  ReconciliationOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
-  TeamOutlined,
-  ToolOutlined,
-  UserOutlined
+  ToolOutlined
 } from '@ant-design/icons'
 import { Button, Layout, Menu, Typography } from 'antd'
+import type { MenuProps } from 'antd'
+import type { ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
 
 const { Header, Sider, Content } = Layout
 
-const menuItems = [
+interface AppMenuItem {
+  key: string
+  icon?: ReactNode
+  label: string
+  roles?: string[]
+  children?: AppMenuItem[]
+}
+
+const menuItems: AppMenuItem[] = [
   { key: '/', icon: <DashboardOutlined />, label: '工作台' },
-  { key: '/parties', icon: <TeamOutlined />, label: '往来单位' },
-  { key: '/items', icon: <ProductOutlined />, label: '物品管理' },
-  { key: '/inventory', icon: <InboxOutlined />, label: '库房管理' },
-  { key: '/inventory/logs', icon: <FileTextOutlined />, label: '库存变动' },
-  { key: '/smelting', icon: <ToolOutlined />, label: '冶炼加工' },
-  { key: '/outsource', icon: <DeploymentUnitOutlined />, label: '外协加工' },
-  { key: '/procurement', icon: <ShoppingCartOutlined />, label: '采购管理' },
-  { key: '/sales', icon: <BankOutlined />, label: '销售管理' },
-  { key: '/reconciliation', icon: <ReconciliationOutlined />, label: '用户对账' },
-  { key: '/payments', icon: <PayCircleOutlined />, label: '收付款' },
-  { key: '/invoices', icon: <FileDoneOutlined />, label: '开票记录' },
-  { key: '/audit', icon: <AuditOutlined />, label: '审核中心', roles: ['reviewer', 'admin'] },
-  { key: '/operation-logs', icon: <FileSearchOutlined />, label: '操作日志', roles: ['admin'] },
-  { key: '/users', icon: <UserOutlined />, label: '用户管理', roles: ['admin'] },
-  { key: '/settings', icon: <SettingOutlined />, label: '系统设置', roles: ['admin'] }
+  {
+    key: 'production',
+    icon: <ToolOutlined />,
+    label: '生产加工',
+    children: [
+      { key: '/smelting', label: '冶炼加工' },
+      { key: '/outsource', label: '外协加工' }
+    ]
+  },
+  {
+    key: 'trade',
+    icon: <ShoppingCartOutlined />,
+    label: '购销管理',
+    children: [
+      { key: '/procurement', label: '采购管理' },
+      { key: '/sales', label: '销售管理' }
+    ]
+  },
+  {
+    key: 'warehouse',
+    icon: <InboxOutlined />,
+    label: '仓库管理',
+    children: [
+      { key: '/inventory', label: '库房管理' },
+      { key: '/inventory/logs', label: '库存变动' }
+    ]
+  },
+  {
+    key: 'finance',
+    icon: <PayCircleOutlined />,
+    label: '财务管理',
+    children: [
+      { key: '/reconciliation', label: '用户对账' },
+      { key: '/payments', label: '收付款记录' },
+      { key: '/invoices', label: '开票记录' }
+    ]
+  },
+  {
+    key: 'master-data',
+    icon: <ProductOutlined />,
+    label: '基础资料',
+    children: [
+      { key: '/parties', label: '往来单位' },
+      { key: '/items', label: '物品管理' }
+    ]
+  },
+  {
+    key: 'system',
+    icon: <SettingOutlined />,
+    label: '系统管理',
+    children: [
+      { key: '/audit', label: '审核中心', roles: ['reviewer', 'admin'] },
+      { key: '/operation-logs', label: '操作日志', roles: ['admin'] },
+      { key: '/users', label: '用户管理', roles: ['admin'] },
+      { key: '/settings', label: '系统设置', roles: ['admin'] }
+    ]
+  }
 ]
+
+function filterMenuItems(items: AppMenuItem[], role?: string): AppMenuItem[] {
+  return items.flatMap((item) => {
+    if (item.roles && (!role || !item.roles.includes(role))) return []
+    const children = item.children ? filterMenuItems(item.children, role) : undefined
+    if (item.children && !children?.length) return []
+    const { roles: _roles, ...visibleItem } = item
+    return [{ ...visibleItem, children }]
+  })
+}
+
+function routeItems(items: AppMenuItem[]): AppMenuItem[] {
+  return items.flatMap((item) => item.children ? routeItems(item.children) : item.key.startsWith('/') ? [item] : [])
+}
 
 export function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
 
-  const visibleItems = menuItems
-    .filter((item) => !item.roles || (user && item.roles.includes(user.role)))
-    .map(({ roles: _roles, ...item }) => item)
+  const visibleItems = filterMenuItems(menuItems, user?.role)
+  const routes = routeItems(visibleItems)
 
   const selectedKey =
-    menuItems
+    routes
       .map((item) => item.key)
       .filter((key) => location.pathname === key || (key !== '/' && location.pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0] ?? '/'
+  const activeGroupKey = visibleItems.find((item) => item.children?.some((child) => child.key === selectedKey))?.key
 
   return (
     <Layout className="app-shell" style={{ minHeight: '100vh' }}>
-      <Sider className="app-sider" width={216} theme="light">
-        <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 18px', gap: 10 }}>
+      <Sider className="app-sider" width={168} theme="light">
+        <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 10px', gap: 6 }}>
           <ToolOutlined />
           <Typography.Text strong>旭峰新材料 ERP</Typography.Text>
         </div>
         <Menu
           mode="inline"
+          inlineIndent={16}
           selectedKeys={[selectedKey]}
-          items={visibleItems}
+          defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
+          items={visibleItems as MenuProps['items']}
           onClick={({ key }) => navigate(key)}
           style={{ borderInlineEnd: 0 }}
         />
@@ -75,18 +134,12 @@ export function AppLayout() {
       <Layout className="app-main">
         <Header
           className="app-header"
-          style={{
-            height: 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
-            background: '#fff',
-            borderBottom: '1px solid #e5e8ef'
-          }}
         >
-          <Typography.Text type="secondary">当前用户：{user?.real_name || user?.username}</Typography.Text>
+          <Typography.Text className="app-header-user" type="secondary">
+            当前用户：{user?.real_name || user?.username}
+          </Typography.Text>
           <Button
+            className="app-header-logout"
             icon={<LogoutOutlined />}
             onClick={() => {
               logout()
@@ -96,7 +149,7 @@ export function AppLayout() {
             退出
           </Button>
         </Header>
-        <Content className="app-content" style={{ padding: 20 }}>
+        <Content className="app-content">
           <Outlet />
         </Content>
       </Layout>

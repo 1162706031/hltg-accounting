@@ -378,7 +378,8 @@ export function Invoices() {
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v || '—' },
           {
             title: '操作',
-            width: 190,
+            fixed: 'right' as const,
+            width: canManage ? 190 : 80,
             render: (_, row) => (
               <Space size="small">
                 <Button size="small" onClick={() => setDetail(row)}>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
@@ -41,6 +41,14 @@ export function Procurement() {
   const [statusFilter, setStatusFilter] = useState('')
   const [partyId, setPartyId] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [purchaseDateRange, setPurchaseDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [appliedFilters, setAppliedFilters] = useState({
+    status: '',
+    partyId: undefined as number | undefined,
+    search: '',
+    purchaseDateFrom: '',
+    purchaseDateTo: ''
+  })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
@@ -51,16 +59,18 @@ export function Procurement() {
   const items = useItems()
 
   const query = useQuery({
-    queryKey: ['procurement', statusFilter, partyId, search, page, pageSize],
+    queryKey: ['procurement', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<ProcurementOrder>>('/procurement-orders', {
           params: {
             page,
             page_size: pageSize,
-            ...(statusFilter ? { status: statusFilter } : {}),
-            ...(partyId ? { party_id: partyId } : {}),
-            ...(search ? { q: search } : {})
+            ...(appliedFilters.status ? { status: appliedFilters.status } : {}),
+            ...(appliedFilters.partyId ? { party_id: appliedFilters.partyId } : {}),
+            ...(appliedFilters.search ? { q: appliedFilters.search } : {}),
+            ...(appliedFilters.purchaseDateFrom ? { purchase_date_from: appliedFilters.purchaseDateFrom } : {}),
+            ...(appliedFilters.purchaseDateTo ? { purchase_date_to: appliedFilters.purchaseDateTo } : {})
           }
         })
       ).data
@@ -108,6 +118,26 @@ export function Procurement() {
     })
   }
 
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      partyId,
+      search: search.trim(),
+      purchaseDateFrom: purchaseDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      purchaseDateTo: purchaseDateRange?.[1].format('YYYY-MM-DD') ?? ''
+    })
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setStatusFilter('')
+    setPartyId(undefined)
+    setSearch('')
+    setPurchaseDateRange(null)
+    setAppliedFilters({ status: '', partyId: undefined, search: '', purchaseDateFrom: '', purchaseDateTo: '' })
+    setPage(1)
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -119,57 +149,67 @@ export function Procurement() {
         )}
       </div>
       <div className="toolbar">
-        <span>状态：</span>
-        <Select
-          value={statusFilter}
-          style={{ width: 140 }}
-          onChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-          options={STATUS_FILTER_OPTIONS}
-        />
-        <span>往来单位：</span>
-        <Select
-          allowClear
-          showSearch
-          placeholder="全部单位"
-          value={partyId}
-          style={{ width: 220 }}
-          optionFilterProp="label"
-          options={partyOptions(parties.data)}
-          onChange={(v) => {
-            setPartyId(v)
-            setPage(1)
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder="搜索批次/供应商/物品/规格"
-          style={{ width: 280 }}
-          onSearch={(v) => {
-            setSearch(v.trim())
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
-        />
+        <div className="filter-item">
+          <span>状态：</span>
+          <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        </div>
+        <div className="filter-item">
+          <span>往来单位：</span>
+          <Select
+            allowClear
+            showSearch
+            placeholder="全部单位"
+            value={partyId}
+            style={{ width: 220 }}
+            optionFilterProp="label"
+            options={partyOptions(parties.data)}
+            onChange={setPartyId}
+          />
+        </div>
+        <div className="filter-item">
+          <span>采购/入库日期：</span>
+          <DatePicker.RangePicker
+            value={purchaseDateRange}
+            onChange={(dates) => setPurchaseDateRange(dates as [Dayjs, Dayjs] | null)}
+          />
+        </div>
+        <div className="filter-item">
+          <span>名称：</span>
+          <Input
+            allowClear
+            value={search}
+            placeholder="搜索批次/供应商/物品/规格"
+            style={{ width: 280 }}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="filter-actions">
+          <Button type="primary" onClick={applyFilters}>查询</Button>
+          <Button onClick={resetFilters}>重置</Button>
+        </div>
       </div>
       <Table<ProcurementOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
+        scroll={{ x: 1450 }}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         columns={[
-          { title: '批次号', dataIndex: 'batch_no' },
+          {
+            title: '批次号',
+            dataIndex: 'batch_no',
+            width: 130,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
+          },
           { title: '供应商', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
           { title: '物品', dataIndex: ['item', 'name'], render: (v) => v ?? '—' },
-          { title: '采购日期', dataIndex: 'purchase_date', render: (v) => v ?? '—' },
+          {
+            title: '采购日期',
+            dataIndex: 'purchase_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
           { title: '数量', dataIndex: 'quantity', align: 'right' },
           { title: '单位', dataIndex: 'unit' },
           { title: '单价', dataIndex: 'unit_price', align: 'right' },
@@ -178,7 +218,8 @@ export function Procurement() {
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 340,
+            fixed: 'right' as const,
+            width: user?.role === 'viewer' ? 80 : user?.role === 'reviewer' ? 180 : 260,
             render: (_, row) => (
               <Space size={0} wrap>
                 <Button type="link" size="small" onClick={() => setDetail(row)}>

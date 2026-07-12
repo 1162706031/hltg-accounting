@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
@@ -47,6 +47,10 @@ async def list_orders(
     process_type: str | None = None,
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),
+    out_date_from: date | None = None,
+    out_date_to: date | None = None,
+    in_date_from: date | None = None,
+    in_date_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -57,6 +61,14 @@ async def list_orders(
         stmt = stmt.where(OutsourceOrder.party_id == party_id)
     if order_status:
         stmt = stmt.where(OutsourceOrder.status == order_status)
+    if out_date_from:
+        stmt = stmt.where(OutsourceOrder.out_date >= out_date_from)
+    if out_date_to:
+        stmt = stmt.where(OutsourceOrder.out_date <= out_date_to)
+    if in_date_from:
+        stmt = stmt.where(OutsourceOrder.in_date >= in_date_from)
+    if in_date_to:
+        stmt = stmt.where(OutsourceOrder.in_date <= in_date_to)
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(
@@ -146,9 +158,10 @@ async def update_order(
         assert_editable(order)
         assert_stock_out_lines_unchanged(order, payload.outbound_lines)
 
-        data = payload.model_dump(exclude_unset=True, exclude={"outbound_lines", "inbound_lines"})
-        if order.status in STOCK_OUT_LOCKED_STATUSES and data.get("out_date", order.out_date) != order.out_date:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="订单已开始加工，发出日期已扣库，禁止修改")
+        data = payload.model_dump(
+            exclude_unset=True,
+            exclude={"outbound_lines", "inbound_lines", "out_date", "in_date"},
+        )
         for key, value in data.items():
             setattr(order, key, value)
 

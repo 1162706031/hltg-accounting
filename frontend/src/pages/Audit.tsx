@@ -84,6 +84,7 @@ export function Audit() {
         loading={query.isLoading}
         dataSource={query.data}
         pagination={localTablePagination(query.data?.length ?? 0, pageSize, setPageSize)}
+        scroll={{ x: 1050 }}
         columns={[
           {
             title: '类型',
@@ -103,6 +104,8 @@ export function Audit() {
           { title: '状态', dataIndex: 'status', render: (s) => <OrderStatusTag status={s} /> },
           {
             title: '操作',
+            fixed: 'right' as const,
+            width: 140,
             render: (_, row) => (
               <Space>
                 <Button type="link" loading={approve.isPending} onClick={() => approve.mutate(row)}>

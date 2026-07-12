@@ -60,8 +60,10 @@ def _line_amount(quantity, unit_price) -> Decimal | None:
 
 
 def recompute_amounts(order: OutsourceOrder, yield_excluded_item_ids: set[int] | None = None) -> None:
-    """重算费用与成材率。成材率 = 有效回厂总量 / 发出总量（raw_material/scrap 不计成品）。"""
+    """重算订单日期、费用与成材率。"""
     yield_excluded_item_ids = yield_excluded_item_ids or set()
+    order.out_date = max((line.out_date for line in order.outbound_lines if line.out_date), default=None)
+    order.in_date = max((line.in_date for line in order.inbound_lines if line.in_date), default=None)
     out_total = Decimal("0")
     yield_in_total = Decimal("0")
     line_amount_sum = Decimal("0")

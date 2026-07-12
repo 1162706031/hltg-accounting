@@ -93,8 +93,13 @@ async def get_yield_excluded_item_ids(db: AsyncSession, item_ids) -> set[int]:
 
 
 def recompute_amounts(order: SmeltingOrder, yield_excluded_item_ids: set[int] | None = None) -> None:
-    """重算每行金额与费用汇总（设计 §5.4 计算逻辑）。单价为空的行不计入。"""
+    """重算订单日期、每行金额与费用汇总。"""
     yield_excluded_item_ids = yield_excluded_item_ids or set()
+    feed_dates = [line.date for line in order.inbound_lines if line.side == "in" and line.date]
+    feed_dates.extend(alloy.date for alloy in order.alloy_lines if alloy.date)
+    tap_dates = [line.date for line in order.inbound_lines if line.side == "out" and line.date]
+    order.feed_date = max(feed_dates, default=None)
+    order.tap_date = max(tap_dates, default=None)
     feed_total = Decimal("0")
     yield_tap_total = Decimal("0")
     inbound_amount = Decimal("0")

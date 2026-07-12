@@ -1,7 +1,7 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
-import dayjs from 'dayjs'
+import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
+import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { InventoryLineList } from '../components/InventoryLines'
@@ -58,12 +58,25 @@ export function Outsource() {
   const [typeFilter, setTypeFilter] = useState('')
   const [partyId, setPartyId] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [outDateRange, setOutDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [inDateRange, setInDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [appliedFilters, setAppliedFilters] = useState({
+    status: '',
+    type: '',
+    partyId: undefined as number | undefined,
+    search: '',
+    outDateFrom: '',
+    outDateTo: '',
+    inDateFrom: '',
+    inDateTo: ''
+  })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -71,17 +84,21 @@ export function Outsource() {
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
-    queryKey: ['outsource', statusFilter, typeFilter, partyId, search, page, pageSize],
+    queryKey: ['outsource', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<OutsourceOrder>>('/outsource-orders', {
           params: {
             page,
             page_size: pageSize,
-            ...(statusFilter ? { status: statusFilter } : {}),
-            ...(typeFilter ? { process_type: typeFilter } : {}),
-            ...(partyId ? { party_id: partyId } : {}),
-            ...(search ? { q: search } : {})
+            ...(appliedFilters.status ? { status: appliedFilters.status } : {}),
+            ...(appliedFilters.type ? { process_type: appliedFilters.type } : {}),
+            ...(appliedFilters.partyId ? { party_id: appliedFilters.partyId } : {}),
+            ...(appliedFilters.search ? { q: appliedFilters.search } : {}),
+            ...(appliedFilters.outDateFrom ? { out_date_from: appliedFilters.outDateFrom } : {}),
+            ...(appliedFilters.outDateTo ? { out_date_to: appliedFilters.outDateTo } : {}),
+            ...(appliedFilters.inDateFrom ? { in_date_from: appliedFilters.inDateFrom } : {}),
+            ...(appliedFilters.inDateTo ? { in_date_to: appliedFilters.inDateTo } : {})
           }
         })
       ).data
@@ -102,8 +119,6 @@ export function Outsource() {
       const mapIn = (it: any, i: number) => ({ ...it, line_no: i + 1, in_date: it.in_date?.format('YYYY-MM-DD') ?? null })
       const body = {
         ...values,
-        out_date: values.out_date?.format('YYYY-MM-DD') ?? null,
-        in_date: values.in_date?.format('YYYY-MM-DD') ?? null,
         outbound_lines: (values.outbound_lines ?? []).map(mapOut),
         inbound_lines: (values.inbound_lines ?? []).map(mapIn)
       }
@@ -114,6 +129,7 @@ export function Outsource() {
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
+      setInboundSelectedRowKeys([])
       form.resetFields()
       invalidate()
     },
@@ -124,6 +140,7 @@ export function Outsource() {
     setCreating(true)
     setEditingId(null)
     setEditingStatus(null)
+    setInboundSelectedRowKeys([])
     form.resetFields()
     form.setFieldsValue({ process_type: 'forging', tax_rate: 13, need_invoice: false, outbound_lines: [], inbound_lines: [] })
   }
@@ -132,12 +149,11 @@ export function Outsource() {
     const d = (await api.get<OutsourceOrder>(`/outsource-orders/${row.id}`)).data
     setEditingId(row.id)
     setEditingStatus(d.status)
+    setInboundSelectedRowKeys([])
     setCreating(false)
     form.setFieldsValue({
       party_id: d.party_id,
       process_type: d.process_type,
-      out_date: d.out_date ? dayjs(d.out_date) : null,
-      in_date: d.in_date ? dayjs(d.in_date) : null,
       unit_price: d.unit_price ? Number(d.unit_price) : null,
       tax_rate: d.tax_rate ? Number(d.tax_rate) : 13,
       need_invoice: d.need_invoice,
@@ -166,12 +182,42 @@ export function Outsource() {
   const renderLines = (name: string, dateField: string, title: string) => (
     <Form.List name={name}>
       {(fields, { add, remove }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="compact-line-list" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ fontWeight: 600 }}>{title}</div>
+          {fields.length > 0 && (
+            <div className="line-list-header">
+              <span className="line-select-cell">
+                <Checkbox
+                  checked={fields.every((field) => inboundSelectedRowKeys.includes(field.key))}
+                  indeterminate={fields.some((field) => inboundSelectedRowKeys.includes(field.key)) && !fields.every((field) => inboundSelectedRowKeys.includes(field.key))}
+                  onChange={(e) => setInboundSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
+                />
+              </span>
+              <span style={{ width: 140 }}>回厂日期</span>
+              <span style={{ width: 150 }}>钢种</span>
+              <span style={{ width: 90 }}>规格</span>
+              <span style={{ width: 90 }}>数量</span>
+              <span style={{ width: 80 }}>单位</span>
+              <span style={{ width: 110 }}>单价（可选）</span>
+              <span style={{ width: 150 }}>归属</span>
+              <span className="line-action-cell">操作</span>
+            </div>
+          )}
           {fields.map((field) => (
-            <Space key={field.key} align="baseline" wrap>
-              <Form.Item {...field} name={[field.name, dateField]} label="日期">
-                <DatePicker />
+            <Space key={field.key} align="start" wrap={false} className="line-editor-row">
+              <span className="line-select-cell">
+                <Checkbox
+                  checked={inboundSelectedRowKeys.includes(field.key)}
+                  onChange={(e) => setInboundSelectedRowKeys((keys) => e.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
+                />
+              </span>
+              <Form.Item
+                {...field}
+                name={[field.name, dateField]}
+                label="日期"
+                rules={[{ required: true, message: '请选择日期' }]}
+              >
+                <DatePicker style={{ width: 140 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种">
                 <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
@@ -191,18 +237,64 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
-              <MinusCircleOutlined onClick={() => remove(field.name)} />
+              <span className="line-action-cell">
+                <MinusCircleOutlined onClick={() => {
+                  remove(field.name)
+                  setInboundSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                }} />
+              </span>
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨', [dateField]: form.getFieldValue(dateField) ?? null })} icon={<PlusOutlined />}>
-            添加行
-          </Button>
+          <Space>
+            <Button type="dashed" size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+              添加回厂
+            </Button>
+            <Button
+              danger
+              size="middle"
+              disabled={inboundSelectedRowKeys.length === 0}
+              onClick={() => {
+                remove(fields.filter((field) => inboundSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                setInboundSelectedRowKeys([])
+              }}
+            >
+              移除所选
+            </Button>
+          </Space>
         </div>
       )}
     </Form.List>
   )
 
   const stockOutLocked = editingStatus != null && editingStatus !== 'draft' && editingStatus !== 'rejected'
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      type: typeFilter,
+      partyId,
+      search: search.trim(),
+      outDateFrom: outDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      outDateTo: outDateRange?.[1].format('YYYY-MM-DD') ?? '',
+      inDateFrom: inDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      inDateTo: inDateRange?.[1].format('YYYY-MM-DD') ?? ''
+    })
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setStatusFilter('')
+    setTypeFilter('')
+    setPartyId(undefined)
+    setSearch('')
+    setOutDateRange(null)
+    setInDateRange(null)
+    setAppliedFilters({
+      status: '', type: '', partyId: undefined, search: '',
+      outDateFrom: '', outDateTo: '', inDateFrom: '', inDateTo: ''
+    })
+    setPage(1)
+  }
 
   return (
     <div className="page">
@@ -215,73 +307,74 @@ export function Outsource() {
         )}
       </div>
       <div className="toolbar">
-        <span>工艺：</span>
-        <Select
-          value={typeFilter}
-          style={{ width: 130 }}
-          onChange={(v) => {
-            setTypeFilter(v)
-            setPage(1)
-          }}
-          options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]}
-        />
-        <span>状态：</span>
-        <Select
-          value={statusFilter}
-          style={{ width: 140 }}
-          onChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-          options={STATUS_FILTER_OPTIONS}
-        />
-        <span>往来单位：</span>
-        <Select
-          allowClear
-          showSearch
-          placeholder="全部单位"
-          value={partyId}
-          style={{ width: 220 }}
-          optionFilterProp="label"
-          options={partyOptions(parties.data)}
-          onChange={(v) => {
-            setPartyId(v)
-            setPage(1)
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder="搜索批次/单位/物品/规格"
-          style={{ width: 280 }}
-          onSearch={(v) => {
-            setSearch(v.trim())
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
-        />
+        <div className="filter-item">
+          <span>工艺：</span>
+          <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]} />
+        </div>
+        <div className="filter-item">
+          <span>状态：</span>
+          <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        </div>
+        <div className="filter-item">
+          <span>往来单位：</span>
+          <Select
+            allowClear showSearch placeholder="全部单位" value={partyId} style={{ width: 220 }}
+            optionFilterProp="label" options={partyOptions(parties.data)} onChange={setPartyId}
+          />
+        </div>
+        <div className="filter-item">
+          <span>发出/出库日期：</span>
+          <DatePicker.RangePicker value={outDateRange} onChange={(dates) => setOutDateRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
+        <div className="filter-item">
+          <span>回厂/入库日期：</span>
+          <DatePicker.RangePicker value={inDateRange} onChange={(dates) => setInDateRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
+        <div className="filter-item">
+          <span>名称：</span>
+          <Input allowClear value={search} placeholder="搜索批次/单位/物品/规格" style={{ width: 280 }} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="filter-actions">
+          <Button type="primary" onClick={applyFilters}>查询</Button>
+          <Button onClick={resetFilters}>重置</Button>
+        </div>
       </div>
       <Table<OutsourceOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
+        scroll={{ x: 1320 }}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
-          { title: '批次号', dataIndex: 'batch_no' },
+          {
+            title: '批次号',
+            dataIndex: 'batch_no',
+            width: 130,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
+          },
           { title: '工艺', dataIndex: 'process_type', render: (v) => PROCESS_OPTIONS.find((o) => o.value === v)?.label ?? v },
           { title: '外协厂', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
+          {
+            title: '发出日',
+            dataIndex: 'out_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
+          {
+            title: '回厂日',
+            dataIndex: 'in_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
           { title: '成材率', dataIndex: 'yield_rate', render: (v) => (v ? `${(Number(v) * 100).toFixed(2)}%` : '—') },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 340,
+            fixed: 'right' as const,
+            width: user?.role === 'viewer' ? 80 : user?.role === 'reviewer' ? 180 : 260,
             render: (_, row) => (
               <Space size={0} wrap>
                 <Button type="link" size="small" onClick={() => setDetailId(row.id)}>
@@ -309,6 +402,7 @@ export function Outsource() {
           setCreating(false)
           setEditingId(null)
           setEditingStatus(null)
+          setInboundSelectedRowKeys([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -322,12 +416,6 @@ export function Outsource() {
             <Form.Item name="process_type" label="工艺" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={PROCESS_OPTIONS} />
             </Form.Item>
-            <Form.Item name="out_date" label="发出日期">
-              <DatePicker disabled={stockOutLocked} />
-            </Form.Item>
-            <Form.Item name="in_date" label="回厂日期">
-              <DatePicker />
-            </Form.Item>
           </Space>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -339,7 +427,7 @@ export function Outsource() {
               stock={stock.data}
               dateField="out_date"
               dateLabel="发出日期"
-              defaultDateField="out_date"
+              dateRequired
               filter={(r: InventoryStockOption) =>
                 internalPartyId != null && r.owner?.id === internalPartyId
               }
@@ -347,6 +435,7 @@ export function Outsource() {
               disabled={stockOutLocked}
               disabledReason="已扣库，禁止修改"
               allowFillAllQuantity
+              compactTable
             />
             {renderLines('inbound_lines', 'in_date', '回厂（完成时按归属入库，归属留空入本厂）')}
           </div>
@@ -412,6 +501,8 @@ export function Outsource() {
                   value: PROCESS_OPTIONS.find((o) => o.value === detailQuery.data!.process_type)?.label
                 },
                 { label: '外协厂', value: detailQuery.data.party?.name },
+                { label: '发出日期', value: detailQuery.data.out_date },
+                { label: '回厂日期', value: detailQuery.data.in_date },
                 {
                   label: '成材率',
                   value:
@@ -435,13 +526,13 @@ export function Outsource() {
                   title: '发出',
                   rowKey: 'id',
                   dataSource: detailQuery.data.outbound_lines ?? [],
-                  columns: outsourceLineColumns
+                  columns: outboundLineColumns
                 },
                 {
                   title: '回厂',
                   rowKey: 'id',
                   dataSource: detailQuery.data.inbound_lines ?? [],
-                  columns: outsourceLineColumns
+                  columns: inboundLineColumns
                 }
               ]
             : []
@@ -451,11 +542,21 @@ export function Outsource() {
   )
 }
 
-const outsourceLineColumns = [
+const commonOutsourceLineColumns = [
   { title: '钢种', render: (_: any, r: any) => r.item?.name ?? r.item_id ?? '—' },
   { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
   { title: '数量', dataIndex: 'quantity', align: 'right' as const },
   { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
   { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
   { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' }
+]
+
+const outboundLineColumns = [
+  { title: '发出日期', dataIndex: 'out_date', render: (v: string) => v ?? '—' },
+  ...commonOutsourceLineColumns
+]
+
+const inboundLineColumns = [
+  { title: '回厂日期', dataIndex: 'in_date', render: (v: string) => v ?? '—' },
+  ...commonOutsourceLineColumns
 ]

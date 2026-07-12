@@ -1,5 +1,6 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, DatePicker, Form, FormInstance, Input, InputNumber, Select, Space } from 'antd'
+import { Button, Checkbox, DatePicker, Form, FormInstance, Input, InputNumber, Select, Space } from 'antd'
+import { useEffect, useState } from 'react'
 import { InventoryStockOption } from '../utils/lookups'
 
 interface InventoryLineListProps {
@@ -21,6 +22,8 @@ interface InventoryLineListProps {
   dateField?: string
   /** 每行日期列标题。 */
   dateLabel?: string
+  /** 是否必须填写每行日期。 */
+  dateRequired?: boolean
   /** 总体日期的 Form 字段名（如 feed_date / out_date）；新增行时以它的值作默认日期。 */
   defaultDateField?: string
   /** 禁用整组明细，用于已经扣减库存后锁定原始出库内容。 */
@@ -29,6 +32,8 @@ interface InventoryLineListProps {
   disabledReason?: string
   /** 是否允许一键填入所选库存项的全部结余数量。 */
   allowFillAllQuantity?: boolean
+  /** 表格式紧凑布局：表头只显示一次，并允许批量移除。 */
+  compactTable?: boolean
 }
 
 /**
@@ -48,11 +53,18 @@ export function InventoryLineList({
   selectWidth = 320,
   dateField,
   dateLabel = '日期',
+  dateRequired = false,
   defaultDateField,
   disabled = false,
   disabledReason,
-  allowFillAllQuantity = false
+  allowFillAllQuantity = false,
+  compactTable = false
 }: InventoryLineListProps) {
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const watchedLines = Form.useWatch(name, form)
+  useEffect(() => {
+    if (!watchedLines?.length) setSelectedRowKeys([])
+  }, [watchedLines?.length])
   const rows = (stock ?? []).filter((r) => (filter ? filter(r) : true))
   const byId = new Map<number, InventoryStockOption>(rows.map((r) => [r.id, r]))
   const options = rows.map((r) => {
@@ -65,15 +77,45 @@ export function InventoryLineList({
   return (
     <Form.List name={name}>
       {(fields, { add, remove }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className={compactTable ? 'compact-line-list' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontWeight: 600 }}>
             {title}
             {disabled && disabledReason ? (
               <span style={{ marginLeft: 8, color: '#8c8c8c', fontWeight: 400 }}>{disabledReason}</span>
             ) : null}
           </div>
+          {compactTable && fields.length > 0 && (
+            <div className="line-list-header">
+              <span className="line-select-cell">
+                <Checkbox
+                  disabled={disabled}
+                  checked={fields.length > 0 && fields.every((field) => selectedRowKeys.includes(field.key))}
+                  indeterminate={fields.some((field) => selectedRowKeys.includes(field.key)) && !fields.every((field) => selectedRowKeys.includes(field.key))}
+                  onChange={(e) => setSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
+                />
+              </span>
+              {dateField && <span style={{ width: 140 }}>{dateLabel}</span>}
+              <span style={{ width: selectWidth }}>库存项</span>
+              <span style={{ width: allowFillAllQuantity ? 190 : 150 }}>数量</span>
+              <span style={{ width: 110 }}>单价（可选）</span>
+              <span className="line-action-cell">操作</span>
+            </div>
+          )}
           {fields.map((field) => (
-            <Space key={field.key} align="baseline" wrap>
+            <Space key={field.key} align="start" wrap={!compactTable} className={compactTable ? 'line-editor-row' : undefined}>
+              {compactTable && (
+                <span className="line-select-cell">
+                  <Checkbox
+                    disabled={disabled}
+                    checked={selectedRowKeys.includes(field.key)}
+                    onChange={(e) =>
+                      setSelectedRowKeys((keys) =>
+                        e.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key)
+                      )
+                    }
+                  />
+                </span>
+              )}
               {/* item_id / spec / unit / owner_id 由所选库存项自动带出，隐藏存储用于提交 */}
               <Form.Item {...field} name={[field.name, 'item_id']} hidden>
                 <Input />
@@ -88,7 +130,12 @@ export function InventoryLineList({
                 <Input />
               </Form.Item>
               {dateField && (
-                <Form.Item {...field} name={[field.name, dateField]} label={dateLabel}>
+                <Form.Item
+                  {...field}
+                  name={[field.name, dateField]}
+                  label={dateLabel}
+                  rules={dateRequired ? [{ required: true, message: `请选择${dateLabel}` }] : undefined}
+                >
                   <DatePicker style={{ width: 140 }} disabled={disabled} />
                 </Form.Item>
               )}
@@ -178,28 +225,47 @@ export function InventoryLineList({
               <Form.Item {...field} name={[field.name, 'unit_price']} label="单价(可选)">
                 <InputNumber style={{ width: 110 }} min={0} placeholder="可不填" disabled={disabled} />
               </Form.Item>
-              <MinusCircleOutlined
-                style={disabled ? { color: '#bfbfbf', cursor: 'not-allowed' } : undefined}
-                onClick={() => {
-                  if (!disabled) remove(field.name)
-                }}
-              />
+              <span className={compactTable ? 'line-action-cell' : undefined}>
+                <MinusCircleOutlined
+                  style={disabled ? { color: '#bfbfbf', cursor: 'not-allowed' } : undefined}
+                  onClick={() => {
+                    if (!disabled) {
+                      remove(field.name)
+                      setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                    }
+                  }}
+                />
+              </span>
             </Space>
           ))}
-          <Button
-            type="dashed"
-            disabled={disabled}
-            onClick={() => {
-              const row: Record<string, unknown> = { quantity: 0 }
-              if (dateField && defaultDateField) {
-                row[dateField] = form.getFieldValue(defaultDateField) ?? null
-              }
-              add(row)
-            }}
-            icon={<PlusOutlined />}
-          >
-            {addLabel}
-          </Button>
+          <Space>
+            <Button
+              type="dashed"
+              disabled={disabled}
+              onClick={() => {
+                const row: Record<string, unknown> = { quantity: 0 }
+                if (dateField && defaultDateField) {
+                  row[dateField] = form.getFieldValue(defaultDateField) ?? null
+                }
+                add(row)
+              }}
+              icon={<PlusOutlined />}
+            >
+              {addLabel}
+            </Button>
+            {compactTable && (
+              <Button
+                danger
+                disabled={disabled || selectedRowKeys.length === 0}
+                onClick={() => {
+                  remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                  setSelectedRowKeys([])
+                }}
+              >
+                移除所选
+              </Button>
+            )}
+          </Space>
         </div>
       )}
     </Form.List>

@@ -229,6 +229,7 @@ export function Inventory() {
         loading={list.isLoading}
         dataSource={list.data?.items}
         pagination={tablePagination(list.data, page, pageSize, setPage, setPageSize)}
+        scroll={{ x: 1200 }}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={
           canManage
@@ -259,7 +260,8 @@ export function Inventory() {
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 260,
+            fixed: 'right' as const,
+            width: canManage ? 220 : 80,
             render: (_, row) => (
               <Space>
                 <Button size="small" onClick={() => setDetail(row)}>

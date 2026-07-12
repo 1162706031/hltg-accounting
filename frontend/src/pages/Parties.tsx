@@ -408,7 +408,8 @@ export function Parties() {
           { title: '备注', dataIndex: 'notes', width: 220, ellipsis: true, render: (v) => v || '—' },
           {
             title: '操作',
-            width: 200,
+            fixed: 'right' as const,
+            width: canManage ? 200 : 80,
             render: (_, row) => (
               <Space size="small">
                 <Button size="small" onClick={() => setDetail(row)}>

@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
@@ -71,6 +71,11 @@ class OutsourceOrderCreate(OutsourceOrderBase):
     outbound_lines: list[OutboundLineBase] = Field(default_factory=list)
     inbound_lines: list[InboundLineBase] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def validate_line_dates(self):
+        _validate_line_dates(self.outbound_lines, self.inbound_lines)
+        return self
+
 
 class OutsourceOrderUpdate(BaseModel):
     party_id: int | None = None
@@ -86,6 +91,23 @@ class OutsourceOrderUpdate(BaseModel):
     notes: str | None = None
     outbound_lines: list[OutboundLineBase] | None = None
     inbound_lines: list[InboundLineBase] | None = None
+
+    @model_validator(mode="after")
+    def validate_line_dates(self):
+        _validate_line_dates(self.outbound_lines, self.inbound_lines)
+        return self
+
+
+def _validate_line_dates(
+    outbound_lines: list[OutboundLineBase] | None,
+    inbound_lines: list[InboundLineBase] | None,
+) -> None:
+    for line in outbound_lines or []:
+        if line.out_date is None:
+            raise ValueError(f"发出明细第 {line.line_no} 行必须填写发出日期")
+    for line in inbound_lines or []:
+        if line.in_date is None:
+            raise ValueError(f"回厂明细第 {line.line_no} 行必须填写回厂日期")
 
 
 class OutsourceOrderListItem(ORMModel):

@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
@@ -76,6 +76,11 @@ class SmeltingOrderCreate(SmeltingOrderBase):
     inbound_lines: list[InboundLineBase] = Field(default_factory=list)
     alloy_lines: list[AlloyLineBase] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def validate_line_dates(self):
+        _validate_line_dates(self.inbound_lines, self.alloy_lines)
+        return self
+
 
 class SmeltingOrderUpdate(BaseModel):
     """全量更新：主表字段 + 完整子表（替换式保存）。"""
@@ -93,6 +98,24 @@ class SmeltingOrderUpdate(BaseModel):
     notes: str | None = None
     inbound_lines: list[InboundLineBase] | None = None
     alloy_lines: list[AlloyLineBase] | None = None
+
+    @model_validator(mode="after")
+    def validate_line_dates(self):
+        _validate_line_dates(self.inbound_lines, self.alloy_lines)
+        return self
+
+
+def _validate_line_dates(
+    inbound_lines: list[InboundLineBase] | None,
+    alloy_lines: list[AlloyLineBase] | None,
+) -> None:
+    for line in inbound_lines or []:
+        if line.date is None:
+            label = "来料/投料" if line.side == "in" else "出钢/出料"
+            raise ValueError(f"{label}明细第 {line.line_no} 行必须填写日期")
+    for index, line in enumerate(alloy_lines or [], start=1):
+        if line.date is None:
+            raise ValueError(f"补加合金明细第 {index} 行必须填写日期")
 
 
 class SmeltingOrderListItem(ORMModel):

@@ -1,7 +1,7 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
-import dayjs from 'dayjs'
+import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
+import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
@@ -59,12 +59,25 @@ export function Smelting() {
   const [typeFilter, setTypeFilter] = useState('')
   const [partyId, setPartyId] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [feedDateRange, setFeedDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [tapDateRange, setTapDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [appliedFilters, setAppliedFilters] = useState({
+    status: '',
+    type: '',
+    partyId: undefined as number | undefined,
+    search: '',
+    feedDateFrom: '',
+    feedDateTo: '',
+    tapDateFrom: '',
+    tapDateTo: ''
+  })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -72,17 +85,21 @@ export function Smelting() {
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
-    queryKey: ['smelting', statusFilter, typeFilter, partyId, search, page, pageSize],
+    queryKey: ['smelting', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<SmeltingOrder>>('/smelting-orders', {
           params: {
             page,
             page_size: pageSize,
-            ...(statusFilter ? { status: statusFilter } : {}),
-            ...(typeFilter ? { order_type: typeFilter } : {}),
-            ...(partyId ? { party_id: partyId } : {}),
-            ...(search ? { q: search } : {})
+            ...(appliedFilters.status ? { status: appliedFilters.status } : {}),
+            ...(appliedFilters.type ? { order_type: appliedFilters.type } : {}),
+            ...(appliedFilters.partyId ? { party_id: appliedFilters.partyId } : {}),
+            ...(appliedFilters.search ? { q: appliedFilters.search } : {}),
+            ...(appliedFilters.feedDateFrom ? { feed_date_from: appliedFilters.feedDateFrom } : {}),
+            ...(appliedFilters.feedDateTo ? { feed_date_to: appliedFilters.feedDateTo } : {}),
+            ...(appliedFilters.tapDateFrom ? { tap_date_from: appliedFilters.tapDateFrom } : {}),
+            ...(appliedFilters.tapDateTo ? { tap_date_to: appliedFilters.tapDateTo } : {})
           }
         })
       ).data
@@ -107,8 +124,6 @@ export function Smelting() {
       })
       const body = {
         ...values,
-        feed_date: values.feed_date?.format('YYYY-MM-DD') ?? null,
-        tap_date: values.tap_date?.format('YYYY-MM-DD') ?? null,
         inbound_lines: [
           ...(values.feed_lines ?? []).map((it: any, i: number) => mapLine(it, i, 'in')),
           ...(values.tap_lines ?? []).map((it: any, i: number) => mapLine(it, i, 'out'))
@@ -127,6 +142,7 @@ export function Smelting() {
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
+      setTapSelectedRowKeys([])
       form.resetFields()
       invalidate()
     },
@@ -137,6 +153,7 @@ export function Smelting() {
     setCreating(true)
     setEditingId(null)
     setEditingStatus(null)
+    setTapSelectedRowKeys([])
     form.resetFields()
     form.setFieldsValue({ order_type: 'ext_smelting', tax_rate: 13, need_invoice: false, feed_lines: [], tap_lines: [], alloy_lines: [] })
   }
@@ -145,6 +162,7 @@ export function Smelting() {
     const d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
     setEditingId(row.id)
     setEditingStatus(d.status)
+    setTapSelectedRowKeys([])
     setCreating(false)
     const toTapLine = (it: any) => ({
       date: it.date ? dayjs(it.date) : null,
@@ -169,8 +187,6 @@ export function Smelting() {
     form.setFieldsValue({
       party_id: d.party_id,
       order_type: d.order_type,
-      feed_date: d.feed_date ? dayjs(d.feed_date) : null,
-      tap_date: d.tap_date ? dayjs(d.tap_date) : null,
       unit_price: d.unit_price ? Number(d.unit_price) : null,
       tax_rate: d.tax_rate ? Number(d.tax_rate) : 13,
       need_invoice: d.need_invoice,
@@ -194,11 +210,41 @@ export function Smelting() {
   const renderTapLines = () => (
     <Form.List name="tap_lines">
       {(fields, { add, remove }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="compact-line-list" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ fontWeight: 600 }}>出钢 / 出料（归属决定入库单位）</div>
+          {fields.length > 0 && (
+            <div className="line-list-header">
+              <span className="line-select-cell">
+                <Checkbox
+                  checked={fields.every((field) => tapSelectedRowKeys.includes(field.key))}
+                  indeterminate={fields.some((field) => tapSelectedRowKeys.includes(field.key)) && !fields.every((field) => tapSelectedRowKeys.includes(field.key))}
+                  onChange={(e) => setTapSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
+                />
+              </span>
+              <span style={{ width: 140 }}>出钢日期</span>
+              <span style={{ width: 150 }}>钢种</span>
+              <span style={{ width: 90 }}>规格</span>
+              <span style={{ width: 90 }}>数量</span>
+              <span style={{ width: 80 }}>单位</span>
+              <span style={{ width: 90 }}>炉号</span>
+              <span style={{ width: 150 }}>归属</span>
+              <span className="line-action-cell">操作</span>
+            </div>
+          )}
           {fields.map((field) => (
-            <Space key={field.key} align="baseline" wrap>
-              <Form.Item {...field} name={[field.name, 'date']} label="出钢日期">
+            <Space key={field.key} align="start" wrap={false} className="line-editor-row">
+              <span className="line-select-cell">
+                <Checkbox
+                  checked={tapSelectedRowKeys.includes(field.key)}
+                  onChange={(e) => setTapSelectedRowKeys((keys) => e.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
+                />
+              </span>
+              <Form.Item
+                {...field}
+                name={[field.name, 'date']}
+                label="出钢日期"
+                rules={[{ required: true, message: '请选择出钢日期' }]}
+              >
                 <DatePicker style={{ width: 140 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true }]}>
@@ -219,18 +265,64 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
-              <MinusCircleOutlined onClick={() => remove(field.name)} />
+              <span className="line-action-cell">
+                <MinusCircleOutlined onClick={() => {
+                  remove(field.name)
+                  setTapSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                }} />
+              </span>
             </Space>
           ))}
-          <Button type="dashed" size="small" onClick={() => add({ quantity: 0, unit: '吨', date: form.getFieldValue('tap_date') ?? null })} icon={<PlusOutlined />}>
-            添加行
-          </Button>
+          <Space>
+            <Button type="dashed" size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+              添加出钢
+            </Button>
+            <Button
+              danger
+              size="middle"
+              disabled={tapSelectedRowKeys.length === 0}
+              onClick={() => {
+                remove(fields.filter((field) => tapSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                setTapSelectedRowKeys([])
+              }}
+            >
+              移除所选
+            </Button>
+          </Space>
         </div>
       )}
     </Form.List>
   )
 
   const stockOutLocked = editingStatus != null && editingStatus !== 'draft' && editingStatus !== 'rejected'
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      type: typeFilter,
+      partyId,
+      search: search.trim(),
+      feedDateFrom: feedDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      feedDateTo: feedDateRange?.[1].format('YYYY-MM-DD') ?? '',
+      tapDateFrom: tapDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      tapDateTo: tapDateRange?.[1].format('YYYY-MM-DD') ?? ''
+    })
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setStatusFilter('')
+    setTypeFilter('')
+    setPartyId(undefined)
+    setSearch('')
+    setFeedDateRange(null)
+    setTapDateRange(null)
+    setAppliedFilters({
+      status: '', type: '', partyId: undefined, search: '',
+      feedDateFrom: '', feedDateTo: '', tapDateFrom: '', tapDateTo: ''
+    })
+    setPage(1)
+  }
 
   return (
     <div className="page">
@@ -243,78 +335,78 @@ export function Smelting() {
         )}
       </div>
       <div className="toolbar">
-        <span>类型：</span>
-        <Select
-          value={typeFilter}
-          style={{ width: 130 }}
-          onChange={(v) => {
-            setTypeFilter(v)
-            setPage(1)
-          }}
-          options={[{ value: '', label: '全部' }, ...ORDER_TYPE_OPTIONS]}
-        />
-        <span>状态：</span>
-        <Select
-          value={statusFilter}
-          style={{ width: 140 }}
-          onChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-          options={STATUS_FILTER_OPTIONS}
-        />
-        <span>往来单位：</span>
-        <Select
-          allowClear
-          showSearch
-          placeholder="全部单位"
-          value={partyId}
-          style={{ width: 220 }}
-          optionFilterProp="label"
-          options={partyOptions(parties.data)}
-          onChange={(v) => {
-            setPartyId(v)
-            setPage(1)
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder="搜索批次/单位/物品/规格/炉号"
-          style={{ width: 280 }}
-          onSearch={(v) => {
-            setSearch(v.trim())
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
-        />
+        <div className="filter-item">
+          <span>类型：</span>
+          <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...ORDER_TYPE_OPTIONS]} />
+        </div>
+        <div className="filter-item">
+          <span>状态：</span>
+          <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        </div>
+        <div className="filter-item">
+          <span>往来单位：</span>
+          <Select
+            allowClear showSearch placeholder="全部单位" value={partyId} style={{ width: 220 }}
+            optionFilterProp="label" options={partyOptions(parties.data)} onChange={setPartyId}
+          />
+        </div>
+        <div className="filter-item">
+          <span>投料/出库日期：</span>
+          <DatePicker.RangePicker value={feedDateRange} onChange={(dates) => setFeedDateRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
+        <div className="filter-item">
+          <span>出钢/入库日期：</span>
+          <DatePicker.RangePicker value={tapDateRange} onChange={(dates) => setTapDateRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
+        <div className="filter-item">
+          <span>名称：</span>
+          <Input allowClear value={search} placeholder="搜索批次/单位/物品/规格/炉号" style={{ width: 280 }} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="filter-actions">
+          <Button type="primary" onClick={applyFilters}>查询</Button>
+          <Button onClick={resetFilters}>重置</Button>
+        </div>
       </div>
       <Table<SmeltingOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
+        scroll={{ x: 1280 }}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
-          { title: '批次号', dataIndex: 'batch_no' },
+          {
+            title: '批次号',
+            dataIndex: 'batch_no',
+            width: 130,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
+          },
           {
             title: '类型',
             dataIndex: 'order_type',
             render: (v) => ORDER_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v
           },
           { title: '单位', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
-          { title: '投料日', dataIndex: 'feed_date', render: (v) => v ?? '—' },
+          {
+            title: '投料日',
+            dataIndex: 'feed_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
+          {
+            title: '出钢日',
+            dataIndex: 'tap_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
           { title: '成锭率%', dataIndex: 'yield_pct', render: (v) => v ?? '—' },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 340,
+            fixed: 'right' as const,
+            width: user?.role === 'viewer' ? 80 : user?.role === 'reviewer' ? 180 : 260,
             render: (_, row) => (
               <Space size={0} wrap>
                 <Button type="link" size="small" onClick={() => setDetailId(row.id)}>
@@ -342,6 +434,7 @@ export function Smelting() {
           setCreating(false)
           setEditingId(null)
           setEditingStatus(null)
+          setTapSelectedRowKeys([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -355,12 +448,6 @@ export function Smelting() {
             <Form.Item name="order_type" label="类型" rules={[{ required: true }]}>
               <Select style={{ width: 130 }} options={ORDER_TYPE_OPTIONS} />
             </Form.Item>
-            <Form.Item name="feed_date" label="投料日期">
-              <DatePicker disabled={stockOutLocked} />
-            </Form.Item>
-            <Form.Item name="tap_date" label="出钢日期">
-              <DatePicker />
-            </Form.Item>
           </Space>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -371,11 +458,12 @@ export function Smelting() {
               stock={stock.data}
               dateField="date"
               dateLabel="来料日期"
-              defaultDateField="feed_date"
+              dateRequired
               addLabel="添加来料"
               disabled={stockOutLocked}
               disabledReason="已扣库，禁止修改"
               allowFillAllQuantity
+              compactTable
             />
             {renderTapLines()}
             <InventoryLineList
@@ -385,7 +473,7 @@ export function Smelting() {
               stock={stock.data}
               dateField="date"
               dateLabel="补加日期"
-              defaultDateField="feed_date"
+              dateRequired
               filter={(r: InventoryStockOption) =>
                 r.item?.item_type === 'alloy' &&
                 internalPartyId != null &&
@@ -395,6 +483,7 @@ export function Smelting() {
               selectWidth={280}
               disabled={stockOutLocked}
               disabledReason="已扣库，禁止修改"
+              compactTable
             />
           </div>
 

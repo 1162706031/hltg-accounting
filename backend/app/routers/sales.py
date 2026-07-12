@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -62,6 +62,8 @@ async def list_orders(
     page_size: int = Query(default=20, ge=1, le=200),
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),
+    ship_date_from: date | None = None,
+    ship_date_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -70,6 +72,10 @@ async def list_orders(
         stmt = stmt.where(SalesOrder.party_id == party_id)
     if order_status:
         stmt = stmt.where(SalesOrder.status == order_status)
+    if ship_date_from:
+        stmt = stmt.where(SalesOrder.ship_date >= ship_date_from)
+    if ship_date_to:
+        stmt = stmt.where(SalesOrder.ship_date <= ship_date_to)
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(

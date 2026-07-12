@@ -246,6 +246,7 @@ export function Items() {
         dataSource={query.data?.items}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="middle"
+        scroll={{ x: 900 }}
         onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={
           canManage
@@ -278,7 +279,8 @@ export function Items() {
           { title: '备注', dataIndex: 'notes', ellipsis: true },
           {
             title: '操作',
-            width: 220,
+            fixed: 'right' as const,
+            width: canManage ? 220 : 80,
             render: (_, row) => (
               <Space size="small">
                 <Button size="small" onClick={() => setDetail(row)}>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { OrderActions } from '../components/OrderActions'
@@ -50,6 +50,14 @@ export function Sales() {
   const [statusFilter, setStatusFilter] = useState('')
   const [partyId, setPartyId] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [shipDateRange, setShipDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [appliedFilters, setAppliedFilters] = useState({
+    status: '',
+    partyId: undefined as number | undefined,
+    search: '',
+    shipDateFrom: '',
+    shipDateTo: ''
+  })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -60,16 +68,18 @@ export function Sales() {
   const stock = useInventoryStock()
 
   const query = useQuery({
-    queryKey: ['sales', statusFilter, partyId, search, page, pageSize],
+    queryKey: ['sales', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<SalesOrder>>('/sales-orders', {
           params: {
             page,
             page_size: pageSize,
-            ...(statusFilter ? { status: statusFilter } : {}),
-            ...(partyId ? { party_id: partyId } : {}),
-            ...(search ? { q: search } : {})
+            ...(appliedFilters.status ? { status: appliedFilters.status } : {}),
+            ...(appliedFilters.partyId ? { party_id: appliedFilters.partyId } : {}),
+            ...(appliedFilters.search ? { q: appliedFilters.search } : {}),
+            ...(appliedFilters.shipDateFrom ? { ship_date_from: appliedFilters.shipDateFrom } : {}),
+            ...(appliedFilters.shipDateTo ? { ship_date_to: appliedFilters.shipDateTo } : {})
           }
         })
       ).data
@@ -139,6 +149,26 @@ export function Sales() {
     })
   }
 
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      partyId,
+      search: search.trim(),
+      shipDateFrom: shipDateRange?.[0].format('YYYY-MM-DD') ?? '',
+      shipDateTo: shipDateRange?.[1].format('YYYY-MM-DD') ?? ''
+    })
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setStatusFilter('')
+    setPartyId(undefined)
+    setSearch('')
+    setShipDateRange(null)
+    setAppliedFilters({ status: '', partyId: undefined, search: '', shipDateFrom: '', shipDateTo: '' })
+    setPage(1)
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -150,62 +180,73 @@ export function Sales() {
         )}
       </div>
       <div className="toolbar">
-        <span>状态：</span>
-        <Select
-          value={statusFilter}
-          style={{ width: 140 }}
-          onChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-          options={STATUS_FILTER_OPTIONS}
-        />
-        <span>往来单位：</span>
-        <Select
-          allowClear
-          showSearch
-          placeholder="全部单位"
-          value={partyId}
-          style={{ width: 220 }}
-          optionFilterProp="label"
-          options={partyOptions(parties.data)}
-          onChange={(v) => {
-            setPartyId(v)
-            setPage(1)
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder="搜索批次/客户/物品/规格"
-          style={{ width: 280 }}
-          onSearch={(v) => {
-            setSearch(v.trim())
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
-        />
+        <div className="filter-item">
+          <span>状态：</span>
+          <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        </div>
+        <div className="filter-item">
+          <span>往来单位：</span>
+          <Select
+            allowClear
+            showSearch
+            placeholder="全部单位"
+            value={partyId}
+            style={{ width: 220 }}
+            optionFilterProp="label"
+            options={partyOptions(parties.data)}
+            onChange={setPartyId}
+          />
+        </div>
+        <div className="filter-item">
+          <span>发货/出库日期：</span>
+          <DatePicker.RangePicker
+            value={shipDateRange}
+            onChange={(dates) => setShipDateRange(dates as [Dayjs, Dayjs] | null)}
+          />
+        </div>
+        <div className="filter-item">
+          <span>名称：</span>
+          <Input
+            allowClear
+            value={search}
+            placeholder="搜索批次/客户/物品/规格"
+            style={{ width: 280 }}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="filter-actions">
+          <Button type="primary" onClick={applyFilters}>查询</Button>
+          <Button onClick={resetFilters}>重置</Button>
+        </div>
       </div>
       <Table<SalesOrder>
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
+        scroll={{ x: 1050 }}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
-          { title: '批次号', dataIndex: 'batch_no' },
+          {
+            title: '批次号',
+            dataIndex: 'batch_no',
+            width: 130,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
+          },
           { title: '客户', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
-          { title: '发货日期', dataIndex: 'ship_date', render: (v) => v ?? '—' },
+          {
+            title: '发货日期',
+            dataIndex: 'ship_date',
+            width: 120,
+            render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
+          },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',
-            width: 340,
+            fixed: 'right' as const,
+            width: user?.role === 'viewer' ? 80 : user?.role === 'reviewer' ? 180 : 260,
             render: (_, row) => (
               <Space size={0} wrap>
                 <Button type="link" size="small" onClick={() => setDetailId(row.id)}>
