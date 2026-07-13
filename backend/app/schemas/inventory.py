@@ -75,3 +75,6 @@ class InventoryLogWithRelations(InventoryLogRead):
     item_type: str | None = None
     owner_name: str | None = None
     operator_name: str | None = None
+    order_type_label: str | None = None
+    batch_no: str | None = None
+    business_remark: str | None = None

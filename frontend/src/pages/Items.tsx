@@ -4,6 +4,7 @@ import {
   Button,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
@@ -25,6 +26,9 @@ interface Item {
   name: string
   item_type: ItemType
   is_active: boolean
+  chemical_enabled: boolean
+  chemical_composition?: Record<string, string> | null
+  default_price?: string | null
   notes?: string | null
 }
 
@@ -49,8 +53,15 @@ interface FormValues {
   name: string
   item_type: ItemType
   is_active: boolean
+  chemical_enabled: boolean
+  chemical_composition?: Record<string, string | number | null> | null
+  default_price?: string | number | null
   notes?: string | null
 }
+
+const CHEMICAL_ELEMENTS = ['C', 'Mn', 'Si', 'Cr', 'W', 'Mo', 'V', 'Co', 'Nb', 'Ni', 'P', 'S'] as const
+const emptyChemicalComposition = () =>
+  Object.fromEntries(CHEMICAL_ELEMENTS.map((code) => [code, '0'])) as Record<string, string>
 
 export function Items() {
   const qc = useQueryClient()
@@ -60,7 +71,9 @@ export function Items() {
 
   const [typeFilter, setTypeFilter] = useState<ItemType | undefined>()
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [chemicalFilter, setChemicalFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ type: undefined as ItemType | undefined, active: 'all', chemical: 'all', search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -68,14 +81,16 @@ export function Items() {
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<Item | null>(null)
   const [form] = Form.useForm<FormValues>()
+  const chemicalEnabled = Form.useWatch('chemical_enabled', form)
 
   const query = useQuery({
-    queryKey: ['items', typeFilter, activeFilter, search, page, pageSize],
+    queryKey: ['items', appliedFilters, page, pageSize],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, page_size: pageSize }
-      if (typeFilter) params.item_type = typeFilter
-      if (activeFilter !== 'all') params.is_active = activeFilter === 'active' ? 1 : 0
-      if (search) params.q = search
+      if (appliedFilters.type) params.item_type = appliedFilters.type
+      if (appliedFilters.active !== 'all') params.is_active = appliedFilters.active === 'active' ? 1 : 0
+      if (appliedFilters.chemical !== 'all') params.chemical_enabled = appliedFilters.chemical === 'enabled' ? 1 : 0
+      if (appliedFilters.search) params.q = appliedFilters.search
       return (await api.get<PageResult<Item>>('/items', { params })).data
     }
   })
@@ -163,7 +178,20 @@ export function Items() {
   }
   const handleSubmit = () => {
     form.validateFields().then((vals) => {
-      const payload: FormValues = { ...vals, notes: vals.notes || null }
+      const composition = chemicalEnabled
+        ? Object.fromEntries(CHEMICAL_ELEMENTS.map((code) => [code, vals.chemical_composition?.[code] ?? 0]))
+        : null
+      const total = Object.values(composition ?? {}).reduce<number>((sum, value) => sum + Number(value || 0), 0)
+      if (total > 100) {
+        message.error('化学成分合计不能超过 100%')
+        return
+      }
+      const payload: FormValues = {
+        ...vals,
+        chemical_composition: composition,
+        default_price: chemicalEnabled ? vals.default_price ?? null : null,
+        notes: vals.notes || null
+      }
       if (editing) {
         updateMut.mutate({ id: editing.id, payload })
       } else {
@@ -179,6 +207,20 @@ export function Items() {
       okButtonProps: { danger: true },
       onOk: () => batchDeleteMut.mutateAsync(selectedIds)
     })
+  }
+
+  const applyFilters = () => {
+    setAppliedFilters({ type: typeFilter, active: activeFilter, chemical: chemicalFilter, search: search.trim() })
+    setPage(1)
+  }
+
+  const resetFilters = () => {
+    setTypeFilter(undefined)
+    setActiveFilter('all')
+    setChemicalFilter('all')
+    setSearch('')
+    setAppliedFilters({ type: undefined, active: 'all', chemical: 'all', search: '' })
+    setPage(1)
   }
 
   return (
@@ -203,41 +245,40 @@ export function Items() {
           placeholder="类型筛选"
           style={{ width: 140 }}
           value={typeFilter}
-          onChange={(v) => {
-            setTypeFilter(v)
-            setPage(1)
-          }}
+          onChange={setTypeFilter}
           options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))}
         />
         <Select
           placeholder="状态筛选"
           style={{ width: 120 }}
           value={activeFilter}
-          onChange={(v) => {
-            setActiveFilter(v)
-            setPage(1)
-          }}
+          onChange={setActiveFilter}
           options={[
             { value: 'all', label: '全部' },
             { value: 'active', label: '启用' },
             { value: 'inactive', label: '停用' }
           ]}
         />
-        <Input.Search
+        <Select
+          placeholder="化学成分"
+          style={{ width: 140 }}
+          value={chemicalFilter}
+          onChange={setChemicalFilter}
+          options={[
+            { value: 'all', label: '全部成分状态' },
+            { value: 'enabled', label: '已启用成分' },
+            { value: 'disabled', label: '未启用成分' }
+          ]}
+        />
+        <Input
           allowClear
+          value={search}
           placeholder="搜索名称/规格"
           style={{ width: 240 }}
-          onSearch={(v) => {
-            setSearch(v)
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
+        <Button type="primary" onClick={applyFilters}>查询</Button>
+        <Button onClick={resetFilters}>重置</Button>
       </Space>
 
       <Table
@@ -262,6 +303,19 @@ export function Items() {
             title: '类型',
             dataIndex: 'item_type',
             render: (v: ItemType) => <Tag color={typeColors[v]}>{typeLabels[v]}</Tag>
+          },
+          {
+            title: '化学成分',
+            dataIndex: 'chemical_enabled',
+            width: 110,
+            render: (v: boolean) => <Tag color={v ? 'blue' : 'default'}>{v ? '已启用' : '未启用'}</Tag>
+          },
+          {
+            title: '默认单价(元/吨)',
+            dataIndex: 'default_price',
+            width: 150,
+            align: 'right' as const,
+            render: (v: string | null) => v ?? '—'
           },
           {
             title: '状态',
@@ -335,9 +389,20 @@ export function Items() {
                   name: editing.name,
                   item_type: editing.item_type,
                   is_active: editing.is_active,
+                  chemical_enabled: editing.chemical_enabled,
+                  chemical_composition: editing.chemical_composition ?? {},
+                  default_price: editing.default_price ?? null,
                   notes: editing.notes ?? ''
                 }
-              : { name: '', item_type: 'steel_grade', is_active: true, notes: '' }
+              : {
+                  name: '',
+                  item_type: 'steel_grade',
+                  is_active: true,
+                  chemical_enabled: false,
+                  chemical_composition: emptyChemicalComposition(),
+                  default_price: null,
+                  notes: ''
+                }
           }
         >
           <Form.Item
@@ -357,6 +422,39 @@ export function Items() {
           <Form.Item name="is_active" label="启用" valuePropName="checked">
             <Switch />
           </Form.Item>
+          <Form.Item name="chemical_enabled" label="是否启用化学成分" valuePropName="checked">
+            <Switch
+              onChange={(checked) => {
+                if (checked) {
+                  const current = form.getFieldValue('chemical_composition') ?? {}
+                  form.setFieldValue('chemical_composition', { ...emptyChemicalComposition(), ...current })
+                }
+              }}
+            />
+          </Form.Item>
+          {chemicalEnabled && (
+            <div className="chemical-editor">
+              <Form.Item
+                name="default_price"
+                label="基础默认单价（元/吨）"
+                rules={[{ type: 'number', min: 0, message: '单价不能小于 0', transform: (value) => Number(value) }]}
+              >
+                <InputNumber stringMode min="0" precision={4} style={{ width: '100%' }} />
+              </Form.Item>
+              <div className="chemical-grid">
+                {CHEMICAL_ELEMENTS.map((code) => (
+                  <Form.Item
+                    key={code}
+                    name={['chemical_composition', code]}
+                    label={`${code} (%)`}
+                    rules={[{ type: 'number', min: 0, max: 100, transform: (value) => Number(value ?? 0) }]}
+                  >
+                    <InputNumber stringMode min="0" max="100" precision={6} placeholder="0" style={{ width: '100%' }} />
+                  </Form.Item>
+                ))}
+              </div>
+            </div>
+          )}
           <Form.Item name="notes" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
@@ -373,6 +471,15 @@ export function Items() {
                 { label: '名称', value: detail.name },
                 { label: '类型', value: typeLabels[detail.item_type] },
                 { label: '状态', value: detail.is_active ? '启用' : '停用' },
+                { label: '化学成分', value: detail.chemical_enabled ? '已启用' : '未启用' },
+                { label: '默认单价', value: detail.default_price != null ? `${detail.default_price} 元/吨` : '—' },
+                {
+                  label: '成分配置',
+                  value: detail.chemical_enabled
+                    ? CHEMICAL_ELEMENTS.map((code) => `${code}=${detail.chemical_composition?.[code] ?? 0}%`).join('，')
+                    : '—',
+                  span: 2
+                },
                 { label: '备注', value: detail.notes, span: 2 }
               ]
             : []

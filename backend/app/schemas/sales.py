@@ -25,6 +25,10 @@ class SalesItemBase(BaseModel):
     notes: str | None = None
 
 
+class SalesItemInput(SalesItemBase):
+    ship_date: date_type
+
+
 class SalesItemRead(SalesItemBase, ORMModel):
     id: int
     amount: Decimal
@@ -40,7 +44,7 @@ class SalesOrderBase(BaseModel):
 
 
 class SalesOrderCreate(SalesOrderBase):
-    items: list[SalesItemBase] = Field(default_factory=list)
+    items: list[SalesItemInput] = Field(min_length=1)
 
 
 class SalesOrderUpdate(BaseModel):
@@ -49,7 +53,7 @@ class SalesOrderUpdate(BaseModel):
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100)
     need_invoice: bool | None = None
     notes: str | None = None
-    items: list[SalesItemBase] | None = None
+    items: list[SalesItemInput] | None = Field(default=None, min_length=1)
 
 
 class SalesOrderListItem(ORMModel):

@@ -66,24 +66,25 @@ export function OperationLogs() {
   const [userId, setUserId] = useState<number | undefined>()
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ action: undefined as string | undefined, targetType: undefined as string | undefined, userId: undefined as number | undefined, dateFrom: '', dateTo: '', search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [detail, setDetail] = useState<OperationLog | null>(null)
 
   const logs = useQuery({
-    queryKey: ['operation-logs', action, targetType, userId, range?.[0]?.format('YYYY-MM-DD'), range?.[1]?.format('YYYY-MM-DD'), search, page, pageSize],
+    queryKey: ['operation-logs', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<OperationLog>>('/operation-logs', {
           params: {
             page,
             page_size: pageSize,
-            action,
-            target_type: targetType,
-            user_id: userId,
-            date_from: range?.[0]?.format('YYYY-MM-DD'),
-            date_to: range?.[1]?.format('YYYY-MM-DD'),
-            q: search || undefined
+            action: appliedFilters.action,
+            target_type: appliedFilters.targetType,
+            user_id: appliedFilters.userId,
+            date_from: appliedFilters.dateFrom || undefined,
+            date_to: appliedFilters.dateTo || undefined,
+            q: appliedFilters.search || undefined
           }
         })
       ).data
@@ -111,10 +112,7 @@ export function OperationLogs() {
           placeholder="操作类型"
           style={{ width: 140 }}
           value={action}
-          onChange={(value) => {
-            setAction(value)
-            setPage(1)
-          }}
+          onChange={setAction}
           options={actionOptions}
         />
         <Select
@@ -122,10 +120,7 @@ export function OperationLogs() {
           placeholder="对象类型"
           style={{ width: 150 }}
           value={targetType}
-          onChange={(value) => {
-            setTargetType(value)
-            setPage(1)
-          }}
+          onChange={setTargetType}
           options={targetOptions}
         />
         <Select
@@ -135,34 +130,27 @@ export function OperationLogs() {
           placeholder="操作人"
           style={{ width: 200 }}
           value={userId}
-          onChange={(value) => {
-            setUserId(value)
-            setPage(1)
-          }}
+          onChange={setUserId}
           options={userOptions}
         />
         <RangePicker
           value={range}
-          onChange={(value) => {
-            setRange(value)
-            setPage(1)
-          }}
+          onChange={setRange}
         />
-        <Input.Search
+        <Input
           allowClear
+          value={search}
           placeholder="搜索摘要/对象"
           style={{ width: 240 }}
-          onSearch={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          onChange={(event) => {
-            if (!event.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
+          onChange={(event) => setSearch(event.target.value)}
         />
+        <Button type="primary" onClick={() => {
+          setAppliedFilters({ action, targetType, userId, dateFrom: range?.[0]?.format('YYYY-MM-DD') ?? '', dateTo: range?.[1]?.format('YYYY-MM-DD') ?? '', search: search.trim() }); setPage(1)
+        }}>查询</Button>
+        <Button onClick={() => {
+          setAction(undefined); setTargetType(undefined); setUserId(undefined); setRange(null); setSearch('')
+          setAppliedFilters({ action: undefined, targetType: undefined, userId: undefined, dateFrom: '', dateTo: '', search: '' }); setPage(1)
+        }}>重置</Button>
       </Space>
 
       <Table<OperationLog>

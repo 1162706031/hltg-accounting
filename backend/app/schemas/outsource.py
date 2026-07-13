@@ -105,9 +105,15 @@ def _validate_line_dates(
     for line in outbound_lines or []:
         if line.out_date is None:
             raise ValueError(f"发出明细第 {line.line_no} 行必须填写发出日期")
+        if line.item_id is None:
+            raise ValueError(f"发出明细第 {line.line_no} 行必须选择钢种")
     for line in inbound_lines or []:
         if line.in_date is None:
             raise ValueError(f"回厂明细第 {line.line_no} 行必须填写回厂日期")
+        if line.item_id is None:
+            raise ValueError(f"回厂明细第 {line.line_no} 行必须选择钢种")
+        if line.owner_id is None:
+            raise ValueError(f"回厂明细第 {line.line_no} 行必须选择所属单位")
 
 
 class OutsourceOrderListItem(ORMModel):

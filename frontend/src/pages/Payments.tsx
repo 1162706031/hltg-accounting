@@ -122,6 +122,7 @@ export function Payments() {
   const [directionFilter, setDirectionFilter] = useState<PaymentDirection | undefined>()
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ party: undefined as number | undefined, direction: undefined as PaymentDirection | undefined, dateFrom: '', dateTo: '', search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -135,18 +136,18 @@ export function Payments() {
   const partyOpts = partyOptions(parties.data)
 
   const query = useQuery({
-    queryKey: ['payments', partyFilter, directionFilter, dateRange?.[0]?.format('YYYY-MM-DD'), dateRange?.[1]?.format('YYYY-MM-DD'), search, page, pageSize],
+    queryKey: ['payments', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<Payment>>('/payments', {
           params: {
             page,
             page_size: pageSize,
-            party_id: partyFilter,
-            direction: directionFilter,
-            date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
-            date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
-            q: search || undefined
+            party_id: appliedFilters.party,
+            direction: appliedFilters.direction,
+            date_from: appliedFilters.dateFrom || undefined,
+            date_to: appliedFilters.dateTo || undefined,
+            q: appliedFilters.search || undefined
           }
         })
       ).data
@@ -301,10 +302,7 @@ export function Payments() {
           placeholder="单位筛选"
           style={{ width: 220 }}
           value={partyFilter}
-          onChange={(v) => {
-            setPartyFilter(v)
-            setPage(1)
-          }}
+          onChange={setPartyFilter}
           options={partyOpts}
         />
         <Select
@@ -312,34 +310,27 @@ export function Payments() {
           placeholder="方向筛选"
           style={{ width: 130 }}
           value={directionFilter}
-          onChange={(v) => {
-            setDirectionFilter(v)
-            setPage(1)
-          }}
+          onChange={setDirectionFilter}
           options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))}
         />
         <RangePicker
           value={dateRange}
-          onChange={(range) => {
-            setDateRange(range)
-            setPage(1)
-          }}
+          onChange={setDateRange}
         />
-        <Input.Search
+        <Input
           allowClear
+          value={search}
           placeholder="搜索单位/方式/备注"
           style={{ width: 240 }}
-          onSearch={(v) => {
-            setSearch(v)
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
+        <Button type="primary" onClick={() => {
+          setAppliedFilters({ party: partyFilter, direction: directionFilter, dateFrom: dateRange?.[0]?.format('YYYY-MM-DD') ?? '', dateTo: dateRange?.[1]?.format('YYYY-MM-DD') ?? '', search: search.trim() }); setPage(1)
+        }}>查询</Button>
+        <Button onClick={() => {
+          setPartyFilter(undefined); setDirectionFilter(undefined); setDateRange(null); setSearch('')
+          setAppliedFilters({ party: undefined, direction: undefined, dateFrom: '', dateTo: '', search: '' }); setPage(1)
+        }}>重置</Button>
       </Space>
 
       <Table<Payment>

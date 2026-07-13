@@ -211,7 +211,26 @@ export function Smelting() {
     <Form.List name="tap_lines">
       {(fields, { add, remove }) => (
         <div className="compact-line-list" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontWeight: 600 }}>出钢 / 出料（归属决定入库单位）</div>
+          <div className="line-list-toolbar">
+            <div style={{ fontWeight: 600 }}>出钢 / 出料（归属决定入库单位）</div>
+            <Space>
+              <Button type="primary" ghost size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+                添加出钢
+              </Button>
+              <Button
+                danger
+                size="middle"
+                disabled={tapSelectedRowKeys.length === 0}
+                onClick={() => {
+                  remove(fields.filter((field) => tapSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                  setTapSelectedRowKeys([])
+                }}
+              >
+                移除所选
+              </Button>
+            </Space>
+          </div>
+          <div className="line-list-table">
           {fields.length > 0 && (
             <div className="line-list-header">
               <span className="line-select-cell">
@@ -221,6 +240,7 @@ export function Smelting() {
                   onChange={(e) => setTapSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
                 />
               </span>
+              <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>出钢日期</span>
               <span style={{ width: 150 }}>钢种</span>
               <span style={{ width: 90 }}>规格</span>
@@ -231,7 +251,7 @@ export function Smelting() {
               <span className="line-action-cell">操作</span>
             </div>
           )}
-          {fields.map((field) => (
+          {fields.map((field, index) => (
             <Space key={field.key} align="start" wrap={false} className="line-editor-row">
               <span className="line-select-cell">
                 <Checkbox
@@ -239,6 +259,7 @@ export function Smelting() {
                   onChange={(e) => setTapSelectedRowKeys((keys) => e.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
                 />
               </span>
+              <span className="line-index-cell">{index + 1}</span>
               <Form.Item
                 {...field}
                 name={[field.name, 'date']}
@@ -262,7 +283,7 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'furnace_no']} label="炉号">
                 <Input style={{ width: 90 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
+              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属" rules={[{ required: true, message: '请选择所属单位' }]}>
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
               <span className="line-action-cell">
@@ -273,22 +294,8 @@ export function Smelting() {
               </span>
             </Space>
           ))}
-          <Space>
-            <Button type="dashed" size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
-              添加出钢
-            </Button>
-            <Button
-              danger
-              size="middle"
-              disabled={tapSelectedRowKeys.length === 0}
-              onClick={() => {
-                remove(fields.filter((field) => tapSelectedRowKeys.includes(field.key)).map((field) => field.name))
-                setTapSelectedRowKeys([])
-              }}
-            >
-              移除所选
-            </Button>
-          </Space>
+          {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加出钢”新增一行</div>}
+          </div>
         </div>
       )}
     </Form.List>

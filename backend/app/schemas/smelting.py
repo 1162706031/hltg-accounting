@@ -110,9 +110,13 @@ def _validate_line_dates(
     alloy_lines: list[AlloyLineBase] | None,
 ) -> None:
     for line in inbound_lines or []:
+        label = "来料/投料" if line.side == "in" else "出钢/出料"
         if line.date is None:
-            label = "来料/投料" if line.side == "in" else "出钢/出料"
             raise ValueError(f"{label}明细第 {line.line_no} 行必须填写日期")
+        if line.item_id is None:
+            raise ValueError(f"{label}明细第 {line.line_no} 行必须选择钢种")
+        if line.owner_id is None:
+            raise ValueError(f"{label}明细第 {line.line_no} 行必须选择所属单位")
     for index, line in enumerate(alloy_lines or [], start=1):
         if line.date is None:
             raise ValueError(f"补加合金明细第 {index} 行必须填写日期")

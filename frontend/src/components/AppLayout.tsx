@@ -2,15 +2,17 @@ import {
   DashboardOutlined,
   InboxOutlined,
   LogoutOutlined,
+  MenuOutlined,
   PayCircleOutlined,
   ProductOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
   ToolOutlined
 } from '@ant-design/icons'
-import { Button, Layout, Menu, Typography } from 'antd'
+import { Button, Drawer, Layout, Menu, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../utils/AuthContext'
 
@@ -31,6 +33,7 @@ const menuItems: AppMenuItem[] = [
     icon: <ToolOutlined />,
     label: '生产加工',
     children: [
+      { key: '/steelmaking-records', label: '炼钢记录' },
       { key: '/smelting', label: '冶炼加工' },
       { key: '/outsource', label: '外协加工' }
     ]
@@ -103,6 +106,11 @@ export function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   const visibleItems = filterMenuItems(menuItems, user?.role)
   const routes = routeItems(visibleItems)
@@ -135,9 +143,18 @@ export function AppLayout() {
         <Header
           className="app-header"
         >
-          <Typography.Text className="app-header-user" type="secondary">
-            当前用户：{user?.real_name || user?.username}
-          </Typography.Text>
+          <div className="app-header-leading">
+            <Button
+              className="mobile-menu-button"
+              type="text"
+              icon={<MenuOutlined />}
+              aria-label="打开导航菜单"
+              onClick={() => setMobileMenuOpen(true)}
+            />
+            <Typography.Text className="app-header-user" type="secondary">
+              当前用户：{user?.real_name || user?.username}
+            </Typography.Text>
+          </div>
           <Button
             className="app-header-logout"
             icon={<LogoutOutlined />}
@@ -153,6 +170,28 @@ export function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
+      <Drawer
+        className="mobile-nav-drawer"
+        title="旭峰新材料 ERP"
+        placement="left"
+        width={240}
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        styles={{ body: { padding: 0 } }}
+      >
+        <Menu
+          mode="inline"
+          inlineIndent={16}
+          selectedKeys={[selectedKey]}
+          defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
+          items={visibleItems as MenuProps['items']}
+          onClick={({ key }) => {
+            navigate(key)
+            setMobileMenuOpen(false)
+          }}
+          style={{ borderInlineEnd: 0 }}
+        />
+      </Drawer>
     </Layout>
   )
 }

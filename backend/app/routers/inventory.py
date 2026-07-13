@@ -28,6 +28,33 @@ from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depends(get_current_user)])
 
+INVENTORY_REF_TYPE_LABELS = {
+    "smelting_order": "冶炼",
+    "outsource_order": "外协",
+    "procurement_order": "采购",
+    "sales_order": "销售",
+}
+
+
+def inventory_log_display_fields(ref_type: str | None, notes: str | None) -> dict[str, str | None]:
+    """Split the audit note snapshot into dedicated display columns without changing stored history."""
+    batch_no = None
+    remaining_parts: list[str] = []
+    for part in (notes or "").replace(";", "；").split("；"):
+        text = part.strip()
+        if not text:
+            continue
+        normalized = text.replace(":", "：")
+        if normalized.startswith("批次号：") and batch_no is None:
+            batch_no = normalized.split("：", 1)[1].strip() or None
+        else:
+            remaining_parts.append(text)
+    return {
+        "order_type_label": INVENTORY_REF_TYPE_LABELS.get(ref_type),
+        "batch_no": batch_no,
+        "business_remark": "；".join(remaining_parts) or None,
+    }
+
 
 def inventory_delete_reason(inventory: Inventory) -> str | None:
     """返回库存项不可删除的原因；None 表示可删。"""
@@ -89,11 +116,20 @@ async def list_inventory_logs(
     if date_to:
         stmt = stmt.where(InventoryLog.change_date <= date_to)
     if q:
-        stmt = stmt.where(InventoryLog.item_name.like(f"%{q}%") | InventoryLog.item_spec.like(f"%{q}%"))
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            InventoryLog.item_name.like(like)
+            | InventoryLog.item_spec.like(like)
+            | InventoryLog.notes.like(like)
+            | InventoryLog.ref_type.like(like)
+        )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
-    items = [InventoryLogWithRelations.model_validate(row) for row in rows]
+    items = []
+    for row in rows:
+        item = InventoryLogWithRelations.model_validate(row)
+        items.append(item.model_copy(update=inventory_log_display_fields(row.ref_type, row.notes)))
     return PageResult(items=items, total=total or 0, page=page, page_size=page_size)
 
 

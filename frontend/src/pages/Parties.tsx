@@ -170,6 +170,7 @@ export function Parties() {
 
   const [roleFilter, setRoleFilter] = useState<RoleKey | undefined>()
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ role: undefined as RoleKey | undefined, search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -179,11 +180,11 @@ export function Parties() {
   const [form] = Form.useForm<FormValues>()
 
   const query = useQuery({
-    queryKey: ['parties', roleFilter, search, page, pageSize],
+    queryKey: ['parties', appliedFilters, page, pageSize],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, page_size: pageSize }
-      if (roleFilter) params[roleFilter] = 1
-      if (search) params.q = search
+      if (appliedFilters.role) params[appliedFilters.role] = 1
+      if (appliedFilters.search) params.q = appliedFilters.search
       return (await api.get<PageResult<Party>>('/parties', { params })).data
     }
   })
@@ -321,27 +322,18 @@ export function Parties() {
           placeholder="角色筛选"
           style={{ width: 140 }}
           value={roleFilter}
-          onChange={(v) => {
-            setRoleFilter(v)
-            setPage(1)
-          }}
+          onChange={setRoleFilter}
           options={ROLES.map((r) => ({ value: r.key, label: r.label }))}
         />
-        <Input.Search
+        <Input
           allowClear
+          value={search}
           placeholder="搜索名称/简称"
           style={{ width: 240 }}
-          onSearch={(v) => {
-            setSearch(v)
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
+        <Button type="primary" onClick={() => { setAppliedFilters({ role: roleFilter, search: search.trim() }); setPage(1) }}>查询</Button>
+        <Button onClick={() => { setRoleFilter(undefined); setSearch(''); setAppliedFilters({ role: undefined, search: '' }); setPage(1) }}>重置</Button>
       </Space>
 
       <Table<Party>

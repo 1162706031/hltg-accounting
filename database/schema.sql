@@ -3,6 +3,10 @@
 -- 数据库引擎: MySQL 8.0+ / MariaDB 10.5+
 -- 字符集: utf8mb4 (支持中文)
 --
+-- v2.6 变更 (2026-07-13):
+--   - item 增加化学成分启用、成分 JSON 和默认元/吨单价。
+--   - 新增 steelmaking_record/material/composition 炼钢记录统计，与库存完全解耦。
+--
 -- v2.5 变更 (2026-06-15):
 --   - processing_inbound（外协回厂）加 owner_id：回厂入库归属可逐行指定（前端钢种/归属
 --     均用 QuickCreate 下拉，可现场新建），留空回退本厂。
@@ -119,14 +123,99 @@ CREATE TABLE item (
     item_type   ENUM('steel_grade','raw_material','alloy','finished_product','semi_finished','scrap')
                 NOT NULL COMMENT '物品类型',
     is_active   BOOLEAN       DEFAULT TRUE COMMENT '是否启用',
+    chemical_enabled     TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否启用化学成分',
+    chemical_composition JSON DEFAULT NULL COMMENT 'C/Mn/Si/Cr/W/Mo/V/Co/Nb/Ni/P/S 质量百分比',
+    default_price        DECIMAL(18,4) DEFAULT NULL COMMENT '基础默认单价（元/吨）',
     notes       TEXT          DEFAULT NULL COMMENT '备注',
     created_at  DATETIME      DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_name_type_spec (name, item_type),
     INDEX idx_type (item_type),
     INDEX idx_active (is_active),
+    INDEX idx_chemical_enabled (chemical_enabled),
     INDEX idx_name (name)
 ) ENGINE=InnoDB COMMENT='统一物品字典：钢种/原料/合金/成品/半成品/废料（规格/单位归库存，不在此表）';
+
+
+-- ============================================================================
+-- 1.1 炼钢记录统计（与库存完全解耦）
+-- ============================================================================
+
+CREATE TABLE steelmaking_record (
+    id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    record_date           DATE NOT NULL COMMENT '炼钢日期',
+    furnace_no            VARCHAR(50) NOT NULL COMMENT '炉号；非全局唯一',
+    steel_grade           VARCHAR(100) NOT NULL COMMENT '钢种快照/录入值',
+    ingot_type            VARCHAR(100) DEFAULT NULL COMMENT '锭型',
+    furnace_weight        DECIMAL(18,6) NOT NULL COMMENT '用户原始炉重',
+    furnace_weight_unit   ENUM('kg','ton') NOT NULL COMMENT '用户原始炉重单位',
+    furnace_weight_kg     DECIMAL(18,6) NOT NULL COMMENT '标准炉重 kg',
+    power_on_time         TIME DEFAULT NULL COMMENT '送电时间',
+    tap_time              TIME DEFAULT NULL COMMENT '出钢时间',
+    tap_temperature       DECIMAL(10,2) DEFAULT NULL COMMENT '出钢温度 ℃',
+    pouring_time          TIME DEFAULT NULL COMMENT '浇注时间',
+    total_cost            DECIMAL(18,4) DEFAULT NULL COMMENT '可计算原料总成本',
+    cost_per_ton          DECIMAL(18,4) DEFAULT NULL COMMENT '单吨成本',
+    cost_complete         TINYINT(1) NOT NULL DEFAULT 1 COMMENT '全部原料成本是否可计算',
+    status                ENUM('draft','confirmed') NOT NULL DEFAULT 'draft',
+    remark                TEXT DEFAULT NULL,
+    created_by            BIGINT UNSIGNED DEFAULT NULL,
+    updated_by            BIGINT UNSIGNED DEFAULT NULL,
+    created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted               TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除',
+
+    INDEX idx_steelmaking_record_date (record_date),
+    INDEX idx_steelmaking_furnace_no (furnace_no),
+    INDEX idx_steelmaking_furnace_date (furnace_no, record_date),
+    INDEX idx_steelmaking_steel_grade (steel_grade),
+    INDEX idx_steelmaking_status (status),
+    INDEX idx_steelmaking_deleted (deleted),
+    CONSTRAINT fk_steelmaking_created_by FOREIGN KEY (created_by) REFERENCES user(id),
+    CONSTRAINT fk_steelmaking_updated_by FOREIGN KEY (updated_by) REFERENCES user(id)
+) ENGINE=InnoDB COMMENT='炼钢记录统计主表；与库存完全解耦';
+
+CREATE TABLE steelmaking_record_material (
+    id                              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    record_id                       BIGINT UNSIGNED NOT NULL,
+    item_id                         BIGINT UNSIGNED NOT NULL,
+    item_name_snapshot              VARCHAR(100) NOT NULL,
+    item_code_snapshot              VARCHAR(50) DEFAULT NULL COMMENT '当前系统以物品 ID 作为编号快照',
+    chemical_composition_snapshot   JSON NOT NULL,
+    default_price_snapshot          DECIMAL(18,4) DEFAULT NULL,
+    custom_price                    DECIMAL(18,4) DEFAULT NULL COMMENT '本次实际单价（元/吨）',
+    final_unit_price                DECIMAL(18,4) DEFAULT NULL COMMENT '最终采用单价（元/吨）',
+    input_weight                    DECIMAL(18,6) NOT NULL COMMENT '用户原始重量',
+    input_weight_unit               ENUM('kg','ton') NOT NULL,
+    weight_kg                       DECIMAL(18,6) NOT NULL COMMENT '标准重量 kg',
+    material_cost                   DECIMAL(18,4) DEFAULT NULL,
+    sort_order                      INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at                      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at                      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_steelmaking_material_record (record_id),
+    INDEX idx_steelmaking_material_item (item_id),
+    CONSTRAINT fk_steelmaking_material_record FOREIGN KEY (record_id) REFERENCES steelmaking_record(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_steelmaking_material_item FOREIGN KEY (item_id) REFERENCES item(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='炼钢原料明细及历史快照';
+
+CREATE TABLE steelmaking_record_composition (
+    id                       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    record_id                BIGINT UNSIGNED NOT NULL,
+    element_code             VARCHAR(10) NOT NULL,
+    element_name             VARCHAR(30) NOT NULL,
+    element_weight_kg        DECIMAL(18,6) NOT NULL DEFAULT 0,
+    theoretical_percentage   DECIMAL(12,6) NOT NULL DEFAULT 0,
+    actual_percentage        DECIMAL(12,6) DEFAULT NULL,
+    deviation_percentage     DECIMAL(12,6) DEFAULT NULL,
+    created_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at               DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_steelmaking_record_element (record_id, element_code),
+    INDEX idx_steelmaking_composition_record (record_id),
+    INDEX idx_steelmaking_element_code (element_code),
+    CONSTRAINT fk_steelmaking_composition_record FOREIGN KEY (record_id) REFERENCES steelmaking_record(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='炼钢理论/实际成分逐元素分析';
 
 
 -- ============================================================================
@@ -638,7 +727,7 @@ CREATE TABLE operation_log (
     action        ENUM('CREATE','UPDATE','DELETE','SUBMIT','APPROVE','REJECT',
                        'COMPLETE','UNAUDIT','LOGIN','LOGOUT','EXPORT')
                   NOT NULL COMMENT '操作类型',
-    target_type   VARCHAR(30)   NOT NULL COMMENT '操作对象: smelting_order/outsource_order/procurement_order/sales_order/inventory/inventory_log/item/party/user/payment/reconciliation',
+    target_type   VARCHAR(30)   NOT NULL COMMENT '操作对象: steelmaking_record/smelting_order/outsource_order/procurement_order/sales_order/inventory/inventory_log/item/party/user/payment/reconciliation',
     target_id     BIGINT UNSIGNED DEFAULT NULL COMMENT '操作对象 ID',
     summary       VARCHAR(500)  NOT NULL COMMENT '可读摘要 — "创建冶炼批次 #3000001"',
     detail        JSON          DEFAULT NULL COMMENT '变更详情 (old/new 对比)',
@@ -758,5 +847,5 @@ LEFT JOIN party p ON p.id = oo.party_id;
 -- ============================================================================
 -- 验证
 -- ============================================================================
-SELECT 'Database hltg_accounting v2.2 created successfully.' AS status;
+SELECT 'Database hltg_accounting v2.6 created successfully.' AS status;
 SHOW TABLES;

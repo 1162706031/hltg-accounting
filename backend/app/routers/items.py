@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
@@ -8,11 +10,20 @@ from app.models.inventory import Inventory
 from app.models.item import Item
 from app.models.outsource import OutsourceOrder, ProcessingOutbound
 from app.models.smelting import SmeltingInbound, SmeltingOrder
+from app.models.steelmaking import SteelmakingRecordMaterial
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.item import ItemCreate, ItemRead, ItemType, ItemUpdate
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
+
+
+def _composition_json(value) -> dict[str, str] | None:
+    return (
+        {code: format(Decimal(str(amount)).quantize(Decimal("0.000001")), "f") for code, amount in value.items()}
+        if value is not None
+        else None
+    )
 
 
 async def paginate(db: AsyncSession, stmt: Select[tuple[Item]], page: int, page_size: int) -> PageResult[ItemRead]:
@@ -56,6 +67,12 @@ async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | No
     if active_outsource:
         return "该物品正在加工订单中使用，无法操作"
 
+    steelmaking_history = await db.scalar(
+        select(func.count()).select_from(SteelmakingRecordMaterial).where(SteelmakingRecordMaterial.item_id == item_id)
+    )
+    if steelmaking_history:
+        return "该物品已被炼钢记录引用，为保护历史快照不能删除"
+
     inv_balance = await db.scalar(
         select(func.coalesce(func.sum(Inventory.current_quantity), 0)).where(Inventory.item_id == item_id)
     )
@@ -72,15 +89,21 @@ async def list_items(
     q: str | None = None,
     item_type: ItemType | None = None,
     is_active: bool | None = None,
+    chemical_enabled: bool | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Item).order_by(Item.id.desc())
     if q:
-        stmt = stmt.where(Item.name.like(f"%{q}%"))
+        condition = Item.name.like(f"%{q.strip()}%")
+        if q.strip().isdigit():
+            condition = condition | (Item.id == int(q.strip()))
+        stmt = stmt.where(condition)
     if item_type:
         stmt = stmt.where(Item.item_type == item_type)
     if is_active is not None:
         stmt = stmt.where(Item.is_active == is_active)
+    if chemical_enabled is not None:
+        stmt = stmt.where(Item.chemical_enabled == chemical_enabled)
     return await paginate(db, stmt, page, page_size)
 
 
@@ -90,7 +113,13 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    item = Item(**payload.model_dump())
+    data = payload.model_dump()
+    if data["chemical_enabled"]:
+        data["chemical_composition"] = _composition_json(data["chemical_composition"])
+    else:
+        data["chemical_composition"] = None
+        data["default_price"] = None
+    item = Item(**data)
     db.add(item)
     try:
         await db.commit()
@@ -119,7 +148,16 @@ async def update_item(
     item = await db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    chemical_enabled = data.get("chemical_enabled", item.chemical_enabled)
+    if not chemical_enabled:
+        data["chemical_composition"] = None
+        data["default_price"] = None
+    elif "chemical_composition" in data:
+        data["chemical_composition"] = _composition_json(data["chemical_composition"])
+    elif item.chemical_composition is None:
+        data["chemical_composition"] = {code: "0" for code in ("C", "Mn", "Si", "Cr", "W", "Mo", "V", "Co", "Nb", "Ni", "P", "S")}
+    for key, value in data.items():
         setattr(item, key, value)
     try:
         await db.commit()

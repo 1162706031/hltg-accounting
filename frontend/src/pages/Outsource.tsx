@@ -183,7 +183,26 @@ export function Outsource() {
     <Form.List name={name}>
       {(fields, { add, remove }) => (
         <div className="compact-line-list" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontWeight: 600 }}>{title}</div>
+          <div className="line-list-toolbar">
+            <div style={{ fontWeight: 600 }}>{title}</div>
+            <Space>
+              <Button type="primary" ghost size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
+                添加回厂
+              </Button>
+              <Button
+                danger
+                size="middle"
+                disabled={inboundSelectedRowKeys.length === 0}
+                onClick={() => {
+                  remove(fields.filter((field) => inboundSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                  setInboundSelectedRowKeys([])
+                }}
+              >
+                移除所选
+              </Button>
+            </Space>
+          </div>
+          <div className="line-list-table">
           {fields.length > 0 && (
             <div className="line-list-header">
               <span className="line-select-cell">
@@ -193,6 +212,7 @@ export function Outsource() {
                   onChange={(e) => setInboundSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
                 />
               </span>
+              <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>回厂日期</span>
               <span style={{ width: 150 }}>钢种</span>
               <span style={{ width: 90 }}>规格</span>
@@ -203,7 +223,7 @@ export function Outsource() {
               <span className="line-action-cell">操作</span>
             </div>
           )}
-          {fields.map((field) => (
+          {fields.map((field, index) => (
             <Space key={field.key} align="start" wrap={false} className="line-editor-row">
               <span className="line-select-cell">
                 <Checkbox
@@ -211,6 +231,7 @@ export function Outsource() {
                   onChange={(e) => setInboundSelectedRowKeys((keys) => e.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
                 />
               </span>
+              <span className="line-index-cell">{index + 1}</span>
               <Form.Item
                 {...field}
                 name={[field.name, dateField]}
@@ -219,7 +240,7 @@ export function Outsource() {
               >
                 <DatePicker style={{ width: 140 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'item_id']} label="钢种">
+              <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true, message: '请选择钢种' }]}>
                 <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'spec']} label="规格">
@@ -234,7 +255,7 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'unit_price']} label="单价(可选)">
                 <InputNumber style={{ width: 110 }} min={0} placeholder="可不填" />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属">
+              <Form.Item {...field} name={[field.name, 'owner_id']} label="归属" rules={[{ required: true, message: '请选择所属单位' }]}>
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
               <span className="line-action-cell">
@@ -245,22 +266,8 @@ export function Outsource() {
               </span>
             </Space>
           ))}
-          <Space>
-            <Button type="dashed" size="middle" onClick={() => add({ quantity: 0, unit: '吨' })} icon={<PlusOutlined />}>
-              添加回厂
-            </Button>
-            <Button
-              danger
-              size="middle"
-              disabled={inboundSelectedRowKeys.length === 0}
-              onClick={() => {
-                remove(fields.filter((field) => inboundSelectedRowKeys.includes(field.key)).map((field) => field.name))
-                setInboundSelectedRowKeys([])
-              }}
-            >
-              移除所选
-            </Button>
-          </Space>
+          {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加回厂”新增一行</div>}
+          </div>
         </div>
       )}
     </Form.List>
@@ -437,7 +444,7 @@ export function Outsource() {
               allowFillAllQuantity
               compactTable
             />
-            {renderLines('inbound_lines', 'in_date', '回厂（完成时按归属入库，归属留空入本厂）')}
+            {renderLines('inbound_lines', 'in_date', '回厂（完成时按所选归属单位入库）')}
           </div>
 
           <Space size="large" wrap style={{ display: 'flex', marginTop: 14 }}>

@@ -69,6 +69,7 @@ export function Inventory() {
   const [typeFilter, setTypeFilter] = useState<string | undefined>()
   const [ownerFilter, setOwnerFilter] = useState<number | undefined>()
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ type: undefined as string | undefined, owner: undefined as number | undefined, search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<number[]>([])
@@ -86,16 +87,16 @@ export function Inventory() {
   const itemOpts = itemOptions(itemList)
 
   const list = useQuery({
-    queryKey: ['inventory', typeFilter, ownerFilter, search, page, pageSize],
+    queryKey: ['inventory', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<InventoryRow>>('/inventory', {
           params: {
             page,
             page_size: pageSize,
-            item_type: typeFilter,
-            owner_id: ownerFilter,
-            q: search || undefined
+            item_type: appliedFilters.type,
+            owner_id: appliedFilters.owner,
+            q: appliedFilters.search || undefined
           }
         })
       ).data
@@ -189,10 +190,7 @@ export function Inventory() {
           placeholder="类型筛选"
           style={{ width: 140 }}
           value={typeFilter}
-          onChange={(v) => {
-            setTypeFilter(v)
-            setPage(1)
-          }}
+          onChange={setTypeFilter}
           options={Object.entries(itemTypeLabels).map(([v, l]) => ({ value: v, label: l }))}
         />
         <Select
@@ -200,29 +198,26 @@ export function Inventory() {
           placeholder="归属筛选"
           style={{ width: 180 }}
           value={ownerFilter}
-          onChange={(v) => {
-            setOwnerFilter(v)
-            setPage(1)
-          }}
+          onChange={setOwnerFilter}
           options={partyOpts}
           showSearch
           optionFilterProp="label"
         />
-        <Input.Search
+        <Input
           placeholder="搜索物品/规格"
           allowClear
+          value={search}
           style={{ width: 220 }}
-          onSearch={(v) => {
-            setSearch(v)
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setSearch('')
-              setPage(1)
-            }
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
+        <Button type="primary" onClick={() => {
+          setAppliedFilters({ type: typeFilter, owner: ownerFilter, search: search.trim() })
+          setPage(1)
+        }}>查询</Button>
+        <Button onClick={() => {
+          setTypeFilter(undefined); setOwnerFilter(undefined); setSearch('')
+          setAppliedFilters({ type: undefined, owner: undefined, search: '' }); setPage(1)
+        }}>重置</Button>
       </div>
       <Table
         rowKey="id"

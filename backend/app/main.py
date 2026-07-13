@@ -22,6 +22,7 @@ from app.routers import (
     reconciliations,
     sales,
     smelting,
+    steelmaking,
     users,
 )
 from app.utils.operation_log import operation_log_middleware
@@ -56,6 +57,7 @@ app.include_router(payments.router, prefix=settings.api_prefix)
 app.include_router(invoices.router, prefix=settings.api_prefix)
 app.include_router(reconciliations.router, prefix=settings.api_prefix)
 app.include_router(smelting.router, prefix=settings.api_prefix)
+app.include_router(steelmaking.router, prefix=settings.api_prefix)
 app.include_router(outsource.router, prefix=settings.api_prefix)
 app.include_router(procurement.router, prefix=settings.api_prefix)
 app.include_router(sales.router, prefix=settings.api_prefix)

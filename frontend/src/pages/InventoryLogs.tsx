@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { DatePicker, Input, Select, Space, Table, Tag } from 'antd'
+import { Button, DatePicker, Input, Select, Space, Table, Tag } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
@@ -24,6 +24,9 @@ interface InventoryLog {
   item_type?: string | null
   owner_name?: string | null
   operator_name?: string | null
+  order_type_label?: string | null
+  batch_no?: string | null
+  business_remark?: string | null
 }
 
 const colors: Record<InventoryLog['change_type'], string> = { in: 'green', out: 'red', adjust: 'orange', init: 'default', delete: 'volcano' }
@@ -38,32 +41,26 @@ const itemTypeLabels: Record<string, string> = {
   scrap: '废料'
 }
 
-const refTypeLabels: Record<string, string> = {
-  smelting_order: '冶炼',
-  outsource_order: '外协',
-  procurement_order: '采购',
-  sales_order: '销售'
-}
-
 export function InventoryLogs() {
   const [changeType, setChangeType] = useState<string | undefined>()
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [q, setQ] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ changeType: undefined as string | undefined, dateFrom: '', dateTo: '', q: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const query = useQuery({
-    queryKey: ['inventory-logs', changeType, range?.toString(), q, page, pageSize],
+    queryKey: ['inventory-logs', appliedFilters, page, pageSize],
     queryFn: async () =>
       (
         await api.get<PageResult<InventoryLog>>('/inventory/logs', {
           params: {
             page,
             page_size: pageSize,
-            change_type: changeType,
-            date_from: range?.[0].format('YYYY-MM-DD'),
-            date_to: range?.[1].format('YYYY-MM-DD'),
-            q: q || undefined
+            change_type: appliedFilters.changeType,
+            date_from: appliedFilters.dateFrom || undefined,
+            date_to: appliedFilters.dateTo || undefined,
+            q: appliedFilters.q || undefined
           }
         })
       ).data
@@ -80,10 +77,7 @@ export function InventoryLogs() {
           placeholder="变动类型"
           style={{ width: 140 }}
           value={changeType}
-          onChange={(v) => {
-            setChangeType(v)
-            setPage(1)
-          }}
+          onChange={setChangeType}
           options={[
             { value: 'in', label: '入库' },
             { value: 'out', label: '出库' },
@@ -94,26 +88,23 @@ export function InventoryLogs() {
         />
         <DatePicker.RangePicker
           value={range as [Dayjs, Dayjs] | null}
-          onChange={(v) => {
-            setRange(v as [Dayjs, Dayjs] | null)
-            setPage(1)
-          }}
+          onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
         />
-        <Input.Search
+        <Input
           allowClear
-          placeholder="物品名称 / 规格"
-          style={{ width: 220 }}
-          onSearch={(v) => {
-            setQ(v)
-            setPage(1)
-          }}
-          onChange={(e) => {
-            if (!e.target.value) {
-              setQ('')
-              setPage(1)
-            }
-          }}
+          value={q}
+          placeholder="物品 / 规格 / 批次号 / 备注"
+          style={{ width: 260 }}
+          onChange={(e) => setQ(e.target.value)}
         />
+        <Button type="primary" onClick={() => {
+          setAppliedFilters({ changeType, dateFrom: range?.[0].format('YYYY-MM-DD') ?? '', dateTo: range?.[1].format('YYYY-MM-DD') ?? '', q: q.trim() })
+          setPage(1)
+        }}>查询</Button>
+        <Button onClick={() => {
+          setChangeType(undefined); setRange(null); setQ('')
+          setAppliedFilters({ changeType: undefined, dateFrom: '', dateTo: '', q: '' }); setPage(1)
+        }}>重置</Button>
       </Space>
       <Table
         rowKey="id"
@@ -121,7 +112,7 @@ export function InventoryLogs() {
         dataSource={query.data?.items}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
         size="small"
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1480 }}
         columns={[
           { title: '日期', dataIndex: 'change_date', width: 110 },
           {
@@ -140,6 +131,18 @@ export function InventoryLogs() {
           },
           { title: '归属', dataIndex: 'owner_name', width: 120, render: (v) => v ?? '—' },
           {
+            title: '订单类型',
+            dataIndex: 'order_type_label',
+            width: 90,
+            render: (v?: string | null) => v ? <Tag color="blue">{v}</Tag> : '—'
+          },
+          {
+            title: '批次号',
+            dataIndex: 'batch_no',
+            width: 140,
+            render: (v?: string | null) => v ? <span style={{ whiteSpace: 'nowrap' }}>{v}</span> : '—'
+          },
+          {
             title: 'Δ 数量',
             dataIndex: 'delta_quantity',
             width: 110,
@@ -151,15 +154,10 @@ export function InventoryLogs() {
           { title: '操作人', dataIndex: 'operator_name', width: 100, render: (v) => v ?? '—' },
           {
             title: '备注',
-            key: 'source',
-            width: 260,
-            render: (_, row) => {
-              if (row.notes) return row.notes
-              if (row.ref_type && refTypeLabels[row.ref_type]) {
-                return `${refTypeLabels[row.ref_type]} #${row.ref_id ?? ''}`
-              }
-              return '—'
-            }
+            dataIndex: 'business_remark',
+            width: 220,
+            ellipsis: true,
+            render: (v?: string | null) => v ?? '—'
           }
         ]}
       />

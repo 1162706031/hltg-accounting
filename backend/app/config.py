@@ -27,6 +27,14 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Optional external AI agent used by the dashboard's intelligent Q&A drawer.
+    # Keep credentials on the backend so they are never exposed to browsers.
+    ai_agent_url: str | None = Field(default=None, validation_alias="AI_AGENT_URL")
+    ai_agent_api_key: str | None = Field(default=None, validation_alias="AI_AGENT_API_KEY")
+    ai_agent_role: str | None = Field(default=None, validation_alias="AI_AGENT_ROLE")
+    ai_agent_provider: str = Field(default="AgentScope 智能体", validation_alias="AI_AGENT_PROVIDER")
+    ai_agent_timeout_seconds: int = Field(default=120, validation_alias="AI_AGENT_TIMEOUT_SECONDS")
+
     model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore")
 
     @property

@@ -26,7 +26,7 @@ export function DetailModal({
   loading = false,
   fields,
   tables = [],
-  width = 760
+  width = 1280
 }: {
   open: boolean
   onClose: () => void

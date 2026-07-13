@@ -76,14 +76,45 @@ export function InventoryLineList({
 
   return (
     <Form.List name={name}>
-      {(fields, { add, remove }) => (
+      {(fields, { add, remove }) => {
+        const addRow = () => {
+          const row: Record<string, unknown> = { quantity: 0 }
+          if (dateField && defaultDateField) {
+            row[dateField] = form.getFieldValue(defaultDateField) ?? null
+          }
+          add(row)
+        }
+        const actions = (
+          <Space>
+            <Button type={compactTable ? 'primary' : 'dashed'} ghost={compactTable} disabled={disabled} onClick={addRow} icon={<PlusOutlined />}>
+              {addLabel}
+            </Button>
+            {compactTable && (
+              <Button
+                danger
+                disabled={disabled || selectedRowKeys.length === 0}
+                onClick={() => {
+                  remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                  setSelectedRowKeys([])
+                }}
+              >
+                移除所选
+              </Button>
+            )}
+          </Space>
+        )
+        return (
         <div className={compactTable ? 'compact-line-list' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontWeight: 600 }}>
-            {title}
-            {disabled && disabledReason ? (
-              <span style={{ marginLeft: 8, color: '#8c8c8c', fontWeight: 400 }}>{disabledReason}</span>
-            ) : null}
+          <div className={compactTable ? 'line-list-toolbar' : undefined}>
+            <div style={{ fontWeight: 600 }}>
+              {title}
+              {disabled && disabledReason ? (
+                <span style={{ marginLeft: 8, color: '#8c8c8c', fontWeight: 400 }}>{disabledReason}</span>
+              ) : null}
+            </div>
+            {compactTable && actions}
           </div>
+          <div className={compactTable ? 'line-list-table' : undefined}>
           {compactTable && fields.length > 0 && (
             <div className="line-list-header">
               <span className="line-select-cell">
@@ -94,6 +125,7 @@ export function InventoryLineList({
                   onChange={(e) => setSelectedRowKeys(e.target.checked ? fields.map((field) => field.key) : [])}
                 />
               </span>
+              <span className="line-index-cell">序号</span>
               {dateField && <span style={{ width: 140 }}>{dateLabel}</span>}
               <span style={{ width: selectWidth }}>库存项</span>
               <span style={{ width: allowFillAllQuantity ? 190 : 150 }}>数量</span>
@@ -101,7 +133,8 @@ export function InventoryLineList({
               <span className="line-action-cell">操作</span>
             </div>
           )}
-          {fields.map((field) => (
+          {compactTable && fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“{addLabel}”新增一行</div>}
+          {fields.map((field, index) => (
             <Space key={field.key} align="start" wrap={!compactTable} className={compactTable ? 'line-editor-row' : undefined}>
               {compactTable && (
                 <span className="line-select-cell">
@@ -116,6 +149,7 @@ export function InventoryLineList({
                   />
                 </span>
               )}
+              {compactTable && <span className="line-index-cell">{index + 1}</span>}
               {/* item_id / spec / unit / owner_id 由所选库存项自动带出，隐藏存储用于提交 */}
               <Form.Item {...field} name={[field.name, 'item_id']} hidden>
                 <Input />
@@ -238,36 +272,11 @@ export function InventoryLineList({
               </span>
             </Space>
           ))}
-          <Space>
-            <Button
-              type="dashed"
-              disabled={disabled}
-              onClick={() => {
-                const row: Record<string, unknown> = { quantity: 0 }
-                if (dateField && defaultDateField) {
-                  row[dateField] = form.getFieldValue(defaultDateField) ?? null
-                }
-                add(row)
-              }}
-              icon={<PlusOutlined />}
-            >
-              {addLabel}
-            </Button>
-            {compactTable && (
-              <Button
-                danger
-                disabled={disabled || selectedRowKeys.length === 0}
-                onClick={() => {
-                  remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
-                  setSelectedRowKeys([])
-                }}
-              >
-                移除所选
-              </Button>
-            )}
-          </Space>
+          </div>
+          {!compactTable && actions}
         </div>
-      )}
+        )
+      }}
     </Form.List>
   )
 }

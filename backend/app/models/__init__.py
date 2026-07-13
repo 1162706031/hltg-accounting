@@ -8,6 +8,7 @@ from app.models.procurement import ProcurementOrder
 from app.models.reconciliation import PartyReconciliation
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
+from app.models.steelmaking import SteelmakingRecord, SteelmakingRecordComposition, SteelmakingRecordMaterial
 from app.models.user import User
 
 __all__ = [
@@ -28,5 +29,8 @@ __all__ = [
     "SalesOrderItem",
     "SmeltingInbound",
     "SmeltingOrder",
+    "SteelmakingRecord",
+    "SteelmakingRecordComposition",
+    "SteelmakingRecordMaterial",
     "User",
 ]

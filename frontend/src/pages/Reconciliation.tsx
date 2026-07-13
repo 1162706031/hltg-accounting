@@ -221,6 +221,7 @@ export function Reconciliation() {
   const [partyId, setPartyId] = useState<number | undefined>()
   const [statusFilter, setStatusFilter] = useState<ReconStatus | undefined>()
   const [search, setSearch] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ party: undefined as number | undefined, status: undefined as ReconStatus | undefined, search: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -228,17 +229,19 @@ export function Reconciliation() {
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importType, setImportType] = useState<ImportOrderType | 'all'>('all')
+  const [importPartyId, setImportPartyId] = useState<number | undefined>()
   const [importSearch, setImportSearch] = useState('')
+  const [appliedImportFilters, setAppliedImportFilters] = useState({ type: 'all' as ImportOrderType | 'all', party: undefined as number | undefined, search: '' })
   const [selectedImportKeys, setSelectedImportKeys] = useState<string[]>([])
   const [form] = Form.useForm<ReconciliationFormValues>()
 
   const query = useQuery({
-    queryKey: ['reconciliations', partyId, statusFilter, search, page, pageSize],
+    queryKey: ['reconciliations', appliedFilters, page, pageSize],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, page_size: pageSize }
-      if (partyId) params.party_id = partyId
-      if (statusFilter) params.recon_status = statusFilter
-      if (search) params.q = search
+      if (appliedFilters.party) params.party_id = appliedFilters.party
+      if (appliedFilters.status) params.recon_status = appliedFilters.status
+      if (appliedFilters.search) params.q = appliedFilters.search
       return (await api.get<PageResult<ReconciliationRow>>('/reconciliations', { params })).data
     }
   })
@@ -249,20 +252,20 @@ export function Reconciliation() {
   })
 
   const importQuery = useQuery({
-    queryKey: ['reconciliations', 'import-candidates', importOpen, importType, partyId, importSearch],
+    queryKey: ['reconciliations', 'import-candidates', importOpen, appliedImportFilters],
     enabled: importOpen,
     queryFn: async () => {
-      const params: Record<string, string | number> = { order_type: importType }
-      if (partyId) params.party_id = partyId
-      if (importSearch) params.q = importSearch
+      const params: Record<string, string | number> = { order_type: appliedImportFilters.type }
+      if (appliedImportFilters.party) params.party_id = appliedImportFilters.party
+      if (appliedImportFilters.search) params.q = appliedImportFilters.search
       return (await api.get<ImportCandidate[]>('/reconciliations/import-candidates', { params })).data
     }
   })
 
   const rows = query.data?.items ?? []
   const activeRows = rows.filter((row) => ['unreconciled', 'verified'].includes(row.recon_status))
-  const selectedPartyName = partyId
-    ? partiesQuery.data?.find((p) => p.id === partyId)?.name ?? `#${partyId}`
+  const selectedPartyName = appliedFilters.party
+    ? partiesQuery.data?.find((p) => p.id === appliedFilters.party)?.name ?? `#${appliedFilters.party}`
     : '全部单位'
 
   const rowSummary = useMemo(
@@ -277,8 +280,8 @@ export function Reconciliation() {
 
   const balanceSummary = useMemo(() => {
     const balances = balanceQuery.data ?? []
-    if (partyId) {
-      return balances.find((b) => b.party_id === partyId)
+    if (appliedFilters.party) {
+      return balances.find((b) => b.party_id === appliedFilters.party)
     }
     return balances.reduce<PartyBalance>(
       (sum, row) => ({
@@ -306,7 +309,7 @@ export function Reconciliation() {
         net_to_receive: '0'
       }
     )
-  }, [balanceQuery.data, partyId])
+  }, [balanceQuery.data, appliedFilters.party])
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['reconciliations'] })
@@ -463,10 +466,7 @@ export function Reconciliation() {
             placeholder="往来单位"
             style={{ width: 260 }}
             value={partyId}
-            onChange={(v) => {
-              setPartyId(v)
-              setPage(1)
-            }}
+            onChange={setPartyId}
             optionFilterProp="label"
             options={partyOptions(partiesQuery.data)}
           />
@@ -475,27 +475,21 @@ export function Reconciliation() {
             placeholder="状态筛选"
             style={{ width: 160 }}
             value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v)
-              setPage(1)
-            }}
+            onChange={setStatusFilter}
             options={statusOptions}
           />
-          <Input.Search
+          <Input
             allowClear
+            value={search}
             placeholder="搜索批次号/摘要/钢种/备注"
             style={{ width: 260 }}
-            onSearch={(v) => {
-              setSearch(v)
-              setPage(1)
-            }}
-            onChange={(e) => {
-              if (!e.target.value) {
-                setSearch('')
-                setPage(1)
-              }
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
+          <Button type="primary" onClick={() => { setAppliedFilters({ party: partyId, status: statusFilter, search: search.trim() }); setPage(1) }}>查询</Button>
+          <Button onClick={() => {
+            setPartyId(undefined); setStatusFilter(undefined); setSearch('')
+            setAppliedFilters({ party: undefined, status: undefined, search: '' }); setPage(1)
+          }}>重置</Button>
         </Space>
       </Card>
 
@@ -716,10 +710,7 @@ export function Reconciliation() {
             placeholder="类型"
             style={{ width: 150 }}
             value={importType}
-            onChange={(v) => {
-              setImportType(v)
-              setSelectedImportKeys([])
-            }}
+            onChange={setImportType}
             options={importTypeOptions}
           />
           <Select
@@ -727,12 +718,20 @@ export function Reconciliation() {
             showSearch
             placeholder="往来单位"
             style={{ width: 240 }}
-            value={partyId}
-            onChange={(v) => setPartyId(v)}
+            value={importPartyId}
+            onChange={setImportPartyId}
             optionFilterProp="label"
             options={partyOptions(partiesQuery.data)}
           />
-          <Input.Search allowClear placeholder="搜索批次号" style={{ width: 220 }} onSearch={setImportSearch} />
+          <Input allowClear value={importSearch} placeholder="搜索批次号" style={{ width: 220 }} onChange={(e) => setImportSearch(e.target.value)} />
+          <Button type="primary" onClick={() => {
+            setAppliedImportFilters({ type: importType, party: importPartyId, search: importSearch.trim() })
+            setSelectedImportKeys([])
+          }}>查询</Button>
+          <Button onClick={() => {
+            setImportType('all'); setImportPartyId(undefined); setImportSearch('')
+            setAppliedImportFilters({ type: 'all', party: undefined, search: '' }); setSelectedImportKeys([])
+          }}>重置</Button>
         </Space>
 
         <Table<ImportCandidate>

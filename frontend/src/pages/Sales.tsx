@@ -98,7 +98,6 @@ export function Sales() {
     mutationFn: async (values: any) => {
       const body = {
         ...values,
-        ship_date: values.ship_date?.format('YYYY-MM-DD') ?? null,
         items: (values.items ?? []).map((it: any, idx: number) => ({
           ...it,
           line_no: idx + 1,
@@ -131,7 +130,6 @@ export function Sales() {
     setCreating(false)
     form.setFieldsValue({
       party_id: detail.party_id,
-      ship_date: detail.ship_date ? dayjs(detail.ship_date) : null,
       tax_rate: detail.tax_rate ? Number(detail.tax_rate) : 13,
       need_invoice: detail.need_invoice,
       notes: detail.notes,
@@ -269,7 +267,7 @@ export function Sales() {
       <Modal
         title={editingId ? '编辑销售单' : '新建销售单'}
         open={creating || editingId !== null}
-        width={860}
+        width={960}
         onCancel={() => {
           setCreating(false)
           setEditingId(null)
@@ -279,12 +277,9 @@ export function Sales() {
         confirmLoading={save.isPending}
       >
         <Form form={form} layout="vertical">
-          <Space size="large" style={{ display: 'flex' }}>
+          <Space size="large" wrap style={{ display: 'flex' }}>
             <Form.Item name="party_id" label="客户" rules={[{ required: true }]} style={{ flex: 1 }}>
               <PartySelect options={partyOptions(parties.data)} placeholder="选择客户" />
-            </Form.Item>
-            <Form.Item name="ship_date" label="发货日期">
-              <DatePicker />
             </Form.Item>
             <Form.Item name="need_invoice" label="需开票">
               <Select
@@ -310,11 +305,13 @@ export function Sales() {
           <InventoryLineList
             form={form}
             name="items"
-            title="销售明细（从库房现存中选择，完成时按所选库存项扣库）"
+            title="销售明细（每行发货日期必填；整单日期自动取最晚日期）"
             stock={stock.data}
             dateField="ship_date"
             dateLabel="发货日期"
-            defaultDateField="ship_date"
+            dateRequired
+            addLabel="添加销售明细"
+            compactTable
           />
 
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>

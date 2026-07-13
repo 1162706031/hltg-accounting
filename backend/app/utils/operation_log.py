@@ -23,6 +23,7 @@ TARGET_TYPE_MAP = {
     "invoices": "invoice",
     "reconciliations": "reconciliation",
     "smelting-orders": "smelting_order",
+    "steelmaking-records": "steelmaking_record",
     "outsource-orders": "outsource_order",
     "procurement-orders": "procurement_order",
     "sales-orders": "sales_order",
@@ -99,7 +100,7 @@ def operation_context(request: Request) -> tuple[str, str | None, int | None]:
 
     if tail in ACTION_MAP:
         action = ACTION_MAP[tail]
-    elif tail in {"start", "status", "toggle-active", "reset-password", "adjust", "out"}:
+    elif tail in {"start", "confirm", "status", "toggle-active", "reset-password", "adjust", "out"}:
         action = "UPDATE"
     elif tail in {"batch-delete"} or method == "DELETE":
         action = "DELETE"

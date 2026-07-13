@@ -18,6 +18,7 @@ import { Procurement } from './pages/Procurement'
 import { Reconciliation } from './pages/Reconciliation'
 import { Sales } from './pages/Sales'
 import { Smelting } from './pages/Smelting'
+import { SteelmakingRecords } from './pages/SteelmakingRecords'
 import { Users } from './pages/Users'
 import { AuthProvider } from './utils/AuthContext'
 
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="inventory" element={<Inventory />} />
               <Route path="inventory/logs" element={<InventoryLogs />} />
               <Route path="smelting" element={<Smelting />} />
+              <Route path="steelmaking-records" element={<SteelmakingRecords />} />
               <Route path="outsource" element={<Outsource />} />
               <Route path="procurement" element={<Procurement />} />
               <Route path="sales" element={<Sales />} />

@@ -35,6 +35,13 @@ router = APIRouter(prefix="/sales-orders", tags=["sales"], dependencies=[Depends
 
 
 def _recompute(order: SalesOrder) -> None:
+    line_dates = [line.ship_date for line in order.items if line.ship_date is not None]
+    if len(line_dates) != len(order.items) or not line_dates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="每条销售明细都必须填写发货日期",
+        )
+    order.ship_date = max(line_dates)
     subtotal = Decimal("0")
     for line in order.items:
         line.amount = (Decimal(line.quantity or 0) * Decimal(line.unit_price or 0)).quantize(Decimal("0.01"))
@@ -116,7 +123,6 @@ async def create_order(
         order = SalesOrder(
             batch_no=batch_no,
             party_id=payload.party_id,
-            ship_date=payload.ship_date,
             tax_rate=payload.tax_rate,
             need_invoice=payload.need_invoice,
             notes=payload.notes,
@@ -141,7 +147,7 @@ async def update_order(
     async with db.begin():
         order = await _load(db, order_id)
         assert_editable(order.status)
-        for key, value in payload.model_dump(exclude_unset=True, exclude={"items"}).items():
+        for key, value in payload.model_dump(exclude_unset=True, exclude={"items", "ship_date"}).items():
             setattr(order, key, value)
         if payload.items is not None:
             order.items.clear()
