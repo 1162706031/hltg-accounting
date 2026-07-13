@@ -318,6 +318,7 @@ export function SteelmakingRecords() {
       />
 
       <Modal
+        className="steelmaking-record-modal"
         title={editingId ? '编辑炼钢记录' : '新建炼钢记录'}
         open={open}
         width={1180}
@@ -387,13 +388,18 @@ export function SteelmakingRecords() {
                     />
                   </span>
                   <span className="steelmaking-material-index">{index + 1}</span>
-                  <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择原料' }]}> 
+                  <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择原料' }]}>
                     <Select
+                      className="steelmaking-material-select-box"
                       showSearch
                       filterOption={false}
+                      popupMatchSelectWidth={620}
                       onSearch={(value) => setMaterialSearch(value.trim())}
                       placeholder="搜索名称或物品编号"
-                      options={(chemicalItems.data ?? []).map((item) => ({ value: item.id, label: compositionSummary(item) }))}
+                      options={(chemicalItems.data ?? []).map((item) => {
+                        const summary = compositionSummary(item)
+                        return { value: item.id, label: summary, title: summary }
+                      })}
                     />
                   </Form.Item>
                   <Form.Item name={[field.name, 'input_weight']} rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
