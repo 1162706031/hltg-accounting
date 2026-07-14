@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOutbound
 from app.models.party import Party
-from app.models.procurement import ProcurementOrder
+from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.models.reconciliation import PartyReconciliation
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.smelting import SmeltingInbound, SmeltingOrder
@@ -264,7 +264,11 @@ async def _procurement_candidates(
 ) -> list[ReconciliationImportCandidate]:
     stmt = (
         select(ProcurementOrder)
-        .options(selectinload(ProcurementOrder.party), selectinload(ProcurementOrder.item))
+        .options(
+            selectinload(ProcurementOrder.party),
+            selectinload(ProcurementOrder.item),
+            selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.item),
+        )
         .where(
             ProcurementOrder.status.in_(IMPORTABLE_STATUSES),
             ~exists().where(
@@ -286,7 +290,15 @@ async def _procurement_candidates(
     for order in rows:
         amount = _money(order.total_amount)
         invoice_direction, invoice_amount = _invoice_fields(order.need_invoice, "receive", amount)
-        item_name = order.item.name if order.item else order.item_spec
+        item_names = [line.item.name for line in order.items if line.item]
+        item_name = "、".join(item_names) or (order.item.name if order.item else order.item_spec)
+        units = {line.unit for line in order.items}
+        quantity = (
+            sum((Decimal(line.quantity or 0) for line in order.items), Decimal("0"))
+            if len(units) == 1 else Decimal("0")
+        )
+        unit = next(iter(units)) if len(units) == 1 else "多单位"
+        unit_price = order.items[0].unit_price if len(order.items) == 1 else None
         candidates.append(
             ReconciliationImportCandidate(
                 order_type="procurement_order",
@@ -297,11 +309,11 @@ async def _procurement_candidates(
                 party_name=order.party.name if order.party else f"#{order.party_id}",
                 biz_date=order.purchase_date,
                 amount=amount,
-                biz_desc=f"采购{item_name or ''}",
-                steel_grade=item_name,
-                quantity=_quantity(order.quantity),
-                unit=order.unit,
-                unit_price=order.unit_price,
+                biz_desc=f"采购{(item_name or '')[:198]}",
+                steel_grade=(item_name or '')[:50] or None,
+                quantity=_quantity(quantity),
+                unit=unit,
+                unit_price=unit_price,
                 debit=Decimal("0.00"),
                 credit=amount,
                 invoice_direction=invoice_direction,

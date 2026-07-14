@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.item import Item
 from app.models.party import Party
-from app.models.procurement import ProcurementOrder
+from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.procurement import (
@@ -35,10 +35,53 @@ router = APIRouter(prefix="/procurement-orders", tags=["procurement"], dependenc
 
 
 def _recompute(order: ProcurementOrder) -> None:
-    order.amount = (Decimal(order.quantity or 0) * Decimal(order.unit_price or 0)).quantize(Decimal("0.01"))
+    for line in order.items:
+        line.amount = (Decimal(line.quantity or 0) * Decimal(line.unit_price or 0)).quantize(Decimal("0.0001"))
+    order.amount = sum((Decimal(line.amount or 0) for line in order.items), Decimal("0")).quantize(Decimal("0.01"))
     order.subtotal, order.tax_amount, order.total_amount = compute_tax_totals(
         order.amount, order.tax_rate, order.need_invoice
     )
+
+    # 保留采购主表旧字段作为历史接口兼容摘要；业务明细以 items 为准。
+    first = order.items[0] if order.items else None
+    order.purchase_date = max((line.in_date for line in order.items), default=None)
+    order.owner_id = first.owner_id if first else order.owner_id
+    order.item_id = first.item_id if first else None
+    order.item_spec = first.item_spec if first else None
+    units = {line.unit for line in order.items}
+    order.quantity = (
+        sum((Decimal(line.quantity or 0) for line in order.items), Decimal("0"))
+        if len(units) == 1 else Decimal("0")
+    )
+    order.unit = next(iter(units)) if len(units) == 1 else "多单位"
+    order.unit_price = first.unit_price if len(order.items) == 1 and first else Decimal("0")
+
+
+async def _replace_items(db: AsyncSession, order: ProcurementOrder, payload_items) -> None:
+    item_ids = {line.item_id for line in payload_items}
+    owner_ids = {line.owner_id for line in payload_items}
+    existing_item_ids = set(await db.scalars(select(Item.id).where(Item.id.in_(item_ids))))
+    existing_owner_ids = set(await db.scalars(select(Party.id).where(Party.id.in_(owner_ids))))
+    if missing := item_ids - existing_item_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"物品不存在：{sorted(missing)}")
+    if missing := owner_ids - existing_owner_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"所属单位不存在：{sorted(missing)}")
+
+    order.items.clear()
+    order.items.extend(
+        ProcurementOrderItem(
+            line_no=index,
+            in_date=line.in_date,
+            item_id=line.item_id,
+            item_spec=line.item_spec,
+            quantity=line.quantity,
+            unit=line.unit,
+            unit_price=line.unit_price,
+            owner_id=line.owner_id,
+        )
+        for index, line in enumerate(payload_items, start=1)
+    )
+    _recompute(order)
 
 
 async def _load(db: AsyncSession, order_id: int) -> ProcurementOrder:
@@ -49,6 +92,8 @@ async def _load(db: AsyncSession, order_id: int) -> ProcurementOrder:
             selectinload(ProcurementOrder.party),
             selectinload(ProcurementOrder.owner),
             selectinload(ProcurementOrder.item),
+            selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.item),
+            selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.owner),
         )
     )
     order = await db.scalar(stmt)
@@ -74,6 +119,8 @@ async def list_orders(
             selectinload(ProcurementOrder.party),
             selectinload(ProcurementOrder.owner),
             selectinload(ProcurementOrder.item),
+            selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.item),
+            selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.owner),
         )
         .order_by(ProcurementOrder.id.desc())
     )
@@ -96,6 +143,8 @@ async def list_orders(
                 ProcurementOrder.party.has(or_(Party.name.like(like), Party.short_name.like(like))),
                 ProcurementOrder.owner.has(or_(Party.name.like(like), Party.short_name.like(like))),
                 ProcurementOrder.item.has(Item.name.like(like)),
+                ProcurementOrder.items.any(ProcurementOrderItem.item_spec.like(like)),
+                ProcurementOrder.items.any(ProcurementOrderItem.item.has(Item.name.like(like))),
             )
         )
 
@@ -120,25 +169,19 @@ async def create_order(
     async with db.begin():
         if await db.get(Party, payload.party_id) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="供应商不存在")
-        owner_id = payload.owner_id or await resolve_internal_party_id(db)
+        owner_id = payload.items[0].owner_id if payload.items else await resolve_internal_party_id(db)
         batch_no = await generate_batch_no(db, column=ProcurementOrder.batch_no, prefix="P", width=4)
         order = ProcurementOrder(
             batch_no=batch_no,
             party_id=payload.party_id,
             owner_id=owner_id,
-            purchase_date=payload.purchase_date,
-            item_id=payload.item_id,
-            item_spec=payload.item_spec,
-            quantity=payload.quantity,
-            unit=payload.unit,
-            unit_price=payload.unit_price,
             tax_rate=payload.tax_rate,
             need_invoice=payload.need_invoice,
             notes=payload.notes,
             status="draft",
             created_by=current_user.id,
         )
-        _recompute(order)
+        await _replace_items(db, order, payload.items)
         db.add(order)
 
     return await _load(db, order.id)
@@ -154,9 +197,13 @@ async def update_order(
     async with db.begin():
         order = await _load(db, order_id)
         assert_editable(order.status)
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        data = payload.model_dump(exclude_unset=True, exclude={"items"})
+        for key, value in data.items():
             setattr(order, key, value)
-        _recompute(order)
+        if payload.items is not None:
+            await _replace_items(db, order, payload.items)
+        else:
+            _recompute(order)
     return await _load(db, order_id)
 
 
@@ -262,15 +309,15 @@ async def complete_order(
     async with db.begin():
         order = await _load(db, order_id)
         check_transition(order.status, "completed")
-        if order.item_id:
+        for line in order.items:
             await stock_in(
                 db,
-                item_id=order.item_id,
-                owner_id=order.owner_id,
-                spec=order.item_spec,
-                unit=order.unit,
-                quantity=Decimal(order.quantity or 0),
-                change_date=order.purchase_date or datetime.utcnow().date(),
+                item_id=line.item_id,
+                owner_id=line.owner_id,
+                spec=line.item_spec,
+                unit=line.unit,
+                quantity=Decimal(line.quantity or 0),
+                change_date=line.in_date,
                 notes=f"批次号：{order.batch_no}；采购入库",
                 ref_type="procurement_order",
                 ref_id=order.id,

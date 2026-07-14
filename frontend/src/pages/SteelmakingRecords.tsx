@@ -19,7 +19,9 @@ import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { DetailModal } from '../components/DetailModal'
+import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
+import { partyOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 
@@ -65,9 +67,12 @@ interface CompositionLine {
 
 interface SteelmakingRecord {
   id: number
+  batch_no: string
   record_date: string
   furnace_no: string
   steel_grade: string
+  owner_id: number
+  owner?: { id: number; name: string } | null
   ingot_type?: string | null
   furnace_weight: string
   furnace_weight_unit: WeightUnit
@@ -89,6 +94,7 @@ interface FormValues {
   record_date: Dayjs
   furnace_no: string
   steel_grade: string
+  owner_id: number
   ingot_type?: string
   furnace_weight: string
   furnace_weight_unit: WeightUnit
@@ -128,15 +134,18 @@ export function SteelmakingRecords() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [batchNo, setBatchNo] = useState('')
   const [furnaceNo, setFurnaceNo] = useState('')
   const [steelGrade, setSteelGrade] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [applied, setApplied] = useState({ dateFrom: '', dateTo: '', furnaceNo: '', steelGrade: '', status: '' })
+  const [applied, setApplied] = useState({ dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '' })
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingBatchNo, setEditingBatchNo] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSelectedRowKeys, setMaterialSelectedRowKeys] = useState<number[]>([])
+  const parties = useParties()
 
   const query = useQuery({
     queryKey: ['steelmaking-records', applied, page, pageSize],
@@ -147,6 +156,7 @@ export function SteelmakingRecords() {
           page_size: pageSize,
           date_from: applied.dateFrom || undefined,
           date_to: applied.dateTo || undefined,
+          batch_no: applied.batchNo || undefined,
           furnace_no: applied.furnaceNo || undefined,
           steel_grade: applied.steelGrade || undefined,
           status: applied.status || undefined
@@ -197,6 +207,7 @@ export function SteelmakingRecords() {
       message.success('已保存草稿并完成后端计算')
       setOpen(false)
       setEditingId(null)
+      setEditingBatchNo(null)
       setMaterialSelectedRowKeys([])
       form.resetFields()
       invalidate()
@@ -217,10 +228,12 @@ export function SteelmakingRecords() {
 
   const openCreate = () => {
     setEditingId(null)
+    setEditingBatchNo(null)
     setMaterialSelectedRowKeys([])
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(),
+      owner_id: parties.data?.find((party) => party.is_internal)?.id,
       furnace_weight_unit: 'kg',
       materials: [],
       actual_composition: emptyActualComposition()
@@ -231,12 +244,14 @@ export function SteelmakingRecords() {
   const openEdit = async (id: number) => {
     const row = (await api.get<SteelmakingRecord>(`/steelmaking-records/${id}`)).data
     setEditingId(id)
+    setEditingBatchNo(row.batch_no)
     setMaterialSelectedRowKeys([])
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(row.record_date),
       furnace_no: row.furnace_no,
       steel_grade: row.steel_grade,
+      owner_id: row.owner_id,
       ingot_type: row.ingot_type ?? undefined,
       furnace_weight: row.furnace_weight,
       furnace_weight_unit: row.furnace_weight_unit,
@@ -259,8 +274,8 @@ export function SteelmakingRecords() {
   }
 
   const resetFilters = () => {
-    setDateRange(null); setFurnaceNo(''); setSteelGrade(''); setStatusFilter('')
-    setApplied({ dateFrom: '', dateTo: '', furnaceNo: '', steelGrade: '', status: '' })
+    setDateRange(null); setBatchNo(''); setFurnaceNo(''); setSteelGrade(''); setStatusFilter('')
+    setApplied({ dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '' })
     setPage(1)
   }
 
@@ -274,6 +289,7 @@ export function SteelmakingRecords() {
 
       <div className="toolbar">
         <div className="filter-item"><span>日期：</span><DatePicker.RangePicker value={dateRange} onChange={(v) => setDateRange(v as [Dayjs, Dayjs] | null)} /></div>
+        <div className="filter-item"><span>批次号：</span><Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>炉号：</span><Input value={furnaceNo} onChange={(e) => setFurnaceNo(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>钢种：</span><Input value={steelGrade} onChange={(e) => setSteelGrade(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>状态：</span><Select value={statusFilter} onChange={setStatusFilter} style={{ width: 120 }} options={[{ value: '', label: '全部' }, { value: 'draft', label: '草稿' }, { value: 'confirmed', label: '已确认' }]} /></div>
@@ -281,7 +297,7 @@ export function SteelmakingRecords() {
           <Button type="primary" onClick={() => {
             setApplied({
               dateFrom: dateRange?.[0].format('YYYY-MM-DD') ?? '', dateTo: dateRange?.[1].format('YYYY-MM-DD') ?? '',
-              furnaceNo: furnaceNo.trim(), steelGrade: steelGrade.trim(), status: statusFilter
+              batchNo: batchNo.trim(), furnaceNo: furnaceNo.trim(), steelGrade: steelGrade.trim(), status: statusFilter
             }); setPage(1)
           }}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
@@ -296,9 +312,11 @@ export function SteelmakingRecords() {
         scroll={{ x: 1250 }}
         onRow={(row) => ({ onDoubleClick: () => setDetailId(row.id), style: { cursor: 'pointer' } })}
         columns={[
+          { title: '批次号', dataIndex: 'batch_no', width: 130, render: (value) => <span style={{ whiteSpace: 'nowrap' }}>{value}</span> },
           { title: '日期', dataIndex: 'record_date', width: 110 },
           { title: '炉号', dataIndex: 'furnace_no', width: 130 },
           { title: '钢种', dataIndex: 'steel_grade', width: 130 },
+          { title: '所属', dataIndex: ['owner', 'name'], width: 140, render: (value) => value ?? '—' },
           { title: '锭型', dataIndex: 'ingot_type', width: 110, render: (v) => v ?? '—' },
           { title: '炉重(kg)', dataIndex: 'furnace_weight_kg', width: 130, align: 'right' },
           { title: '总成本', dataIndex: 'total_cost', width: 130, align: 'right' },
@@ -322,16 +340,18 @@ export function SteelmakingRecords() {
         title={editingId ? '编辑炼钢记录' : '新建炼钢记录'}
         open={open}
         width={1180}
-        onCancel={() => { setOpen(false); setEditingId(null); setMaterialSelectedRowKeys([]); form.resetFields() }}
+        onCancel={() => { setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); form.resetFields() }}
         onOk={() => form.validateFields().then((values) => save.mutate(values))}
         confirmLoading={save.isPending}
         okText="保存草稿"
       >
         <Form form={form} layout="vertical">
           <div className="steelmaking-basic-grid">
+            <Form.Item label="批次号"><Input disabled value={editingBatchNo ?? ''} placeholder="保存后自动生成" /></Form.Item>
             <Form.Item name="record_date" label="日期" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="furnace_no" label="炉号" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="furnace_no" label="炉号" tooltip="留空时自动使用批次号"><Input placeholder="留空则与批次号一致" /></Form.Item>
             <Form.Item name="steel_grade" label="钢种" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="owner_id" label="所属" rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="选择所属单位" /></Form.Item>
             <Form.Item name="ingot_type" label="锭型"><Input /></Form.Item>
             <Form.Item name="furnace_weight" label="炉重" rules={[{ required: true }]}><InputNumber stringMode min="0.000001" precision={6} style={{ width: '100%' }} /></Form.Item>
             <Form.Item name="furnace_weight_unit" label="炉重单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
@@ -436,8 +456,10 @@ export function SteelmakingRecords() {
         title={detail ? `炼钢记录 ${detail.furnace_no}` : '炼钢记录详情'}
         width={1050}
         fields={detail ? [
-          { label: '日期', value: detail.record_date }, { label: '炉号', value: detail.furnace_no },
+          { label: '批次号', value: detail.batch_no }, { label: '日期', value: detail.record_date },
+          { label: '炉号', value: detail.furnace_no },
           { label: '钢种', value: detail.steel_grade }, { label: '锭型', value: detail.ingot_type },
+          { label: '所属', value: detail.owner?.name },
           { label: '原始炉重', value: `${detail.furnace_weight} ${detail.furnace_weight_unit === 'ton' ? '吨' : 'kg'}` },
           { label: '标准炉重', value: `${detail.furnace_weight_kg} kg` },
           { label: '送电时间', value: detail.power_on_time }, { label: '出钢时间', value: detail.tap_time },

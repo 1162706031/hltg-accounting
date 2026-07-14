@@ -19,6 +19,12 @@ ELEMENT_NAMES = {
 }
 
 
+def resolve_furnace_no(furnace_no: str | None, batch_no: str) -> str:
+    """炉号允许留空；空值统一使用不可变的炼钢批次号。"""
+    normalized = (furnace_no or "").strip()
+    return normalized or batch_no
+
+
 def normalize_composition_snapshot(composition: dict | None) -> dict[str, str]:
     """Store JSON snapshot percentages at the same six-decimal precision as analysis rows.
 
@@ -168,6 +174,7 @@ async def load_record(db: AsyncSession, record_id: int, *, include_deleted: bool
         .options(
             selectinload(SteelmakingRecord.materials),
             selectinload(SteelmakingRecord.compositions),
+            selectinload(SteelmakingRecord.owner),
         )
     )
     if not include_deleted:

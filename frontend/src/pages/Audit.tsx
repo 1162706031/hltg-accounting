@@ -40,10 +40,6 @@ function auditDetailFields(target: PendingAudit | null, detail: any): DetailFiel
     return [
       ...common,
       { label: '采购日期', value: detail.purchase_date },
-      { label: '物品', value: detail.item?.name },
-      { label: '规格/品位', value: detail.item_spec },
-      { label: '数量', value: `${detail.quantity ?? '—'} ${detail.unit ?? ''}` },
-      { label: '单价', value: detail.unit_price },
       { label: '小计', value: detail.subtotal },
       { label: '税额', value: detail.tax_amount },
       { label: '是否开票', value: detail.need_invoice ? '是' : '否' },
@@ -100,7 +96,22 @@ const commonProcessingColumns = [
 ]
 
 function auditDetailTables(target: PendingAudit | null, detail: any): DetailTable[] {
-  if (!target || !detail || target.order_kind === 'procurement') return []
+  if (!target || !detail) return []
+  if (target.order_kind === 'procurement') {
+    return [{
+      title: '采购入库明细', rowKey: 'id', dataSource: detail.items ?? [],
+      columns: [
+        { title: '入库日期', dataIndex: 'in_date' },
+        { title: '物品', render: (_: any, row: any) => row.item?.name ?? row.item_id ?? '—' },
+        { title: '规格', dataIndex: 'item_spec', render: (value: string) => value ?? '—' },
+        { title: '数量', dataIndex: 'quantity', align: 'right' },
+        { title: '单位', dataIndex: 'unit' },
+        { title: '单价', dataIndex: 'unit_price', align: 'right' },
+        { title: '金额', dataIndex: 'amount', align: 'right' },
+        { title: '所属', render: (_: any, row: any) => row.owner?.name ?? row.owner_id ?? '—' }
+      ]
+    }]
+  }
   if (target.order_kind === 'sales') {
     return [{
       title: '销售明细', rowKey: 'id', dataSource: detail.items ?? [],

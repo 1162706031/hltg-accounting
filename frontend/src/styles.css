@@ -904,6 +904,56 @@ body {
   white-space: nowrap;
 }
 
+.procurement-line-grid {
+  display: grid !important;
+  width: 100%;
+  min-width: 1180px;
+  grid-template-columns: 44px 48px 140px minmax(240px, 1fr) 130px 120px 90px 140px 180px 64px;
+  align-items: stretch;
+}
+
+.procurement-line-grid.line-list-header > span,
+.procurement-line-grid.line-editor-row > span,
+.procurement-line-grid.line-editor-row > .ant-form-item,
+.procurement-line-grid.line-editor-row > .ant-btn {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.procurement-line-grid.line-list-header > span {
+  min-height: 48px;
+}
+
+.procurement-line-grid.line-editor-row > :last-child,
+.procurement-line-grid.line-list-header > :last-child {
+  border-right: 0;
+}
+
+.procurement-line-grid .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.procurement-line-grid .ant-form-item-row,
+.procurement-line-grid .ant-form-item-control,
+.procurement-line-grid .ant-form-item-control-input,
+.procurement-line-grid .ant-form-item-control-input-content,
+.procurement-line-grid .ant-select,
+.procurement-line-grid .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}
+
+.procurement-line-grid .ant-form-item-label {
+  display: none;
+}
+
 .recon-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(260px, 1fr));

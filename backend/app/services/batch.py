@@ -5,6 +5,7 @@
 - 外协: 锻造=2 / 电渣=4 / 车光=5 / 退火=T，+ 6 位
 - 采购: P + 4 位 → P0001
 - 销售: S + 4 位 → S0001
+- 炼钢记录: LG + 6 位 → LG000001
 """
 
 from sqlalchemy import func, select

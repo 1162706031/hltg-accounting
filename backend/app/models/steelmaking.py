@@ -12,17 +12,21 @@ class SteelmakingRecord(Base):
     __tablename__ = "steelmaking_record"
     __table_args__ = (
         Index("idx_steelmaking_record_date", "record_date"),
+        Index("idx_steelmaking_batch_no", "batch_no"),
         Index("idx_steelmaking_furnace_no", "furnace_no"),
         Index("idx_steelmaking_furnace_date", "furnace_no", "record_date"),
         Index("idx_steelmaking_steel_grade", "steel_grade"),
+        Index("idx_steelmaking_owner", "owner_id"),
         Index("idx_steelmaking_status", "status"),
         Index("idx_steelmaking_deleted", "deleted"),
     )
 
     id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    batch_no: Mapped[str] = mapped_column(String(30), nullable=False)
     record_date: Mapped[date] = mapped_column(Date, nullable=False)
     furnace_no: Mapped[str] = mapped_column(String(50), nullable=False)
     steel_grade: Mapped[str] = mapped_column(String(100), nullable=False)
+    owner_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), ForeignKey("party.id", ondelete="RESTRICT"), nullable=False)
     ingot_type: Mapped[str | None] = mapped_column(String(100))
     furnace_weight: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     furnace_weight_unit: Mapped[str] = mapped_column(Enum("kg", "ton"), nullable=False)
@@ -41,6 +45,8 @@ class SteelmakingRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    owner = relationship("Party")
 
     materials = relationship(
         "SteelmakingRecordMaterial",

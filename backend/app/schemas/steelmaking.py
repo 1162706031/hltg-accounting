@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ORMModel
 from app.schemas.item import CHEMICAL_ELEMENTS
+from app.schemas.party import PartyRead
 
 WeightUnit = Literal["kg", "ton"]
 RecordStatus = Literal["draft", "confirmed"]
@@ -21,8 +22,9 @@ class SteelmakingMaterialInput(BaseModel):
 
 class SteelmakingRecordCreate(BaseModel):
     record_date: date
-    furnace_no: str = Field(min_length=1, max_length=50)
+    furnace_no: str | None = Field(default=None, max_length=50)
     steel_grade: str = Field(min_length=1, max_length=100)
+    owner_id: int
     ingot_type: str | None = Field(default=None, max_length=100)
     furnace_weight: Decimal = Field(gt=0)
     furnace_weight_unit: WeightUnit = "kg"
@@ -85,9 +87,11 @@ class SteelmakingCompositionRead(ORMModel):
 
 class SteelmakingRecordListItem(ORMModel):
     id: int
+    batch_no: str
     record_date: date
     furnace_no: str
     steel_grade: str
+    owner_id: int
     ingot_type: str | None
     furnace_weight: Decimal
     furnace_weight_unit: WeightUnit
@@ -99,6 +103,7 @@ class SteelmakingRecordListItem(ORMModel):
     remark: str | None
     created_at: datetime
     updated_at: datetime
+    owner: PartyRead | None = None
 
 
 class SteelmakingRecordRead(SteelmakingRecordListItem):

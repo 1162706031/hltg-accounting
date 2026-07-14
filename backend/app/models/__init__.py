@@ -4,7 +4,7 @@ from app.models.item import Item
 from app.models.operation_log import OperationLog
 from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOutbound
 from app.models.party import Party
-from app.models.procurement import ProcurementOrder
+from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.models.reconciliation import PartyReconciliation
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
@@ -25,6 +25,7 @@ __all__ = [
     "ProcessingInbound",
     "ProcessingOutbound",
     "ProcurementOrder",
+    "ProcurementOrderItem",
     "SalesOrder",
     "SalesOrderItem",
     "SmeltingInbound",

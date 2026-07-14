@@ -1,5 +1,6 @@
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
+import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
@@ -11,6 +12,20 @@ import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '.
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+
+interface ProcurementItem {
+  id?: number
+  in_date: string
+  item_id: number
+  item_spec?: string | null
+  quantity: string
+  unit: string
+  unit_price: string
+  amount?: string
+  owner_id: number
+  item?: { id: number; name: string; item_type: string } | null
+  owner?: { id: number; name: string } | null
+}
 
 interface ProcurementOrder {
   id: number
@@ -31,6 +46,7 @@ interface ProcurementOrder {
   notes?: string | null
   party?: { name: string } | null
   item?: { id: number; name: string; item_type: string } | null
+  items: ProcurementItem[]
 }
 
 export function Procurement() {
@@ -54,6 +70,7 @@ export function Procurement() {
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
   const [creating, setCreating] = useState(false)
   const [detail, setDetail] = useState<ProcurementOrder | null>(null)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
   const items = useItems()
@@ -81,13 +98,21 @@ export function Procurement() {
 
   const save = useMutation({
     mutationFn: async (values: any) => {
-      const body = { ...values, purchase_date: values.purchase_date?.format('YYYY-MM-DD') ?? null }
+      const body = {
+        ...values,
+        items: (values.items ?? []).map((line: any, index: number) => ({
+          ...line,
+          line_no: index + 1,
+          in_date: line.in_date.format('YYYY-MM-DD')
+        }))
+      }
       return editing ? api.put(`/procurement-orders/${editing.id}`, body) : api.post('/procurement-orders', body)
     },
     onSuccess: () => {
       message.success('已保存')
       setCreating(false)
       setEditing(null)
+      setSelectedRowKeys([])
       form.resetFields()
       invalidate()
     },
@@ -98,23 +123,28 @@ export function Procurement() {
     setCreating(true)
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ unit: '吨', tax_rate: 13, quantity: 0, unit_price: 0, need_invoice: false })
+    setSelectedRowKeys([])
+    form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [] })
   }
 
   const openEdit = (row: ProcurementOrder) => {
     setEditing(row)
     setCreating(false)
+    setSelectedRowKeys([])
     form.setFieldsValue({
       party_id: row.party_id,
-      purchase_date: row.purchase_date ? dayjs(row.purchase_date) : null,
-      item_id: row.item_id,
-      item_spec: row.item_spec,
-      quantity: Number(row.quantity),
-      unit: row.unit,
-      unit_price: Number(row.unit_price),
       tax_rate: row.tax_rate ? Number(row.tax_rate) : 13,
       need_invoice: row.need_invoice,
-      notes: row.notes
+      notes: row.notes,
+      items: (row.items ?? []).map((line) => ({
+        in_date: dayjs(line.in_date),
+        item_id: line.item_id,
+        item_spec: line.item_spec,
+        quantity: Number(line.quantity),
+        unit: line.unit,
+        unit_price: Number(line.unit_price),
+        owner_id: line.owner_id
+      }))
     })
   }
 
@@ -203,16 +233,15 @@ export function Procurement() {
             render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
           },
           { title: '供应商', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
-          { title: '物品', dataIndex: ['item', 'name'], render: (v) => v ?? '—' },
+          { title: '物品', width: 200, render: (_, row) => row.items?.map((line) => line.item?.name).filter(Boolean).join('、') || row.item?.name || '—' },
           {
             title: '采购日期',
             dataIndex: 'purchase_date',
             width: 120,
             render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v ?? '—'}</span>
           },
-          { title: '数量', dataIndex: 'quantity', align: 'right' },
-          { title: '单位', dataIndex: 'unit' },
-          { title: '单价', dataIndex: 'unit_price', align: 'right' },
+          { title: '明细数', width: 90, align: 'right', render: (_, row) => row.items?.length ?? 1 },
+          { title: '数量', width: 150, align: 'right', render: (_, row) => row.items?.map((line) => `${line.quantity}${line.unit}`).join('、') || `${row.quantity}${row.unit}` },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
@@ -242,10 +271,11 @@ export function Procurement() {
       <Modal
         title={editing ? `编辑采购单 ${editing.batch_no}` : '新建采购单'}
         open={creating || !!editing}
-        width={640}
+        width={1280}
         onCancel={() => {
           setCreating(false)
           setEditing(null)
+          setSelectedRowKeys([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -255,24 +285,45 @@ export function Procurement() {
           <Form.Item name="party_id" label="供应商" rules={[{ required: true }]}>
             <PartySelect options={partyOptions(parties.data)} placeholder="选择供应商" />
           </Form.Item>
-          <Form.Item name="purchase_date" label="采购日期">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="item_id" label="物品">
-            <ItemSelect options={itemOptions(items.data)} />
-          </Form.Item>
-          <Form.Item name="item_spec" label="规格/品位">
-            <Input placeholder="如 59.6%" />
-          </Form.Item>
-          <Form.Item name="quantity" label="数量" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="unit" label="单位">
-            <Select options={UNIT_OPTIONS} style={{ width: '100%' }} placeholder="选择单位" />
-          </Form.Item>
-          <Form.Item name="unit_price" label="单价" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
+          <Form.List name="items" rules={[{ validator: (_, value) => value?.length ? Promise.resolve() : Promise.reject(new Error('请至少添加一条采购明细')) }]}>
+            {(fields, { add, remove }, { errors }) => (
+              <div className="compact-line-list procurement-line-list">
+                <div className="line-list-toolbar">
+                  <div style={{ fontWeight: 600 }}>采购入库明细</div>
+                  <Space>
+                    <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ in_date: dayjs(), quantity: 0, unit: '吨', unit_price: 0, owner_id: parties.data?.find((party) => party.is_internal)?.id })}>添加物品</Button>
+                    <Button danger icon={<DeleteOutlined />} disabled={selectedRowKeys.length === 0} onClick={() => {
+                      remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                      setSelectedRowKeys([])
+                    }}>移除所选</Button>
+                  </Space>
+                </div>
+                <div className="line-list-table">
+                  <div className="line-list-header procurement-line-grid">
+                    <span className="line-select-cell"><Checkbox checked={fields.length > 0 && fields.every((field) => selectedRowKeys.includes(field.key))} indeterminate={fields.some((field) => selectedRowKeys.includes(field.key)) && !fields.every((field) => selectedRowKeys.includes(field.key))} onChange={(event) => setSelectedRowKeys(event.target.checked ? fields.map((field) => field.key) : [])} /></span>
+                    <span className="line-index-cell">序号</span>
+                    <span>入库日期</span><span>物品</span><span>规格/品位</span><span>数量</span><span>单位</span><span>单价</span><span>归属</span><span>操作</span>
+                  </div>
+                  {fields.map((field, index) => (
+                    <div className="line-editor-row procurement-line-grid" key={field.key}>
+                      <span className="line-select-cell"><Checkbox checked={selectedRowKeys.includes(field.key)} onChange={(event) => setSelectedRowKeys((keys) => event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))} /></span>
+                      <span className="line-index-cell">{index + 1}</span>
+                      <Form.Item name={[field.name, 'in_date']} rules={[{ required: true, message: '请选择日期' }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data)} /></Form.Item>
+                      <Form.Item name={[field.name, 'item_spec']}><Input placeholder="规格/品位" /></Form.Item>
+                      <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, type: 'number', min: 0.000001, message: '请输入数量' }]}><InputNumber min={0.000001} precision={6} style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'unit']} rules={[{ required: true }]}><Select options={UNIT_OPTIONS} /></Form.Item>
+                      <Form.Item name={[field.name, 'unit_price']} rules={[{ required: true, message: '请输入单价' }]}><InputNumber min={0} precision={4} style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'owner_id']} rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="归属单位" /></Form.Item>
+                      <Button type="link" danger size="small" onClick={() => { remove(field.name); setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key)) }}>删除</Button>
+                    </div>
+                  ))}
+                  {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加物品”新增一行</div>}
+                </div>
+                <Form.ErrorList errors={errors} />
+              </div>
+            )}
+          </Form.List>
           <Form.Item name="need_invoice" label="是否需要开票">
             <Select
               options={[
@@ -311,11 +362,7 @@ export function Procurement() {
             ? [
                 { label: '批次号', value: detail.batch_no },
                 { label: '供应商', value: detail.party?.name },
-                { label: '物品', value: detail.item?.name },
-                { label: '规格/品位', value: detail.item_spec },
                 { label: '采购日期', value: detail.purchase_date },
-                { label: '数量', value: `${detail.quantity} ${detail.unit}` },
-                { label: '单价', value: detail.unit_price },
                 { label: '金额', value: detail.amount },
                 { label: '税率', value: detail.tax_rate != null ? `${detail.tax_rate}%` : '—' },
                 { label: '是否开票', value: detail.need_invoice ? '是' : '否' },
@@ -325,6 +372,18 @@ export function Procurement() {
               ]
             : []
         }
+        tables={detail ? [{
+          title: '采购入库明细', rowKey: 'id', dataSource: detail.items ?? [],
+          columns: [
+            { title: '入库日期', dataIndex: 'in_date' },
+            { title: '物品', render: (_: any, line: ProcurementItem) => line.item?.name ?? `#${line.item_id}` },
+            { title: '规格/品位', dataIndex: 'item_spec', render: (value: string) => value ?? '—' },
+            { title: '数量', render: (_: any, line: ProcurementItem) => `${line.quantity} ${line.unit}` },
+            { title: '单价', dataIndex: 'unit_price', align: 'right' },
+            { title: '金额', dataIndex: 'amount', align: 'right' },
+            { title: '归属', render: (_: any, line: ProcurementItem) => line.owner?.name ?? `#${line.owner_id}` }
+          ]
+        }] : []}
       />
     </div>
   )

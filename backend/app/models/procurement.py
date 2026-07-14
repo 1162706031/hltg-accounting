@@ -39,3 +39,31 @@ class ProcurementOrder(Base):
     party = relationship("Party", foreign_keys=[party_id])
     owner = relationship("Party", foreign_keys=[owner_id])
     item = relationship("Item")
+    items = relationship(
+        "ProcurementOrderItem",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="ProcurementOrderItem.line_no",
+    )
+
+
+class ProcurementOrderItem(Base):
+    __tablename__ = "procurement_order_item"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("procurement_order.id", ondelete="RESTRICT"), nullable=False)
+    line_no: Mapped[int] = mapped_column(default=1)
+    in_date: Mapped[date] = mapped_column(Date, nullable=False)
+    item_id: Mapped[int] = mapped_column(ForeignKey("item.id", ondelete="RESTRICT"), nullable=False)
+    item_spec: Mapped[str | None] = mapped_column(String(50))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    unit: Mapped[str] = mapped_column(String(10), nullable=False, default="吨")
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("party.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    order = relationship("ProcurementOrder", back_populates="items")
+    item = relationship("Item")
+    owner = relationship("Party")

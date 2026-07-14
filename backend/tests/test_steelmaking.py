@@ -7,10 +7,16 @@ from app.services.steelmaking import (
     choose_final_price,
     convert_weight_to_kg,
     normalize_composition_snapshot,
+    resolve_furnace_no,
 )
 
 
 class SteelmakingCalculationTests(unittest.TestCase):
+    def test_blank_furnace_number_uses_batch_number(self):
+        self.assertEqual(resolve_furnace_no(None, "LG000001"), "LG000001")
+        self.assertEqual(resolve_furnace_no("   ", "LG000001"), "LG000001")
+        self.assertEqual(resolve_furnace_no("  A-12  ", "LG000001"), "A-12")
+
     def test_item_composition_normalizes_missing_elements(self):
         item = ItemCreate(
             name="钼铁",

@@ -143,9 +143,11 @@ CREATE TABLE item (
 
 CREATE TABLE steelmaking_record (
     id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    batch_no              VARCHAR(30) NOT NULL COMMENT '炼钢批次号 — LG000001',
     record_date           DATE NOT NULL COMMENT '炼钢日期',
     furnace_no            VARCHAR(50) NOT NULL COMMENT '炉号；非全局唯一',
     steel_grade           VARCHAR(100) NOT NULL COMMENT '钢种快照/录入值',
+    owner_id              BIGINT UNSIGNED NOT NULL COMMENT '所属单位',
     ingot_type            VARCHAR(100) DEFAULT NULL COMMENT '锭型',
     furnace_weight        DECIMAL(18,6) NOT NULL COMMENT '用户原始炉重',
     furnace_weight_unit   ENUM('kg','ton') NOT NULL COMMENT '用户原始炉重单位',
@@ -166,11 +168,14 @@ CREATE TABLE steelmaking_record (
     deleted               TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除',
 
     INDEX idx_steelmaking_record_date (record_date),
+    INDEX idx_steelmaking_batch_no (batch_no),
     INDEX idx_steelmaking_furnace_no (furnace_no),
     INDEX idx_steelmaking_furnace_date (furnace_no, record_date),
     INDEX idx_steelmaking_steel_grade (steel_grade),
+    INDEX idx_steelmaking_owner (owner_id),
     INDEX idx_steelmaking_status (status),
     INDEX idx_steelmaking_deleted (deleted),
+    CONSTRAINT fk_steelmaking_owner FOREIGN KEY (owner_id) REFERENCES party(id),
     CONSTRAINT fk_steelmaking_created_by FOREIGN KEY (created_by) REFERENCES user(id),
     CONSTRAINT fk_steelmaking_updated_by FOREIGN KEY (updated_by) REFERENCES user(id)
 ) ENGINE=InnoDB COMMENT='炼钢记录统计主表；与库存完全解耦';
@@ -453,6 +458,31 @@ CREATE TABLE procurement_order (
     CONSTRAINT fk_proc_created  FOREIGN KEY (created_by)  REFERENCES user(id),
     CONSTRAINT fk_proc_audited  FOREIGN KEY (audited_by)  REFERENCES user(id)
 ) ENGINE=InnoDB COMMENT='采购单 — 固定供应商 + 散户';
+
+-- 采购入库明细（一单多品，订单 purchase_date 自动取全部明细最晚日期）
+CREATE TABLE procurement_order_item (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id        BIGINT UNSIGNED NOT NULL,
+    line_no         INT UNSIGNED NOT NULL DEFAULT 1,
+    in_date         DATE NOT NULL COMMENT '本行入库日期',
+    item_id         BIGINT UNSIGNED NOT NULL,
+    item_spec       VARCHAR(50) DEFAULT NULL COMMENT '规格/品位',
+    quantity        DECIMAL(18,6) NOT NULL DEFAULT 0,
+    unit            VARCHAR(10) NOT NULL DEFAULT '吨',
+    unit_price      DECIMAL(18,4) NOT NULL DEFAULT 0,
+    amount          DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '金额 = 数量 × 单价',
+    owner_id        BIGINT UNSIGNED NOT NULL COMMENT '入库归属单位',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_procurement_item_order (order_id),
+    INDEX idx_procurement_item_date (in_date),
+    INDEX idx_procurement_item_item (item_id),
+    INDEX idx_procurement_item_owner (owner_id),
+    CONSTRAINT fk_procurement_item_order FOREIGN KEY (order_id) REFERENCES procurement_order(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_procurement_item_item FOREIGN KEY (item_id) REFERENCES item(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_procurement_item_owner FOREIGN KEY (owner_id) REFERENCES party(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='采购入库明细 — 一单可多品';
 
 
 -- ============================================================================
