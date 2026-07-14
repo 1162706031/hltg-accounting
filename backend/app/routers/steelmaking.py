@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.steelmaking import SteelmakingRecord
 from app.models.party import Party
 from app.models.user import User
-from app.schemas.common import PageResult
+from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.steelmaking import (
     RecordStatus,
     SteelmakingRecordCreate,
@@ -151,3 +151,24 @@ async def delete_record(
         record.deleted = True
         record.updated_by = current_user.id
     return {"message": "炼钢记录已删除"}
+
+
+@router.post("/batch-delete")
+async def batch_delete_records(
+    payload: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "accountant")),
+):
+    rows = list(
+        await db.scalars(
+            select(SteelmakingRecord).where(
+                SteelmakingRecord.id.in_(payload.ids),
+                SteelmakingRecord.deleted.is_(False),
+            )
+        )
+    )
+    for record in rows:
+        record.deleted = True
+        record.updated_by = current_user.id
+    await db.commit()
+    return {"deleted_count": len(rows), "skipped": []}

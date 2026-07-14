@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Input, Modal, Select, Space, Table, Tag } from 'antd'
 import { useState } from 'react'
 import { api } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal, type DetailField, type DetailTable } from '../components/DetailModal'
+import { ListFilters } from '../components/ListFilters'
 import { OrderStatusTag } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, localTablePagination } from '../utils/pagination'
 
@@ -144,6 +146,8 @@ export function Audit() {
   const [rejectTarget, setRejectTarget] = useState<PendingAudit | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [detailTarget, setDetailTarget] = useState<PendingAudit | null>(null)
+  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
+  const [batchApproving, setBatchApproving] = useState(false)
 
   const query = useQuery({
     queryKey: ['pending-audits', appliedKind],
@@ -165,6 +169,7 @@ export function Audit() {
       api.post(`/${KIND_META[row.order_kind].path}/${row.order_id}/approve`),
     onSuccess: () => {
       message.success('已审核通过')
+      setSelectedKeys([])
       queryClient.invalidateQueries({ queryKey: ['pending-audits'] })
     },
     onError: (e: any) => message.error(e.response?.data?.detail ?? '审核失败')
@@ -182,13 +187,34 @@ export function Audit() {
     onError: (e: any) => message.error(e.response?.data?.detail ?? '驳回失败')
   })
 
+  const approveSelected = async () => {
+    const selected = (query.data ?? []).filter((row) => selectedKeys.includes(`${row.order_kind}-${row.order_id}`))
+    if (!selected.length) return
+    setBatchApproving(true)
+    try {
+      const results = await Promise.allSettled(
+        selected.map((row) => api.post(`/${KIND_META[row.order_kind].path}/${row.order_id}/approve`))
+      )
+      const approvedCount = results.filter((result) => result.status === 'fulfilled').length
+      const failedCount = results.length - approvedCount
+      if (approvedCount) message.success(`已批量审核通过 ${approvedCount} 条`)
+      if (failedCount) message.warning(`${failedCount} 条审核失败，请检查订单状态后重试`)
+      setSelectedKeys([])
+      queryClient.invalidateQueries({ queryKey: ['pending-audits'] })
+    } catch (e: any) {
+      message.error(e.response?.data?.detail ?? '批量审核失败')
+    } finally {
+      setBatchApproving(false)
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">审核中心</h1>
       </div>
-      <div className="toolbar">
-        <span>类型筛选：</span>
+      <ListFilters>
+        <div className="filter-item"><span>类型：</span>
         <Select
           value={kind}
           style={{ width: 160 }}
@@ -200,11 +226,12 @@ export function Audit() {
             { value: 'procurement', label: '采购' },
             { value: 'sales', label: '销售' }
           ]}
-        />
-        <Button type="primary" onClick={() => setAppliedKind(kind)}>查询</Button>
-        <Button onClick={() => { setKind(''); setAppliedKind('') }}>重置</Button>
-      </div>
-      <Table<PendingAudit>
+        /></div>
+        <div className="filter-actions"><Button type="primary" onClick={() => setAppliedKind(kind)}>查询</Button><Button onClick={() => { setKind(''); setAppliedKind('') }}>重置</Button></div>
+      </ListFilters>
+      <BusinessTable<PendingAudit>
+        tableId="audit"
+        toolbarActions={<Button type="primary" disabled={!selectedKeys.length} loading={batchApproving} onClick={approveSelected}>批量审核</Button>}
         rowKey={(r) => `${r.order_kind}-${r.order_id}`}
         loading={query.isLoading}
         dataSource={query.data}
@@ -214,6 +241,7 @@ export function Audit() {
           title: '双击查看订单详情'
         })}
         pagination={localTablePagination(query.data?.length ?? 0, pageSize, setPageSize)}
+        rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
         scroll={{ x: 1050 }}
         columns={[
           {

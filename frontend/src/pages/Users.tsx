@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Form, Input, Modal, Select, Space, Table, Tag } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 
@@ -32,6 +34,7 @@ export function Users() {
   const [detail, setDetail] = useState<User | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [form] = Form.useForm()
   const [pwForm] = Form.useForm()
 
@@ -106,11 +109,11 @@ export function Users() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">用户管理</h1>
-        <Button type="primary" onClick={openCreate}>
-          + 新建用户
-        </Button>
       </div>
-      <Table<User>
+      <BusinessTable<User>
+        tableId="users"
+        toolbarActions={<><Button type="primary" onClick={openCreate}>+ 新建用户</Button><BatchDeleteButton selectedKeys={selectedIds} endpoint="/users/batch-delete" entityName="用户" onSuccess={() => { setSelectedIds([]); invalidate() }} /></>}
+        rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

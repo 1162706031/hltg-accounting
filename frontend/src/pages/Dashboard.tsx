@@ -32,7 +32,6 @@ import {
   Segmented,
   Skeleton,
   Space,
-  Table,
   Tag,
   Typography,
   message
@@ -42,6 +41,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { type ReactNode, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE, api } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
 import { useAuth } from '../utils/AuthContext'
 import { OrderStatusTag, type OrderStatus } from '../utils/orderStatus'
 
@@ -518,7 +518,8 @@ export function Dashboard() {
         </Card>
 
         <Card title="最近业务" extra={<Typography.Text type="secondary">最新 10 条</Typography.Text>}>
-          <Table<RecentItem>
+          <BusinessTable<RecentItem>
+            tableId="dashboard-recent"
             rowKey={(row) => `${row.kind}-${row.record_id}`}
             columns={recentColumns}
             dataSource={data.recent}

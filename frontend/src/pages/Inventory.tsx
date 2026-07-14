@@ -15,6 +15,8 @@ import {
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
@@ -173,53 +175,23 @@ export function Inventory() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">库房管理</h1>
-        {canManage && (
-          <Space>
-            <Button type="primary" onClick={() => setInOpen(true)}>
-              + 入库
-            </Button>
-            <Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>
-              批量删除
-            </Button>
-          </Space>
-        )}
       </div>
-      <div className="toolbar">
-        <Select
-          allowClear
-          placeholder="类型筛选"
-          style={{ width: 140 }}
-          value={typeFilter}
-          onChange={setTypeFilter}
-          options={Object.entries(itemTypeLabels).map(([v, l]) => ({ value: v, label: l }))}
-        />
-        <Select
-          allowClear
-          placeholder="归属筛选"
-          style={{ width: 180 }}
-          value={ownerFilter}
-          onChange={setOwnerFilter}
-          options={partyOpts}
-          showSearch
-          optionFilterProp="label"
-        />
-        <Input
-          placeholder="搜索物品/规格"
-          allowClear
-          value={search}
-          style={{ width: 220 }}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Button type="primary" onClick={() => {
+      <ListFilters>
+        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={Object.entries(itemTypeLabels).map(([v, l]) => ({ value: v, label: l }))} /></div>
+        <div className="filter-item"><span>归属：</span><Select allowClear placeholder="全部归属" value={ownerFilter} onChange={setOwnerFilter} options={partyOpts} showSearch optionFilterProp="label" /></div>
+        <div className="filter-item"><span>物品：</span><Input placeholder="搜索物品/规格" allowClear value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="filter-actions"><Button type="primary" onClick={() => {
           setAppliedFilters({ type: typeFilter, owner: ownerFilter, search: search.trim() })
           setPage(1)
         }}>查询</Button>
         <Button onClick={() => {
           setTypeFilter(undefined); setOwnerFilter(undefined); setSearch('')
           setAppliedFilters({ type: undefined, owner: undefined, search: '' }); setPage(1)
-        }}>重置</Button>
-      </div>
-      <Table
+        }}>重置</Button></div>
+      </ListFilters>
+      <BusinessTable
+        tableId="inventory"
+        toolbarActions={canManage ? <><Button type="primary" onClick={() => setInOpen(true)}>+ 入库</Button><Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>批量删除</Button></> : null}
         rowKey="id"
         loading={list.isLoading}
         dataSource={list.data?.items}

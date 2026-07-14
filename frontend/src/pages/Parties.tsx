@@ -15,7 +15,9 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
+import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
@@ -304,39 +306,17 @@ export function Parties() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">往来单位</h1>
-        {canManage && (
-          <Space>
-            <Button type="primary" onClick={openCreate}>
-              + 新建单位
-            </Button>
-            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-              批量删除
-            </Button>
-          </Space>
-        )}
       </div>
 
-      <Space wrap className="toolbar">
-        <Select<RoleKey>
-          allowClear
-          placeholder="角色筛选"
-          style={{ width: 140 }}
-          value={roleFilter}
-          onChange={setRoleFilter}
-          options={ROLES.map((r) => ({ value: r.key, label: r.label }))}
-        />
-        <Input
-          allowClear
-          value={search}
-          placeholder="搜索名称/简称"
-          style={{ width: 240 }}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Button type="primary" onClick={() => { setAppliedFilters({ role: roleFilter, search: search.trim() }); setPage(1) }}>查询</Button>
-        <Button onClick={() => { setRoleFilter(undefined); setSearch(''); setAppliedFilters({ role: undefined, search: '' }); setPage(1) }}>重置</Button>
-      </Space>
+      <ListFilters>
+        <div className="filter-item"><span>角色：</span><Select<RoleKey> allowClear placeholder="全部角色" value={roleFilter} onChange={setRoleFilter} options={ROLES.map((r) => ({ value: r.key, label: r.label }))} /></div>
+        <div className="filter-item"><span>名称：</span><Input allowClear value={search} placeholder="搜索名称/简称" onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="filter-actions"><Button type="primary" onClick={() => { setAppliedFilters({ role: roleFilter, search: search.trim() }); setPage(1) }}>查询</Button><Button onClick={() => { setRoleFilter(undefined); setSearch(''); setAppliedFilters({ role: undefined, search: '' }); setPage(1) }}>重置</Button></div>
+      </ListFilters>
 
-      <Table<Party>
+      <BusinessTable<Party>
+        tableId="parties"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建单位</Button><Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>批量删除</Button></> : null}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

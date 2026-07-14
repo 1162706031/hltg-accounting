@@ -4,6 +4,9 @@ import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, 
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { InventoryLineList } from '../components/InventoryLines'
@@ -77,6 +80,7 @@ export function Smelting() {
   const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
@@ -335,13 +339,8 @@ export function Smelting() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">冶炼加工</h1>
-        {canManage && (
-          <Button type="primary" onClick={openCreate}>
-            + 新建冶炼单
-          </Button>
-        )}
       </div>
-      <div className="toolbar">
+      <ListFilters>
         <div className="filter-item">
           <span>类型：</span>
           <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...ORDER_TYPE_OPTIONS]} />
@@ -373,8 +372,11 @@ export function Smelting() {
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
         </div>
-      </div>
-      <Table<SmeltingOrder>
+      </ListFilters>
+      <BusinessTable<SmeltingOrder>
+        tableId="smelting"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建冶炼单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/smelting-orders/batch-delete" entityName="冶炼单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
+        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

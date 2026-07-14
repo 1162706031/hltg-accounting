@@ -17,6 +17,8 @@ import {
 import dayjs, { Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
@@ -270,16 +272,6 @@ export function Payments() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">收付款记录</h1>
-        {canManage && (
-          <Space>
-            <Button type="primary" onClick={openCreate}>
-              + 新建收付款
-            </Button>
-            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-              批量删除
-            </Button>
-          </Space>
-        )}
       </div>
 
       <div className="recon-summary-grid">
@@ -294,7 +286,8 @@ export function Payments() {
         </Card>
       </div>
 
-      <Space wrap className="toolbar">
+      <ListFilters>
+        <div className="filter-item"><span>单位：</span>
         <Select
           allowClear
           showSearch
@@ -304,7 +297,8 @@ export function Payments() {
           value={partyFilter}
           onChange={setPartyFilter}
           options={partyOpts}
-        />
+        /></div>
+        <div className="filter-item"><span>方向：</span>
         <Select
           allowClear
           placeholder="方向筛选"
@@ -312,28 +306,32 @@ export function Payments() {
           value={directionFilter}
           onChange={setDirectionFilter}
           options={Object.entries(directionMap).map(([value, config]) => ({ value, label: config.label }))}
-        />
+        /></div>
+        <div className="filter-item"><span>日期：</span>
         <RangePicker
           value={dateRange}
           onChange={setDateRange}
-        />
+        /></div>
+        <div className="filter-item"><span>关键词：</span>
         <Input
           allowClear
           value={search}
           placeholder="搜索单位/方式/备注"
           style={{ width: 240 }}
           onChange={(e) => setSearch(e.target.value)}
-        />
-        <Button type="primary" onClick={() => {
+        /></div>
+        <div className="filter-actions"><Button type="primary" onClick={() => {
           setAppliedFilters({ party: partyFilter, direction: directionFilter, dateFrom: dateRange?.[0]?.format('YYYY-MM-DD') ?? '', dateTo: dateRange?.[1]?.format('YYYY-MM-DD') ?? '', search: search.trim() }); setPage(1)
         }}>查询</Button>
         <Button onClick={() => {
           setPartyFilter(undefined); setDirectionFilter(undefined); setDateRange(null); setSearch('')
           setAppliedFilters({ party: undefined, direction: undefined, dateFrom: '', dateTo: '', search: '' }); setPage(1)
-        }}>重置</Button>
-      </Space>
+        }}>重置</Button></div>
+      </ListFilters>
 
-      <Table<Payment>
+      <BusinessTable<Payment>
+        tableId="payments"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建收付款</Button><Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>批量删除</Button></> : null}
         rowKey="id"
         loading={query.isLoading}
         dataSource={rows}

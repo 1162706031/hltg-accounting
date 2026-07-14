@@ -3,6 +3,9 @@ import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Sel
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { InventoryLineList } from '../components/InventoryLines'
@@ -63,6 +66,7 @@ export function Sales() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
   const stock = useInventoryStock()
@@ -171,13 +175,8 @@ export function Sales() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">销售管理</h1>
-        {canManage && (
-          <Button type="primary" onClick={openCreate}>
-            + 新建销售单
-          </Button>
-        )}
       </div>
-      <div className="toolbar">
+      <ListFilters>
         <div className="filter-item">
           <span>状态：</span>
           <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
@@ -216,8 +215,11 @@ export function Sales() {
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
         </div>
-      </div>
-      <Table<SalesOrder>
+      </ListFilters>
+      <BusinessTable<SalesOrder>
+        tableId="sales"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建销售单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/sales-orders/batch-delete" entityName="销售单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
+        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

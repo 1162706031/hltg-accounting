@@ -4,6 +4,9 @@ import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, 
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { InventoryLineList } from '../components/InventoryLines'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
@@ -76,6 +79,7 @@ export function Outsource() {
   const [editingStatus, setEditingStatus] = useState<OrderStatus | null>(null)
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
@@ -307,13 +311,8 @@ export function Outsource() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">外协加工</h1>
-        {canManage && (
-          <Button type="primary" onClick={openCreate}>
-            + 新建外协单
-          </Button>
-        )}
       </div>
-      <div className="toolbar">
+      <ListFilters>
         <div className="filter-item">
           <span>工艺：</span>
           <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]} />
@@ -345,8 +344,11 @@ export function Outsource() {
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
         </div>
-      </div>
-      <Table<OutsourceOrder>
+      </ListFilters>
+      <BusinessTable<OutsourceOrder>
+        tableId="outsource"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建外协单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/outsource-orders/batch-delete" entityName="外协单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
+        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

@@ -557,6 +557,270 @@ body {
   align-items: center;
 }
 
+.list-filters {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e8ef;
+  border-radius: 8px;
+}
+
+.list-filters-heading {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 16px;
+}
+
+.list-filters:not(.is-collapsed) .list-filters-heading {
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.list-filters-title {
+  color: #30343b;
+  font-weight: 650;
+}
+
+.list-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px 18px;
+  align-items: center;
+  padding: 16px;
+}
+
+.list-filter-grid > .filter-item {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.list-filter-grid > .filter-item > span:first-child {
+  text-align: right;
+}
+
+.list-filter-grid > .filter-item > :last-child,
+.list-filter-grid > .filter-item .ant-picker-range {
+  width: 100% !important;
+}
+
+.list-filter-grid > .filter-actions {
+  grid-column: -2 / -1;
+  justify-content: flex-end;
+  margin-left: 0;
+}
+
+.business-table-workspace {
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e8ef;
+  border-radius: 8px;
+}
+
+.business-table-toolbar {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e8ef;
+}
+
+.business-table-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-table-actions .ant-btn-link {
+  height: 32px;
+  padding-inline: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+}
+
+.business-table-actions .ant-btn-link:hover {
+  border-color: #4096ff;
+}
+
+.selection-summary {
+  white-space: nowrap;
+}
+
+.column-settings-panel {
+  width: 220px;
+}
+
+.column-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.column-settings-list {
+  display: grid;
+  max-height: 320px;
+  overflow-y: auto;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.business-table-workspace > .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print {
+  body.business-print-mode * {
+    visibility: hidden !important;
+  }
+
+  body.business-print-mode .business-table-workspace.is-print-target,
+  body.business-print-mode .business-table-workspace.is-print-target * {
+    visibility: visible !important;
+  }
+
+  body.business-print-mode .business-table-workspace.is-print-target {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: 0;
+  }
+
+  body.business-print-mode .business-table-toolbar,
+  body.business-print-mode .ant-pagination,
+  body.business-print-mode .ant-table-selection-column,
+  body.business-print-mode tr[data-row-key]:not(.is-print-selected) {
+    display: none !important;
+  }
+
+  body.detail-print-mode * {
+    visibility: hidden !important;
+  }
+
+  body.detail-print-mode {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.detail-print-mode #root {
+    display: none !important;
+  }
+
+  body.detail-print-mode .detail-print-portal,
+  body.detail-print-mode .detail-print-portal * {
+    visibility: visible !important;
+  }
+
+  body.detail-print-mode .detail-print-portal {
+    position: static !important;
+    display: block !important;
+    width: 100%;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    color: #000;
+  }
+
+  body.detail-print-mode .detail-print-heading {
+    display: block;
+    margin: 0 0 18px;
+    font-size: 22px;
+    text-align: center;
+  }
+
+  body.detail-print-mode .ant-table-content,
+  body.detail-print-mode .ant-table-body,
+  body.detail-print-mode .ant-table-container,
+  body.business-print-mode .ant-table-content,
+  body.business-print-mode .ant-table-body,
+  body.business-print-mode .ant-table-container {
+    overflow: visible !important;
+  }
+
+  body.detail-print-mode .detail-print-portal .ant-table-wrapper,
+  body.detail-print-mode .detail-print-portal .ant-spin-nested-loading,
+  body.detail-print-mode .detail-print-portal .ant-spin-container,
+  body.detail-print-mode .detail-print-portal .ant-table,
+  body.detail-print-mode .detail-print-portal .ant-table-container,
+  body.detail-print-mode .detail-print-portal .ant-table-content,
+  body.detail-print-mode .detail-print-portal .ant-table-body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  body.detail-print-mode .ant-table-container table,
+  body.business-print-mode .ant-table-container table {
+    width: 100% !important;
+    min-width: 100% !important;
+    table-layout: auto !important;
+  }
+
+  body.detail-print-mode .ant-table-cell-fix-left,
+  body.detail-print-mode .ant-table-cell-fix-right,
+  body.business-print-mode .ant-table-cell-fix-left,
+  body.business-print-mode .ant-table-cell-fix-right {
+    position: static !important;
+  }
+
+  body.detail-print-mode .ant-table-cell-fix-left-first::after,
+  body.detail-print-mode .ant-table-cell-fix-left-last::after,
+  body.detail-print-mode .ant-table-cell-fix-right-first::after,
+  body.detail-print-mode .ant-table-cell-fix-right-last::after,
+  body.business-print-mode .ant-table-cell-fix-left-first::after,
+  body.business-print-mode .ant-table-cell-fix-left-last::after,
+  body.business-print-mode .ant-table-cell-fix-right-first::after,
+  body.business-print-mode .ant-table-cell-fix-right-last::after {
+    display: none !important;
+  }
+
+  body.detail-print-mode .detail-print-portal table {
+    break-inside: auto;
+  }
+
+  body.detail-print-mode .detail-print-portal thead {
+    display: table-header-group;
+  }
+
+  body.detail-print-mode .detail-print-portal tfoot {
+    display: table-footer-group;
+  }
+
+  body.detail-print-mode .detail-print-portal tr,
+  body.detail-print-mode .detail-print-portal .ant-descriptions-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.detail-print-mode .detail-print-portal > div {
+    break-inside: auto;
+  }
+}
+
+.detail-print-heading {
+  display: none;
+}
+
+@media (max-width: 1500px) {
+  .list-filter-grid { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
+}
+
+@media (max-width: 1100px) {
+  .list-filter-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  .business-table-actions { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
+
 .filter-item,
 .filter-actions {
   display: flex;

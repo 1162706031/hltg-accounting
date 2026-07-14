@@ -4,6 +4,9 @@ import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, 
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
@@ -70,6 +73,7 @@ export function Procurement() {
   const [editing, setEditing] = useState<ProcurementOrder | null>(null)
   const [creating, setCreating] = useState(false)
   const [detail, setDetail] = useState<ProcurementOrder | null>(null)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
   const parties = useParties()
@@ -172,13 +176,8 @@ export function Procurement() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">采购管理</h1>
-        {canManage && (
-          <Button type="primary" onClick={openCreate}>
-            + 新建采购单
-          </Button>
-        )}
       </div>
-      <div className="toolbar">
+      <ListFilters>
         <div className="filter-item">
           <span>状态：</span>
           <Select value={statusFilter} style={{ width: 140 }} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
@@ -217,8 +216,11 @@ export function Procurement() {
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
         </div>
-      </div>
-      <Table<ProcurementOrder>
+      </ListFilters>
+      <BusinessTable<ProcurementOrder>
+        tableId="procurement"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建采购单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/procurement-orders/batch-delete" entityName="采购单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
+        rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

@@ -14,7 +14,9 @@ import {
 } from 'antd'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
+import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
@@ -227,61 +229,19 @@ export function Items() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">物品管理</h1>
-        {canManage && (
-          <Space>
-            <Button type="primary" onClick={openCreate}>
-              + 新建物品
-            </Button>
-            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-              批量删除
-            </Button>
-          </Space>
-        )}
       </div>
 
-      <Space wrap className="toolbar">
-        <Select
-          allowClear
-          placeholder="类型筛选"
-          style={{ width: 140 }}
-          value={typeFilter}
-          onChange={setTypeFilter}
-          options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))}
-        />
-        <Select
-          placeholder="状态筛选"
-          style={{ width: 120 }}
-          value={activeFilter}
-          onChange={setActiveFilter}
-          options={[
-            { value: 'all', label: '全部' },
-            { value: 'active', label: '启用' },
-            { value: 'inactive', label: '停用' }
-          ]}
-        />
-        <Select
-          placeholder="化学成分"
-          style={{ width: 140 }}
-          value={chemicalFilter}
-          onChange={setChemicalFilter}
-          options={[
-            { value: 'all', label: '全部成分状态' },
-            { value: 'enabled', label: '已启用成分' },
-            { value: 'disabled', label: '未启用成分' }
-          ]}
-        />
-        <Input
-          allowClear
-          value={search}
-          placeholder="搜索名称/规格"
-          style={{ width: 240 }}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Button type="primary" onClick={applyFilters}>查询</Button>
-        <Button onClick={resetFilters}>重置</Button>
-      </Space>
+      <ListFilters>
+        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} /></div>
+        <div className="filter-item"><span>状态：</span><Select value={activeFilter} onChange={setActiveFilter} options={[{ value: 'all', label: '全部' }, { value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }]} /></div>
+        <div className="filter-item"><span>化学成分：</span><Select value={chemicalFilter} onChange={setChemicalFilter} options={[{ value: 'all', label: '全部' }, { value: 'enabled', label: '已启用' }, { value: 'disabled', label: '未启用' }]} /></div>
+        <div className="filter-item"><span>名称：</span><Input allowClear value={search} placeholder="搜索名称/规格" onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="filter-actions"><Button type="primary" onClick={applyFilters}>查询</Button><Button onClick={resetFilters}>重置</Button></div>
+      </ListFilters>
 
-      <Table
+      <BusinessTable
+        tableId="items"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建物品</Button><Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>批量删除</Button></> : null}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}

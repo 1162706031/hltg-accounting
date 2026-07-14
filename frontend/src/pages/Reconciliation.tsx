@@ -19,6 +19,9 @@ import {
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
+import { DetailModal } from '../components/DetailModal'
+import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { partyOptions, UNIT_OPTIONS, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
@@ -226,6 +229,7 @@ export function Reconciliation() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [editing, setEditing] = useState<ReconciliationRow | null>(null)
+  const [detail, setDetail] = useState<ReconciliationRow | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importType, setImportType] = useState<ImportOrderType | 'all'>('all')
@@ -445,21 +449,10 @@ export function Reconciliation() {
     <div className="page reconciliation-page">
       <div className="page-header">
         <h1 className="page-title">用户对账</h1>
-        {canManage && (
-          <Space>
-            <Button type="primary" onClick={openCreate}>
-              + 新建明细
-            </Button>
-            <Button onClick={() => setImportOpen(true)}>+ 从订单导入</Button>
-            <Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>
-              批量删除
-            </Button>
-          </Space>
-        )}
       </div>
 
-      <Card size="small">
-        <Space wrap className="toolbar">
+      <ListFilters>
+          <div className="filter-item"><span>单位：</span>
           <Select
             allowClear
             showSearch
@@ -469,7 +462,8 @@ export function Reconciliation() {
             onChange={setPartyId}
             optionFilterProp="label"
             options={partyOptions(partiesQuery.data)}
-          />
+          /></div>
+          <div className="filter-item"><span>状态：</span>
           <Select<ReconStatus>
             allowClear
             placeholder="状态筛选"
@@ -477,21 +471,21 @@ export function Reconciliation() {
             value={statusFilter}
             onChange={setStatusFilter}
             options={statusOptions}
-          />
+          /></div>
+          <div className="filter-item"><span>关键词：</span>
           <Input
             allowClear
             value={search}
             placeholder="搜索批次号/摘要/钢种/备注"
             style={{ width: 260 }}
             onChange={(e) => setSearch(e.target.value)}
-          />
-          <Button type="primary" onClick={() => { setAppliedFilters({ party: partyId, status: statusFilter, search: search.trim() }); setPage(1) }}>查询</Button>
+          /></div>
+          <div className="filter-actions"><Button type="primary" onClick={() => { setAppliedFilters({ party: partyId, status: statusFilter, search: search.trim() }); setPage(1) }}>查询</Button>
           <Button onClick={() => {
             setPartyId(undefined); setStatusFilter(undefined); setSearch('')
             setAppliedFilters({ party: undefined, status: undefined, search: '' }); setPage(1)
-          }}>重置</Button>
-        </Space>
-      </Card>
+          }}>重置</Button></div>
+      </ListFilters>
 
       <div className="recon-summary-grid">
         <Card size="small" title={`业务合计 - ${selectedPartyName}`}>
@@ -520,13 +514,16 @@ export function Reconciliation() {
         </Card>
       </div>
 
-      <Table<ReconciliationRow>
+      <BusinessTable<ReconciliationRow>
+        tableId="reconciliation"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建明细</Button><Button onClick={() => setImportOpen(true)}>+ 从订单导入</Button><Button danger disabled={!selectedIds.length} onClick={handleBatchDelete}>批量删除</Button></> : null}
         rowKey="id"
         loading={query.isLoading}
         dataSource={rows}
         size="middle"
         scroll={{ x: 1450 }}
         pagination={tablePagination(query.data, page, pageSize, setPage, setPageSize)}
+        onRow={(row) => ({ onDoubleClick: () => setDetail(row), style: { cursor: 'pointer' } })}
         rowSelection={
           canManage
             ? {
@@ -565,6 +562,7 @@ export function Reconciliation() {
                   width: 310,
                   render: (_: unknown, row: ReconciliationRow) => (
                     <Space size="small" wrap>
+                      <Button size="small" onClick={() => setDetail(row)}>查看</Button>
                       <Switch
                         size="small"
                         checked={row.recon_status !== 'disabled'}
@@ -608,8 +606,36 @@ export function Reconciliation() {
                   )
                 }
               ]
-            : [])
+            : [{
+                title: '操作',
+                fixed: 'right' as const,
+                width: 90,
+                render: (_: unknown, row: ReconciliationRow) => <Button size="small" onClick={() => setDetail(row)}>查看</Button>
+              }])
         ]}
+      />
+
+      <DetailModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `对账明细 #${detail.id}` : '对账明细详情'}
+        fields={detail ? [
+          { label: '往来单位', value: detail.party?.short_name || detail.party?.name || `#${detail.party_id}` },
+          { label: '状态', value: statusMap[detail.recon_status].label },
+          { label: '批次', value: batchLabel(detail) },
+          { label: '业务类型', value: detail.ref_type ? refTypeLabels[detail.ref_type] ?? detail.ref_type : '手动' },
+          { label: '业务日期', value: detail.biz_date },
+          { label: '钢种', value: detail.steel_grade },
+          { label: '数量', value: `${Number(detail.quantity || 0).toLocaleString('zh-CN')} ${detail.unit || ''}` },
+          { label: '单价', value: detail.unit_price == null ? '—' : money(detail.unit_price) },
+          { label: '应收', value: money(detail.debit) },
+          { label: '应付', value: money(detail.credit) },
+          { label: '余额', value: money(numeric(detail.debit) - numeric(detail.credit)) },
+          { label: '发票类型', value: invoiceLabel(detail.invoice_direction) },
+          { label: '发票金额', value: detail.invoice_amount == null ? '—' : money(detail.invoice_amount) },
+          { label: '摘要', value: detail.biz_desc, span: 2 },
+          { label: '备注', value: detail.notes, span: 2 }
+        ] : []}
       />
 
       <Modal

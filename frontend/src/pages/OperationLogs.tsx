@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, DatePicker, Input, Modal, Select, Space, Table, Tag } from 'antd'
+import { Button, DatePicker, Input, Select, Space, Table, Tag } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BusinessTable } from '../components/BusinessTable'
+import { DetailModal } from '../components/DetailModal'
+import { ListFilters } from '../components/ListFilters'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 
 const { RangePicker } = DatePicker
@@ -106,7 +109,8 @@ export function OperationLogs() {
         <h1 className="page-title">操作日志</h1>
       </div>
 
-      <Space wrap className="toolbar">
+      <ListFilters>
+        <div className="filter-item"><span>操作类型：</span>
         <Select
           allowClear
           placeholder="操作类型"
@@ -114,7 +118,8 @@ export function OperationLogs() {
           value={action}
           onChange={setAction}
           options={actionOptions}
-        />
+        /></div>
+        <div className="filter-item"><span>对象类型：</span>
         <Select
           allowClear
           placeholder="对象类型"
@@ -122,7 +127,8 @@ export function OperationLogs() {
           value={targetType}
           onChange={setTargetType}
           options={targetOptions}
-        />
+        /></div>
+        <div className="filter-item"><span>操作人：</span>
         <Select
           allowClear
           showSearch
@@ -132,28 +138,31 @@ export function OperationLogs() {
           value={userId}
           onChange={setUserId}
           options={userOptions}
-        />
+        /></div>
+        <div className="filter-item"><span>日期：</span>
         <RangePicker
           value={range}
           onChange={setRange}
-        />
+        /></div>
+        <div className="filter-item"><span>关键词：</span>
         <Input
           allowClear
           value={search}
           placeholder="搜索摘要/对象"
           style={{ width: 240 }}
           onChange={(event) => setSearch(event.target.value)}
-        />
-        <Button type="primary" onClick={() => {
+        /></div>
+        <div className="filter-actions"><Button type="primary" onClick={() => {
           setAppliedFilters({ action, targetType, userId, dateFrom: range?.[0]?.format('YYYY-MM-DD') ?? '', dateTo: range?.[1]?.format('YYYY-MM-DD') ?? '', search: search.trim() }); setPage(1)
         }}>查询</Button>
         <Button onClick={() => {
           setAction(undefined); setTargetType(undefined); setUserId(undefined); setRange(null); setSearch('')
           setAppliedFilters({ action: undefined, targetType: undefined, userId: undefined, dateFrom: '', dateTo: '', search: '' }); setPage(1)
-        }}>重置</Button>
-      </Space>
+        }}>重置</Button></div>
+      </ListFilters>
 
-      <Table<OperationLog>
+      <BusinessTable<OperationLog>
+        tableId="operation-logs"
         rowKey="id"
         loading={logs.isLoading}
         dataSource={logs.data?.items}
@@ -179,7 +188,8 @@ export function OperationLogs() {
           { title: '操作人', width: 150, render: (_, row) => row.user?.real_name || row.user?.username || `#${row.user_id}` },
           { title: 'IP', dataIndex: 'ip_address', width: 140, render: (value) => value || '—' },
           {
-            title: '详情',
+            title: '操作',
+            fixed: 'right' as const,
             width: 90,
             render: (_, row) => (
               <Button size="small" onClick={() => setDetail(row)}>
@@ -190,18 +200,21 @@ export function OperationLogs() {
         ]}
       />
 
-      <Modal
-        title="操作详情"
+      <DetailModal
         open={!!detail}
-        onCancel={() => setDetail(null)}
-        footer={null}
+        onClose={() => setDetail(null)}
+        title="操作详情"
         width={760}
-        destroyOnClose
-      >
-        <pre style={{ whiteSpace: 'pre-wrap', margin: 0, maxHeight: 520, overflow: 'auto' }}>
-          {detail ? JSON.stringify(detail.detail ?? {}, null, 2) : ''}
-        </pre>
-      </Modal>
+        fields={detail ? [
+          { label: '操作时间', value: formatTime(detail.created_at) },
+          { label: '操作人', value: detail.user?.real_name || detail.user?.username || `#${detail.user_id}` },
+          { label: '操作类型', value: actionMeta[detail.action]?.label ?? detail.action },
+          { label: '对象', value: `${targetLabels[detail.target_type] ?? detail.target_type}${detail.target_id ? ` #${detail.target_id}` : ''}` },
+          { label: 'IP', value: detail.ip_address || '—' },
+          { label: '摘要', value: detail.summary, span: 2 },
+          { label: '数据详情', value: <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{JSON.stringify(detail.detail ?? {}, null, 2)}</pre>, span: 2 }
+        ] : []}
+      />
     </div>
   )
 }

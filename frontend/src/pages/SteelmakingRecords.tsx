@@ -18,6 +18,9 @@ import {
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, PageResult } from '../api/client'
+import { BatchDeleteButton } from '../components/BatchDeleteButton'
+import { BusinessTable } from '../components/BusinessTable'
+import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
@@ -143,6 +146,7 @@ export function SteelmakingRecords() {
   const [editingBatchNo, setEditingBatchNo] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSelectedRowKeys, setMaterialSelectedRowKeys] = useState<number[]>([])
   const parties = useParties()
@@ -284,10 +288,9 @@ export function SteelmakingRecords() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">炼钢记录</h1>
-        {canManage && <Button type="primary" onClick={openCreate}>+ 新建炼钢记录</Button>}
       </div>
 
-      <div className="toolbar">
+      <ListFilters>
         <div className="filter-item"><span>日期：</span><DatePicker.RangePicker value={dateRange} onChange={(v) => setDateRange(v as [Dayjs, Dayjs] | null)} /></div>
         <div className="filter-item"><span>批次号：</span><Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>炉号：</span><Input value={furnaceNo} onChange={(e) => setFurnaceNo(e.target.value)} style={{ width: 150 }} /></div>
@@ -302,9 +305,12 @@ export function SteelmakingRecords() {
           }}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
         </div>
-      </div>
+      </ListFilters>
 
-      <Table<SteelmakingRecord>
+      <BusinessTable<SteelmakingRecord>
+        tableId="steelmaking-records"
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建炼钢记录</Button><BatchDeleteButton selectedKeys={selectedRecordIds} endpoint="/steelmaking-records/batch-delete" entityName="炼钢记录" onSuccess={() => { setSelectedRecordIds([]); invalidate() }} /></> : null}
+        rowSelection={{ selectedRowKeys: selectedRecordIds, onChange: (keys) => setSelectedRecordIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items}
