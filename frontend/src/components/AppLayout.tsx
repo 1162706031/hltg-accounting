@@ -5,6 +5,7 @@ import {
   MenuOutlined,
   PayCircleOutlined,
   ProductOutlined,
+  QuestionCircleOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
   ToolOutlined
@@ -132,7 +133,7 @@ export function AppLayout() {
         <Menu
           mode="inline"
           inlineIndent={16}
-          selectedKeys={[selectedKey]}
+          selectedKeys={location.pathname === '/help' ? [] : [selectedKey]}
           defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
           items={visibleItems as MenuProps['items']}
           onClick={({ key }) => navigate(key)}
@@ -155,16 +156,28 @@ export function AppLayout() {
               当前用户：{user?.real_name || user?.username}
             </Typography.Text>
           </div>
-          <Button
-            className="app-header-logout"
-            icon={<LogoutOutlined />}
-            onClick={() => {
-              logout()
-              navigate('/login')
-            }}
-          >
-            退出
-          </Button>
+          <div className="app-header-actions">
+            <Button
+              className="app-header-help"
+              type={location.pathname === '/help' ? 'primary' : 'default'}
+              icon={<QuestionCircleOutlined />}
+              aria-label="打开帮助中心"
+              onClick={() => navigate('/help')}
+            >
+              帮助
+            </Button>
+            <Button
+              className="app-header-logout"
+              icon={<LogoutOutlined />}
+              aria-label="退出系统"
+              onClick={() => {
+                logout()
+                navigate('/login')
+              }}
+            >
+              退出
+            </Button>
+          </div>
         </Header>
         <Content className="app-content">
           <Outlet />
@@ -182,7 +195,7 @@ export function AppLayout() {
         <Menu
           mode="inline"
           inlineIndent={16}
-          selectedKeys={[selectedKey]}
+          selectedKeys={location.pathname === '/help' ? [] : [selectedKey]}
           defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
           items={visibleItems as MenuProps['items']}
           onClick={({ key }) => {

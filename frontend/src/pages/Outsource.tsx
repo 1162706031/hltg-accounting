@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
-import { api, PageResult } from '../api/client'
+import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
@@ -109,7 +109,7 @@ export function Outsource() {
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['outsource'] })
-  const onError = (e: any) => message.error(e.response?.data?.detail ?? '操作失败')
+  const onError = (error: unknown) => message.error(getErrorMessage(error))
 
   const detailQuery = useQuery({
     queryKey: ['outsource', 'detail', detailId],
@@ -119,6 +119,20 @@ export function Outsource() {
 
   const save = useMutation({
     mutationFn: async (values: any) => {
+      const outTotal = (values.outbound_lines ?? []).reduce(
+        (sum: number, line: any) => sum + Number(line?.quantity || 0),
+        0
+      )
+      const yieldInTotal = (values.inbound_lines ?? []).reduce(
+        (sum: number, line: any) =>
+          sum + (countsForProcessingFee(line?.item_id, items.data) ? Number(line?.quantity || 0) : 0),
+        0
+      )
+      const yieldRate = outTotal > 0 ? Math.round((yieldInTotal / outTotal) * 10_000) / 10_000 : null
+      if (yieldRate != null && yieldRate > 1) {
+        throw new Error(`回厂有效数量不能超过发出数量，当前成材率为 ${(yieldRate * 100).toFixed(2)}%`)
+      }
+
       const mapOut = (it: any, i: number) => ({ ...it, line_no: i + 1, out_date: it.out_date?.format('YYYY-MM-DD') ?? null })
       const mapIn = (it: any, i: number) => ({ ...it, line_no: i + 1, in_date: it.in_date?.format('YYYY-MM-DD') ?? null })
       const body = {
@@ -150,7 +164,13 @@ export function Outsource() {
   }
 
   const openEdit = async (row: OutsourceOrder) => {
-    const d = (await api.get<OutsourceOrder>(`/outsource-orders/${row.id}`)).data
+    let d: OutsourceOrder
+    try {
+      d = (await api.get<OutsourceOrder>(`/outsource-orders/${row.id}`)).data
+    } catch (error) {
+      message.error(getErrorMessage(error, '加载外协单详情失败'))
+      return
+    }
     setEditingId(row.id)
     setEditingStatus(d.status)
     setInboundSelectedRowKeys([])

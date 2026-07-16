@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
-import { api, PageResult } from '../api/client'
+import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
@@ -96,7 +96,7 @@ export function Sales() {
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['sales'] })
-  const onError = (e: any) => message.error(e.response?.data?.detail ?? '操作失败')
+  const onError = (error: unknown) => message.error(getErrorMessage(error))
 
   const save = useMutation({
     mutationFn: async (values: any) => {
@@ -129,7 +129,13 @@ export function Sales() {
   }
 
   const openEdit = async (row: SalesOrder) => {
-    const detail = (await api.get<SalesOrder>(`/sales-orders/${row.id}`)).data
+    let detail: SalesOrder
+    try {
+      detail = (await api.get<SalesOrder>(`/sales-orders/${row.id}`)).data
+    } catch (error) {
+      message.error(getErrorMessage(error, '加载销售单详情失败'))
+      return
+    }
     setEditingId(row.id)
     setCreating(false)
     form.setFieldsValue({

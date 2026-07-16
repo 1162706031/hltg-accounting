@@ -81,6 +81,12 @@ def recompute_amounts(order: OutsourceOrder, yield_excluded_item_ids: set[int] |
             line_amount_sum += line.amount
 
     order.yield_rate = (yield_in_total / out_total).quantize(Decimal("0.0001")) if out_total > 0 else None
+    if order.yield_rate is not None and order.yield_rate > Decimal("1"):
+        yield_pct = (order.yield_rate * 100).quantize(Decimal("0.01"))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"回厂有效数量不能超过发出数量，当前成材率为 {yield_pct}%",
+        )
 
     # 加工金额 = 有效回厂总量 × 加工单价；raw_material/scrap 回厂不计加工费。
     if order.unit_price is not None:

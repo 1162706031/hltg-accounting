@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
-import { api, PageResult } from '../api/client'
+import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
@@ -116,10 +116,24 @@ export function Smelting() {
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['smelting'] })
-  const onError = (e: any) => message.error(e.response?.data?.detail ?? '操作失败')
+  const onError = (error: unknown) => message.error(getErrorMessage(error))
 
   const save = useMutation({
     mutationFn: async (values: any) => {
+      const feedTotal = (values.feed_lines ?? []).reduce(
+        (sum: number, line: any) => sum + Number(line?.quantity || 0),
+        0
+      )
+      const yieldTapTotal = (values.tap_lines ?? []).reduce(
+        (sum: number, line: any) =>
+          sum + (countsForProcessingFee(line?.item_id, items.data) ? Number(line?.quantity || 0) : 0),
+        0
+      )
+      const yieldPct = feedTotal > 0 ? Math.round((yieldTapTotal / feedTotal) * 10_000) / 100 : null
+      if (yieldPct != null && yieldPct > 100) {
+        throw new Error(`有效出钢量不能超过投料量，当前成锭率为 ${yieldPct.toFixed(2)}%`)
+      }
+
       const mapLine = (it: any, idx: number, side?: string) => ({
         ...it,
         line_no: idx + 1,
@@ -163,7 +177,13 @@ export function Smelting() {
   }
 
   const openEdit = async (row: SmeltingOrder) => {
-    const d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
+    let d: SmeltingOrder
+    try {
+      d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
+    } catch (error) {
+      message.error(getErrorMessage(error, '加载冶炼单详情失败'))
+      return
+    }
     setEditingId(row.id)
     setEditingStatus(d.status)
     setTapSelectedRowKeys([])

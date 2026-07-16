@@ -60,6 +60,13 @@ body {
   gap: 8px;
 }
 
+.app-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .mobile-menu-button {
   display: none;
   flex: 0 0 auto;
@@ -69,6 +76,12 @@ body {
   height: var(--app-action-height);
   min-width: clamp(76px, 7vw, 96px);
   flex: 0 0 auto;
+  padding-inline: var(--app-action-padding);
+  font-size: clamp(13px, 1vw, 14px);
+}
+
+.app-header-help {
+  height: var(--app-action-height);
   padding-inline: var(--app-action-padding);
   font-size: clamp(13px, 1vw, 14px);
 }
@@ -99,6 +112,30 @@ body {
   font-size: clamp(18px, 1.6vw, 20px);
   font-weight: 650;
   white-space: nowrap;
+}
+
+/* 帮助中心：在应用页面内嵌员工手册，手册自身负责目录跳转和内容滚动。 */
+.help-page {
+  height: calc(100vh - 56px - (2 * var(--app-fluid-space)));
+}
+
+.help-page .page-header > div {
+  min-width: 0;
+}
+
+.help-page .page-header .ant-typography {
+  display: block;
+  margin-top: 4px;
+}
+
+.help-manual-frame {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  background: #fff;
+  border: 1px solid #e5e8ef;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(31 35 41 / 4%);
 }
 
 /* 工作台 */
@@ -1353,6 +1390,29 @@ body {
 
   .grid-span-2 {
     grid-column: span 1;
+  }
+
+  .help-page {
+    height: auto;
+  }
+
+  .help-manual-frame {
+    height: calc(100vh - 210px);
+    min-height: 520px;
+    flex: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header-help,
+  .app-header-logout {
+    min-width: 36px;
+    padding-inline: 8px;
+  }
+
+  .app-header-help > span:not(.anticon),
+  .app-header-logout > span:not(.anticon) {
+    display: none;
   }
 }
 

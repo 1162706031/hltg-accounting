@@ -132,6 +132,8 @@ class OutsourceOrderListItem(ORMModel):
 
 
 class OutsourceOrderRead(OutsourceOrderBase, ORMModel):
+    # 写入时严格限制 <= 100%；读取时容纳修复上线前已落库的异常值，便于用户打开并纠正。
+    yield_rate: Decimal | None = Field(default=None, ge=0)
     id: int
     batch_no: str
     amount: Decimal | None

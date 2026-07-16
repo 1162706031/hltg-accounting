@@ -260,6 +260,9 @@ export function Parties() {
       }
       invalidateAll()
       setSelectedIds([])
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      message.error(err.response?.data?.detail ?? '批量删除失败')
     }
   })
 

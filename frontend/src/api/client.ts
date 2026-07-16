@@ -35,6 +35,23 @@ function normalizeDetail(detail: unknown): string | undefined {
   return JSON.stringify(detail)
 }
 
+/** 从 Axios、React Query 或普通 Error 中提取适合直接展示给用户的信息。 */
+export function getErrorMessage(error: unknown, fallback = '操作失败'): string {
+  const candidate = error as any
+  const detail = normalizeDetail(candidate?.response?.data?.detail)
+  if (detail) return detail
+
+  const responseData = candidate?.response?.data
+  if (typeof responseData === 'string' && responseData.trim() && responseData !== 'Internal Server Error') {
+    return responseData.trim()
+  }
+
+  if (!candidate?.response && typeof candidate?.message === 'string' && candidate.message.trim()) {
+    return candidate.message === 'Network Error' ? '网络连接失败，请检查网络或服务状态' : candidate.message
+  }
+  return fallback
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {

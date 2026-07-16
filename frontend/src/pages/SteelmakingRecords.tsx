@@ -17,7 +17,7 @@ import {
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useState } from 'react'
-import { api, PageResult } from '../api/client'
+import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
@@ -185,7 +185,7 @@ export function SteelmakingRecords() {
   })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['steelmaking-records'] })
-  const onError = (error: any) => message.error(error.response?.data?.detail ?? '操作失败')
+  const onError = (error: unknown) => message.error(getErrorMessage(error))
 
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -246,7 +246,13 @@ export function SteelmakingRecords() {
   }
 
   const openEdit = async (id: number) => {
-    const row = (await api.get<SteelmakingRecord>(`/steelmaking-records/${id}`)).data
+    let row: SteelmakingRecord
+    try {
+      row = (await api.get<SteelmakingRecord>(`/steelmaking-records/${id}`)).data
+    } catch (error) {
+      message.error(getErrorMessage(error, '加载炼钢记录详情失败'))
+      return
+    }
     setEditingId(id)
     setEditingBatchNo(row.batch_no)
     setMaterialSelectedRowKeys([])

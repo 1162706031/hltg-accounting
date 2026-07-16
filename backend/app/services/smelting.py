@@ -125,6 +125,11 @@ def recompute_amounts(order: SmeltingOrder, yield_excluded_item_ids: set[int] | 
 
     # 成锭率：有效出钢总量 / 投料总量；raw_material/scrap 产出不计为成品。
     order.yield_pct = (yield_tap_total / feed_total * 100).quantize(Decimal("0.01")) if feed_total > 0 else None
+    if order.yield_pct is not None and order.yield_pct > Decimal("100"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"有效出钢量不能超过投料量，当前成锭率为 {order.yield_pct}%",
+        )
 
     # 加工金额 = 有效出钢总重 × 加工单价；raw_material/scrap 产出不计加工费。
     if order.unit_price is not None:

@@ -4,6 +4,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { RequireRole } from './components/RequireRole'
 import { Audit } from './pages/Audit'
 import { Dashboard } from './pages/Dashboard'
+import { Help } from './pages/Help'
 import { Inventory } from './pages/Inventory'
 import { InventoryLogs } from './pages/InventoryLogs'
 import { Invoices } from './pages/Invoices'
@@ -31,6 +32,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="help" element={<Help />} />
               <Route path="parties" element={<Parties />} />
               <Route path="items" element={<Items />} />
               <Route path="inventory" element={<Inventory />} />

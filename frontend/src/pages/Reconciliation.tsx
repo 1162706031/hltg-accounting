@@ -365,6 +365,9 @@ export function Reconciliation() {
       message.success(res.message)
       invalidateAll()
       setSelectedIds([])
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      message.error(err.response?.data?.detail ?? '批量删除失败')
     }
   })
 
