@@ -24,8 +24,9 @@ import { DetailModal } from '../components/DetailModal'
 import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { partyOptions, UNIT_OPTIONS, useParties } from '../utils/lookups'
-import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { makeSortableColumns } from '../utils/tableSorting'
 
 type ReconStatus = 'unreconciled' | 'verified' | 'completed' | 'disabled'
 type InvoiceDirection = 'issue' | 'receive'
@@ -768,12 +769,16 @@ export function Reconciliation() {
           size="small"
           loading={importQuery.isLoading}
           dataSource={importRows}
-          pagination={{ pageSize: 6 }}
+          pagination={{
+            pageSize: 6,
+            showSizeChanger: true,
+            pageSizeOptions: ['6', ...PAGE_SIZE_OPTIONS]
+          }}
           rowSelection={{
             selectedRowKeys: selectedImportKeys,
             onChange: (keys) => setSelectedImportKeys(keys as string[])
           }}
-          columns={[
+          columns={makeSortableColumns<ImportCandidate>([
             { title: '类型', dataIndex: 'type_label', width: 80 },
             { title: '批次', dataIndex: 'batch_no', width: 120 },
             { title: '单位', dataIndex: 'party_name', width: 140 },
@@ -783,7 +788,7 @@ export function Reconciliation() {
             { title: '应付', dataIndex: 'credit', width: 100, align: 'right', render: (v) => money(v) },
             { title: '发票类型', dataIndex: 'invoice_direction', width: 100, render: (v) => invoiceLabel(v) },
             { title: '发票金额', dataIndex: 'invoice_amount', width: 110, align: 'right', render: (v) => (v == null ? '—' : money(v)) }
-          ]}
+          ])}
         />
 
         <Card size="small" title="导入预览" style={{ marginTop: 12 }}>
@@ -799,7 +804,7 @@ export function Reconciliation() {
             dataSource={importPreview}
             pagination={false}
             locale={{ emptyText: '请选择要导入的订单' }}
-            columns={[
+            columns={makeSortableColumns<ImportCandidate>([
               { title: '类型', dataIndex: 'type_label', width: 80 },
               { title: '批次', dataIndex: 'batch_no', width: 120 },
               { title: '摘要', dataIndex: 'biz_desc' },
@@ -807,7 +812,7 @@ export function Reconciliation() {
               { title: '应付', dataIndex: 'credit', width: 100, align: 'right', render: (v) => money(v) },
               { title: '发票类型', dataIndex: 'invoice_direction', width: 100, render: (v) => invoiceLabel(v) },
               { title: '发票金额', dataIndex: 'invoice_amount', width: 110, align: 'right', render: (v) => (v == null ? '—' : money(v)) }
-            ]}
+            ])}
           />
           <div className="form-hint">导入后状态默认为未对账；实际收付款和实际发票请在对应页面补充。</div>
         </Card>

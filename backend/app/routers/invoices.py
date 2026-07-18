@@ -39,7 +39,7 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Invoice]], page: int, pa
 @router.get("", response_model=PageResult[InvoiceRead])
 async def list_invoices(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     party_id: int | None = None,
     direction: str | None = None,
     date_from: date | None = None,

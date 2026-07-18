@@ -43,7 +43,7 @@ _BATCH_PREFIX = {"forging": "2", "esr": "4", "turning": "5", "annealing": "T"}
 @router.get("", response_model=PageResult[OutsourceOrderListItem])
 async def list_orders(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     process_type: str | None = None,
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),

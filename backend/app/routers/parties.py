@@ -46,7 +46,7 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Party]], page: int, page
 @router.get("", response_model=PageResult[PartyRead])
 async def list_parties(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     q: str | None = None,
     is_customer: bool | None = None,
     is_supplier: bool | None = None,

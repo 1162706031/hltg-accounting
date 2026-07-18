@@ -72,7 +72,7 @@ async def paginate_inventory(db: AsyncSession, stmt: Select[tuple[Inventory]], p
 @router.get("", response_model=PageResult[InventoryRead])
 async def list_inventory(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     item_type: str | None = None,
     owner_id: int | None = None,
     q: str | None = None,
@@ -94,7 +94,7 @@ async def list_inventory(
 @router.get("/logs", response_model=PageResult[InventoryLogWithRelations])
 async def list_inventory_logs(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     change_type: str | None = None,
     inventory_id: int | None = None,
     item_id: int | None = None,
