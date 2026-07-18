@@ -2,7 +2,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
@@ -25,6 +25,7 @@ import {
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface SmeltingOrder {
   id: number
@@ -83,6 +84,7 @@ export function Smelting() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
   const stock = useInventoryStock()
@@ -153,10 +155,15 @@ export function Smelting() {
       }
       delete body.feed_lines
       delete body.tap_lines
-      return editingId ? api.put(`/smelting-orders/${editingId}`, body) : api.post('/smelting-orders', body)
+      return (
+        editingId
+          ? await api.put<SmeltingOrder>(`/smelting-orders/${editingId}`, body)
+          : await api.post<SmeltingOrder>('/smelting-orders', body)
+      ).data
     },
-    onSuccess: () => {
+    onSuccess: (updated: SmeltingOrder) => {
       message.success('已保存')
+      replaceCachedPageItem(queryClient, ['smelting'], updated)
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
@@ -168,6 +175,7 @@ export function Smelting() {
   })
 
   const openCreate = () => {
+    editRequestSequence.current += 1
     setCreating(true)
     setEditingId(null)
     setEditingStatus(null)
@@ -177,17 +185,22 @@ export function Smelting() {
   }
 
   const openEdit = async (row: SmeltingOrder) => {
+    const requestSequence = ++editRequestSequence.current
     let d: SmeltingOrder
     try {
       d = (await api.get<SmeltingOrder>(`/smelting-orders/${row.id}`)).data
     } catch (error) {
-      message.error(getErrorMessage(error, '加载冶炼单详情失败'))
+      if (requestSequence === editRequestSequence.current) {
+        message.error(getErrorMessage(error, '加载冶炼单详情失败'))
+      }
       return
     }
+    if (requestSequence !== editRequestSequence.current) return
     setEditingId(row.id)
     setEditingStatus(d.status)
     setTapSelectedRowKeys([])
     setCreating(false)
+    form.resetFields()
     const toTapLine = (it: any) => ({
       date: it.date ? dayjs(it.date) : null,
       item_id: it.item_id,
@@ -460,6 +473,7 @@ export function Smelting() {
         open={creating || editingId !== null}
         width={960}
         onCancel={() => {
+          editRequestSequence.current += 1
           setCreating(false)
           setEditingId(null)
           setEditingStatus(null)

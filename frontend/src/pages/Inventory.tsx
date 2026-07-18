@@ -23,6 +23,7 @@ import { useAuth } from '../utils/AuthContext'
 import { ItemOption, PartyOption, UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface InventoryRow {
   id: number
@@ -114,8 +115,9 @@ export function Inventory() {
           change_date: v.change_date.format('YYYY-MM-DD')
         })
       ).data,
-    onSuccess: () => {
+    onSuccess: (updated: InventoryRow) => {
       message.success('入库成功')
+      replaceCachedPageItem(qc, ['inventory'], updated)
       setInOpen(false)
       invalidate()
       qc.invalidateQueries({ queryKey: ['inventory-logs'] })
@@ -131,8 +133,9 @@ export function Inventory() {
           change_date: v.change_date.format('YYYY-MM-DD')
         })
       ).data,
-    onSuccess: () => {
+    onSuccess: (updated: InventoryRow) => {
       message.success('出库成功')
+      replaceCachedPageItem(qc, ['inventory'], updated)
       setOutTarget(null)
       invalidate()
       qc.invalidateQueries({ queryKey: ['inventory-logs'] })
@@ -148,8 +151,9 @@ export function Inventory() {
           change_date: v.change_date.format('YYYY-MM-DD')
         })
       ).data,
-    onSuccess: () => {
+    onSuccess: (updated: InventoryRow) => {
       message.success('盘点调整成功')
+      replaceCachedPageItem(qc, ['inventory'], updated)
       setAdjustTarget(null)
       invalidate()
       qc.invalidateQueries({ queryKey: ['inventory-logs'] })

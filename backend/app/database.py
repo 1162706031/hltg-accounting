@@ -1,13 +1,49 @@
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Session
 
 from app.config import get_settings
+from app.utils.audit_context import get_audit_context
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class AuditedSession(Session):
+    """Sync session used internally by AsyncSession so audit rows share its transaction."""
+
+
+@event.listens_for(AuditedSession, "before_commit")
+def add_request_audit_log(session: AuditedSession) -> None:
+    context = get_audit_context()
+    if context is None or session.info.get("audit_request_id") == context.request_id:
+        return
+
+    # Imported lazily because OperationLog itself imports Base from this module.
+    from app.models.operation_log import OperationLog
+
+    session.add(
+        OperationLog(
+            user_id=context.user_id,
+            action=context.action,
+            target_type=context.target_type,
+            target_id=context.target_id,
+            summary=context.summary[:500],
+            detail=context.detail,
+            ip_address=context.ip_address,
+        )
+    )
+    session.info["audit_request_id"] = context.request_id
+
+
+@event.listens_for(AuditedSession, "after_rollback")
+def clear_rolled_back_audit_marker(session: AuditedSession) -> None:
+    # A few endpoints retry after an IntegrityError. The first audit row rolls
+    # back with that transaction, so the retry must be allowed to add it again.
+    session.info.pop("audit_request_id", None)
 
 
 settings = get_settings()
@@ -22,7 +58,12 @@ engine = create_async_engine(
     pool_recycle=280,
 )
 
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+    sync_session_class=AuditedSession,
+)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

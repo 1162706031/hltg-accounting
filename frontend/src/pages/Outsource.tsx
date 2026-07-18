@@ -2,7 +2,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
@@ -25,6 +25,7 @@ import {
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface OutsourceOrder {
   id: number
@@ -82,6 +83,7 @@ export function Outsource() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
   const stock = useInventoryStock()
@@ -140,10 +142,15 @@ export function Outsource() {
         outbound_lines: (values.outbound_lines ?? []).map(mapOut),
         inbound_lines: (values.inbound_lines ?? []).map(mapIn)
       }
-      return editingId ? api.put(`/outsource-orders/${editingId}`, body) : api.post('/outsource-orders', body)
+      return (
+        editingId
+          ? await api.put<OutsourceOrder>(`/outsource-orders/${editingId}`, body)
+          : await api.post<OutsourceOrder>('/outsource-orders', body)
+      ).data
     },
-    onSuccess: () => {
+    onSuccess: (updated: OutsourceOrder) => {
       message.success('已保存')
+      replaceCachedPageItem(queryClient, ['outsource'], updated)
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
@@ -155,6 +162,7 @@ export function Outsource() {
   })
 
   const openCreate = () => {
+    editRequestSequence.current += 1
     setCreating(true)
     setEditingId(null)
     setEditingStatus(null)
@@ -164,17 +172,22 @@ export function Outsource() {
   }
 
   const openEdit = async (row: OutsourceOrder) => {
+    const requestSequence = ++editRequestSequence.current
     let d: OutsourceOrder
     try {
       d = (await api.get<OutsourceOrder>(`/outsource-orders/${row.id}`)).data
     } catch (error) {
-      message.error(getErrorMessage(error, '加载外协单详情失败'))
+      if (requestSequence === editRequestSequence.current) {
+        message.error(getErrorMessage(error, '加载外协单详情失败'))
+      }
       return
     }
+    if (requestSequence !== editRequestSequence.current) return
     setEditingId(row.id)
     setEditingStatus(d.status)
     setInboundSelectedRowKeys([])
     setCreating(false)
+    form.resetFields()
     form.setFieldsValue({
       party_id: d.party_id,
       process_type: d.process_type,
@@ -428,6 +441,7 @@ export function Outsource() {
         open={creating || editingId !== null}
         width={920}
         onCancel={() => {
+          editRequestSequence.current += 1
           setCreating(false)
           setEditingId(null)
           setEditingStatus(null)

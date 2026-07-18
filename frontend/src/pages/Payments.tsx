@@ -34,6 +34,7 @@ import {
 } from '../utils/linkedOrders'
 import { partyOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { replaceCachedPageItem } from '../utils/queryCache'
 import { canManageData } from '../utils/permissions'
 
 const { RangePicker } = DatePicker
@@ -212,8 +213,9 @@ export function Payments() {
   const updateMut = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: ReturnType<typeof buildPayload> }) =>
       api.put(`/payments/${id}`, payload).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (updated: Payment) => {
       message.success('收付款记录已保存')
+      replaceCachedPageItem(qc, ['payments'], updated)
       invalidateAll()
       setOpen(false)
       setEditing(null)
@@ -248,6 +250,8 @@ export function Payments() {
 
   const openEdit = (row: Payment) => {
     setEditing(row)
+    form.resetFields()
+    form.setFieldsValue(rowToForm(row))
     setOpen(true)
   }
 

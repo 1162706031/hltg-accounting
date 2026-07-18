@@ -16,7 +16,7 @@ import {
   TimePicker
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
@@ -27,6 +27,7 @@ import { useAuth } from '../utils/AuthContext'
 import { partyOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 const ELEMENTS = ['C', 'Mn', 'Si', 'Cr', 'W', 'Mo', 'V', 'Co', 'Nb', 'Ni', 'P', 'S'] as const
 const emptyActualComposition = () =>
@@ -134,6 +135,7 @@ export function SteelmakingRecords() {
   const canManage = canManageData(user?.role)
   const qc = useQueryClient()
   const [form] = Form.useForm<FormValues>()
+  const editRequestSequence = useRef(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
@@ -204,11 +206,12 @@ export function SteelmakingRecords() {
         )
       }
       return editingId
-        ? api.put(`/steelmaking-records/${editingId}`, body)
-        : api.post('/steelmaking-records', body)
+        ? (await api.put<SteelmakingRecord>(`/steelmaking-records/${editingId}`, body)).data
+        : (await api.post<SteelmakingRecord>('/steelmaking-records', body)).data
     },
-    onSuccess: () => {
+    onSuccess: (updated: SteelmakingRecord) => {
       message.success('已保存草稿并完成后端计算')
+      replaceCachedPageItem(qc, ['steelmaking-records'], updated)
       setOpen(false)
       setEditingId(null)
       setEditingBatchNo(null)
@@ -220,8 +223,8 @@ export function SteelmakingRecords() {
   })
 
   const confirm = useMutation({
-    mutationFn: (id: number) => api.post(`/steelmaking-records/${id}/confirm`),
-    onSuccess: () => { message.success('已确认'); invalidate() },
+    mutationFn: (id: number) => api.post<SteelmakingRecord>(`/steelmaking-records/${id}/confirm`).then((r) => r.data),
+    onSuccess: (updated) => { message.success('已确认'); replaceCachedPageItem(qc, ['steelmaking-records'], updated); invalidate() },
     onError
   })
   const remove = useMutation({
@@ -231,6 +234,7 @@ export function SteelmakingRecords() {
   })
 
   const openCreate = () => {
+    editRequestSequence.current += 1
     setEditingId(null)
     setEditingBatchNo(null)
     setMaterialSelectedRowKeys([])
@@ -246,13 +250,17 @@ export function SteelmakingRecords() {
   }
 
   const openEdit = async (id: number) => {
+    const requestSequence = ++editRequestSequence.current
     let row: SteelmakingRecord
     try {
       row = (await api.get<SteelmakingRecord>(`/steelmaking-records/${id}`)).data
     } catch (error) {
-      message.error(getErrorMessage(error, '加载炼钢记录详情失败'))
+      if (requestSequence === editRequestSequence.current) {
+        message.error(getErrorMessage(error, '加载炼钢记录详情失败'))
+      }
       return
     }
+    if (requestSequence !== editRequestSequence.current) return
     setEditingId(id)
     setEditingBatchNo(row.batch_no)
     setMaterialSelectedRowKeys([])
@@ -352,7 +360,7 @@ export function SteelmakingRecords() {
         title={editingId ? '编辑炼钢记录' : '新建炼钢记录'}
         open={open}
         width={1180}
-        onCancel={() => { setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); form.resetFields() }}
+        onCancel={() => { editRequestSequence.current += 1; setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); form.resetFields() }}
         onOk={() => form.validateFields().then((values) => save.mutate(values))}
         confirmLoading={save.isPending}
         okText="保存草稿"

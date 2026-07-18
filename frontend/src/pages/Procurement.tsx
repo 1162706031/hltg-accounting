@@ -15,6 +15,7 @@ import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '.
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface ProcurementItem {
   id?: number
@@ -110,10 +111,15 @@ export function Procurement() {
           in_date: line.in_date.format('YYYY-MM-DD')
         }))
       }
-      return editing ? api.put(`/procurement-orders/${editing.id}`, body) : api.post('/procurement-orders', body)
+      return (
+        editing
+          ? await api.put<ProcurementOrder>(`/procurement-orders/${editing.id}`, body)
+          : await api.post<ProcurementOrder>('/procurement-orders', body)
+      ).data
     },
-    onSuccess: () => {
+    onSuccess: (updated: ProcurementOrder) => {
       message.success('已保存')
+      replaceCachedPageItem(queryClient, ['procurement'], updated)
       setCreating(false)
       setEditing(null)
       setSelectedRowKeys([])
@@ -135,6 +141,7 @@ export function Procurement() {
     setEditing(row)
     setCreating(false)
     setSelectedRowKeys([])
+    form.resetFields()
     form.setFieldsValue({
       party_id: row.party_id,
       tax_rate: row.tax_rate ? Number(row.tax_rate) : 13,
