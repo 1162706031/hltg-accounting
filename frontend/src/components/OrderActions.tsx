@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import { availableActions, OrderStatus } from '../utils/orderStatus'
 import { canManageData, canReview, isAdmin } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface Props {
   /** 订单 REST 路径前缀，例如 'smelting-orders' */
@@ -40,9 +41,10 @@ export function OrderActions({ resource, orderId, status, role, invalidateKey, o
 
   const act = useMutation({
     mutationFn: async ({ action, body }: { action: string; body?: any }) =>
-      api.post(`/${resource}/${orderId}/${action}`, body),
-    onSuccess: () => {
+      (await api.post<{ id: number }>(`/${resource}/${orderId}/${action}`, body)).data,
+    onSuccess: (updated) => {
       message.success('操作成功')
+      replaceCachedPageItem(queryClient, [invalidateKey], updated)
       invalidate()
     },
     onError: (e: any) => message.error(e.response?.data?.detail ?? '操作失败')

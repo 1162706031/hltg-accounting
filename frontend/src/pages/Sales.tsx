@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
@@ -15,6 +15,7 @@ import { partyOptions, useInventoryStock, useParties } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface SalesItem {
   id?: number
@@ -68,6 +69,7 @@ export function Sales() {
   const [detailId, setDetailId] = useState<number | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [form] = Form.useForm()
+  const editRequestSequence = useRef(0)
   const parties = useParties()
   const stock = useInventoryStock()
 
@@ -109,10 +111,15 @@ export function Sales() {
           unit_price: it.unit_price ?? 0
         }))
       }
-      return editingId ? api.put(`/sales-orders/${editingId}`, body) : api.post('/sales-orders', body)
+      return (
+        editingId
+          ? await api.put<SalesOrder>(`/sales-orders/${editingId}`, body)
+          : await api.post<SalesOrder>('/sales-orders', body)
+      ).data
     },
-    onSuccess: () => {
+    onSuccess: (updated: SalesOrder) => {
       message.success('已保存')
+      replaceCachedPageItem(queryClient, ['sales'], updated)
       setCreating(false)
       setEditingId(null)
       form.resetFields()
@@ -122,6 +129,7 @@ export function Sales() {
   })
 
   const openCreate = () => {
+    editRequestSequence.current += 1
     setCreating(true)
     setEditingId(null)
     form.resetFields()
@@ -129,15 +137,20 @@ export function Sales() {
   }
 
   const openEdit = async (row: SalesOrder) => {
+    const requestSequence = ++editRequestSequence.current
     let detail: SalesOrder
     try {
       detail = (await api.get<SalesOrder>(`/sales-orders/${row.id}`)).data
     } catch (error) {
-      message.error(getErrorMessage(error, '加载销售单详情失败'))
+      if (requestSequence === editRequestSequence.current) {
+        message.error(getErrorMessage(error, '加载销售单详情失败'))
+      }
       return
     }
+    if (requestSequence !== editRequestSequence.current) return
     setEditingId(row.id)
     setCreating(false)
+    form.resetFields()
     form.setFieldsValue({
       party_id: detail.party_id,
       tax_rate: detail.tax_rate ? Number(detail.tax_rate) : 13,
@@ -277,6 +290,7 @@ export function Sales() {
         open={creating || editingId !== null}
         width={960}
         onCancel={() => {
+          editRequestSequence.current += 1
           setCreating(false)
           setEditingId(null)
           form.resetFields()

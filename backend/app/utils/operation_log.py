@@ -8,8 +8,8 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import AsyncSessionLocal
 from app.models.operation_log import OperationLog
+from app.utils.audit_context import new_audit_context, reset_audit_context, set_audit_context
 from app.utils.auth import get_subject
 
 SENSITIVE_KEYS = {"password", "access_token", "refresh_token", "token", "authorization"}
@@ -154,46 +154,43 @@ async def write_operation_log(
 
 
 async def operation_log_middleware(request: Request, call_next: Callable[[Request], Awaitable[Any]]) -> Any:
+    """Attach the request audit row to the same transaction as the business write."""
     body = await parse_json_body(request) if request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"} else None
-    response = await call_next(request)
-    if not should_log_request(request, response.status_code):
-        return response
-
     user_id = get_user_id_from_request(request)
-    if user_id is None:
-        return response
-
     action, target_type, target_id = operation_context(request)
-    if target_type is None:
-        return response
+    should_audit = (
+        request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
+        and target_type is not None
+        and user_id is not None
+        and "/operation-logs" not in request.url.path
+        and not request.url.path.endswith("/auth/login")
+        and not request.url.path.endswith("/auth/refresh")
+    )
+    if not should_audit:
+        return await call_next(request)
 
-    path = request.url.path
-    query = str(request.url.query) or None
     summary = f"{ACTION_LABELS.get(action, action)} {target_type}"
     if target_id is not None:
         summary += f" #{target_id}"
 
-    detail = {
-        "method": request.method.upper(),
-        "path": path,
-        "query": query,
-        "status_code": response.status_code,
-        "request": body,
-    }
+    context = new_audit_context(
+        user_id=user_id,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        summary=summary,
+        detail={
+            "method": request.method.upper(),
+            "path": request.url.path,
+            "query": str(request.url.query) or None,
+            "request": body,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    token = set_audit_context(context)
     try:
-        async with AsyncSessionLocal() as db:
-            await write_operation_log(
-                db,
-                user_id=user_id,
-                action=action,
-                target_type=target_type,
-                target_id=target_id,
-                summary=summary,
-                detail=detail,
-                ip_address=request.client.host if request.client else None,
-            )
-    except Exception:
-        # 操作日志不能影响主业务请求；失败时静默跳过，由服务端日志/健康检查另行处理。
-        return response
-
-    return response
+        # AuditedSession inserts the log before commit; both records therefore
+        # commit or roll back together without a second database round trip.
+        return await call_next(request)
+    finally:
+        reset_audit_context(token)

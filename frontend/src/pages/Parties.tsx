@@ -22,6 +22,7 @@ import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { makeSortableColumns } from '../utils/tableSorting'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 type RoleKey = 'is_internal' | 'is_customer' | 'is_supplier' | 'is_processor'
 
@@ -218,8 +219,9 @@ export function Parties() {
   const updateMut = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: FormValues }) =>
       api.put(`/parties/${id}`, payload).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (updated: Party) => {
       message.success('已保存')
+      replaceCachedPageItem(qc, ['parties'], updated)
       invalidateAll()
       setOpen(false)
       setEditing(null)
@@ -273,6 +275,19 @@ export function Parties() {
   }
   const openEdit = (row: Party) => {
     setEditing(row)
+    form.resetFields()
+    form.setFieldsValue({
+      name: row.name,
+      short_name: row.short_name ?? '',
+      is_internal: row.is_internal,
+      is_customer: row.is_customer,
+      is_supplier: row.is_supplier,
+      is_processor: row.is_processor,
+      contact: row.contact ?? '',
+      phone: row.phone ?? '',
+      address: row.address ?? '',
+      notes: row.notes ?? ''
+    })
     setOpen(true)
   }
   const handleSubmit = () => {

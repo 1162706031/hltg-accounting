@@ -6,6 +6,7 @@ import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 interface User {
   id: number
@@ -58,9 +59,11 @@ export function Users() {
   })
 
   const updateUser = useMutation({
-    mutationFn: async ({ id, values }: { id: number; values: any }) => api.put(`/users/${id}`, values),
-    onSuccess: () => {
+    mutationFn: async ({ id, values }: { id: number; values: any }) =>
+      (await api.put<User>(`/users/${id}`, values)).data,
+    onSuccess: (updated: User) => {
       message.success('已保存')
+      replaceCachedPageItem(queryClient, ['users'], updated)
       setEditing(null)
       form.resetFields()
       invalidate()
@@ -96,6 +99,7 @@ export function Users() {
 
   const openEdit = (user: User) => {
     setEditing(user)
+    form.resetFields()
     form.setFieldsValue({ real_name: user.real_name, role: user.role, is_active: user.is_active })
   }
 

@@ -337,8 +337,9 @@ export function Reconciliation() {
   const updateMut = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: ReturnType<typeof buildPayload> }) =>
       api.put(`/reconciliations/${id}`, payload).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (updated: ReconciliationRow) => {
       message.success('已保存对账明细')
+      replaceCachedPageItem(qc, ['reconciliations'], updated)
       invalidateAll()
       setFormOpen(false)
       setEditing(null)
@@ -375,8 +376,9 @@ export function Reconciliation() {
   const updateStatusMut = useMutation({
     mutationFn: ({ id, reconStatus }: { id: number; reconStatus: ReconStatus }) =>
       api.put(`/reconciliations/${id}/status`, { recon_status: reconStatus }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (updated: ReconciliationRow) => {
       message.success('状态已更新')
+      replaceCachedPageItem(qc, ['reconciliations'], updated)
       invalidateAll()
     },
     onError: (err: { response?: { data?: { detail?: string } } }) => {
@@ -405,6 +407,8 @@ export function Reconciliation() {
 
   const openEdit = (row: ReconciliationRow) => {
     setEditing(row)
+    form.resetFields()
+    form.setFieldsValue(rowToForm(row))
     setFormOpen(true)
   }
 

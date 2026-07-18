@@ -1,7 +1,7 @@
 import { PrinterOutlined, SettingOutlined } from '@ant-design/icons'
 import { Button, Checkbox, Popover, Space, Table, Typography } from 'antd'
 import type { Key, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnType, TableProps } from 'antd/es/table'
 import { makeSortableColumns } from '../utils/tableSorting'
 
@@ -80,8 +80,11 @@ export function BusinessTable<T extends object>({
     if (typeof rowKey === 'function') return rowKey(record)
     return (record as Record<string, Key>)[rowKey as string]
   }
-  const selectedRecord = (dataSource ?? []).find((record) => selectedKeys.includes(resolveKey(record)))
-  const selectedIndex = selectedRecord ? (dataSource ?? []).indexOf(selectedRecord) : -1
+  const singleSelectedKey = selectedKeys.length === 1 ? selectedKeys[0] : null
+  const selectedIndex = singleSelectedKey == null
+    ? -1
+    : (dataSource ?? []).findIndex((record) => String(resolveKey(record)) === String(singleSelectedKey))
+  const selectedRecord = selectedIndex >= 0 ? (dataSource ?? [])[selectedIndex] : undefined
   // 顶层业务表始终允许多选；是否能执行某个操作由按钮自身根据选择数量判断。
   const enableSelection = selectable ?? true
   const mergedRowSelection = enableSelection
@@ -102,8 +105,12 @@ export function BusinessTable<T extends object>({
   )
 
   const operationButtons =
-    selectedKeys.length === 1 && selectedRecord && operationColumn?.render
-      ? operationColumn.render(undefined, selectedRecord, selectedIndex) as unknown as ReactNode
+    singleSelectedKey != null && selectedRecord && operationColumn?.render
+      ? (
+          <Fragment key={`selected-operation-${String(singleSelectedKey)}`}>
+            {operationColumn.render(undefined, selectedRecord, selectedIndex) as unknown as ReactNode}
+          </Fragment>
+        )
       : null
 
   const printSelected = () => {

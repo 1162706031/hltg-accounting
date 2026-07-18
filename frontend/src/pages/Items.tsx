@@ -20,6 +20,7 @@ import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 
 type ItemType = 'steel_grade' | 'raw_material' | 'alloy' | 'finished_product' | 'semi_finished' | 'scrap'
 
@@ -113,8 +114,9 @@ export function Items() {
   const updateMut = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: FormValues }) =>
       api.put(`/items/${id}`, payload).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (updated: Item) => {
       message.success('已保存')
+      replaceCachedPageItem(qc, ['items'], updated)
       qc.invalidateQueries({ queryKey: ['items'] })
       setOpen(false)
       setEditing(null)
@@ -127,8 +129,9 @@ export function Items() {
   const toggleActiveMut = useMutation({
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       api.put(`/items/${id}`, { is_active: isActive }).then((r) => r.data),
-    onSuccess: (_d, vars) => {
+    onSuccess: (updated: Item, vars) => {
       message.success(vars.isActive ? '已启用' : '已停用')
+      replaceCachedPageItem(qc, ['items'], updated)
       qc.invalidateQueries({ queryKey: ['items'] })
     },
     onError: (err: { response?: { data?: { detail?: string } } }) => {
@@ -179,6 +182,16 @@ export function Items() {
   }
   const openEdit = (row: Item) => {
     setEditing(row)
+    form.resetFields()
+    form.setFieldsValue({
+      name: row.name,
+      item_type: row.item_type,
+      is_active: row.is_active,
+      chemical_enabled: row.chemical_enabled,
+      chemical_composition: row.chemical_composition ?? {},
+      default_price: row.default_price ?? null,
+      notes: row.notes ?? ''
+    })
     setOpen(true)
   }
   const handleSubmit = () => {
