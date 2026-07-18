@@ -42,7 +42,7 @@ _DELETABLE_STATUSES = {"draft", "rejected"}
 @router.get("", response_model=PageResult[SmeltingOrderListItem])
 async def list_orders(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     order_type: str | None = None,
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),

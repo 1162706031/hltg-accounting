@@ -58,7 +58,7 @@ async def load_reconciliation(db: AsyncSession, reconciliation_id: int) -> Party
 @router.get("", response_model=PageResult[ReconciliationRead])
 async def list_reconciliations(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     party_id: int | None = None,
     recon_status: str | None = None,
     period: str | None = None,

@@ -2,6 +2,7 @@ import { PrinterOutlined } from '@ant-design/icons'
 import { Button, Descriptions, Modal, Spin, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useRef } from 'react'
+import { makeSortableColumns } from '../utils/tableSorting'
 
 export interface DetailField {
   label: string
@@ -92,7 +93,7 @@ export function DetailModal({
               <Table
                 rowKey={t.rowKey ?? 'id'}
                 size="small"
-                columns={t.columns}
+                columns={makeSortableColumns(t.columns)}
                 dataSource={t.dataSource}
                 pagination={false}
                 scroll={{ x: 'max-content' }}

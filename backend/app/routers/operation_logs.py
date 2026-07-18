@@ -30,7 +30,7 @@ async def paginate(
 @router.get("", response_model=PageResult[OperationLogRead])
 async def list_operation_logs(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     action: str | None = None,
     target_type: str | None = None,
     user_id: int | None = None,

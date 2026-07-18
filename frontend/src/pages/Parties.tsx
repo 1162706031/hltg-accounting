@@ -21,6 +21,7 @@ import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { makeSortableColumns } from '../utils/tableSorting'
 import { replaceCachedPageItem } from '../utils/queryCache'
 
 type RoleKey = 'is_internal' | 'is_customer' | 'is_supplier' | 'is_processor'
@@ -133,7 +134,7 @@ function PartyDetailPanel({ partyId }: { partyId: number }) {
         pagination={false}
         scroll={{ x: 1120 }}
         locale={{ emptyText: '暂无往来明细' }}
-        columns={[
+        columns={makeSortableColumns<BalanceLine>([
           {
             title: '类型',
             dataIndex: 'ref_type',
@@ -159,7 +160,7 @@ function PartyDetailPanel({ partyId }: { partyId: number }) {
             align: 'right',
             render: (v) => (v != null ? money(v) : '—')
           }
-        ]}
+        ])}
       />
     </div>
   )

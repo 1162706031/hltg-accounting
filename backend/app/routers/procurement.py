@@ -105,7 +105,7 @@ async def _load(db: AsyncSession, order_id: int) -> ProcurementOrder:
 @router.get("", response_model=PageResult[ProcurementOrderRead])
 async def list_orders(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     party_id: int | None = None,
     order_status: str | None = Query(default=None, alias="status"),
     purchase_date_from: date | None = None,

@@ -3,6 +3,7 @@ import { Button, Checkbox, Popover, Space, Table, Typography } from 'antd'
 import type { Key, ReactNode } from 'react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnType, TableProps } from 'antd/es/table'
+import { makeSortableColumns } from '../utils/tableSorting'
 
 type BusinessTableProps<T extends object> = TableProps<T> & {
   tableId: string
@@ -97,9 +98,11 @@ export function BusinessTable<T extends object>({
         }
       }
     : undefined
-  const visibleColumns = columnEntries
-    .filter((entry) => visibleColumnIds.includes(entry.id))
-    .map((entry) => entry.column)
+  const visibleColumns = makeSortableColumns(
+    columnEntries
+      .filter((entry) => visibleColumnIds.includes(entry.id))
+      .map((entry) => entry.column)
+  )
 
   const operationButtons =
     singleSelectedKey != null && selectedRecord && operationColumn?.render

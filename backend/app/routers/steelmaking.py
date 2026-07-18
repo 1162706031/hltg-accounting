@@ -31,7 +31,7 @@ router = APIRouter(
 @router.get("", response_model=PageResult[SteelmakingRecordListItem])
 async def list_records(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     date_from: date | None = None,
     date_to: date | None = None,
     batch_no: str | None = None,

@@ -85,7 +85,7 @@ async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | No
 @router.get("", response_model=PageResult[ItemRead])
 async def list_items(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     q: str | None = None,
     item_type: ItemType | None = None,
     is_active: bool | None = None,

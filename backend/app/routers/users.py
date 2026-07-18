@@ -30,7 +30,7 @@ async def count_other_active_admins(db: AsyncSession, exclude_id: int) -> int:
 @router.get("", response_model=PageResult[UserRead])
 async def list_users(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=20, ge=1, le=500),
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
