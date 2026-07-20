@@ -44,6 +44,7 @@ const actionMeta: Record<string, { label: string; color: string }> = {
 
 const targetLabels: Record<string, string> = {
   item: '物品',
+  master_data: '基础资料配置',
   party: '往来单位',
   user: '用户',
   inventory: '库存',

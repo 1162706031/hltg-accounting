@@ -65,6 +65,14 @@ async def find_or_create_inventory(
     )
     inventory = await db.scalar(stmt)
     if inventory:
+        if inventory.unit != unit:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"该物品、规格和归属单位的现有库存使用“{inventory.unit}”，"
+                    f"不能按“{unit}”入库，请统一计量单位"
+                ),
+            )
         return inventory
 
     inventory = Inventory(

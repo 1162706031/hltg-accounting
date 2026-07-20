@@ -2,24 +2,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, Divider, Form, Input, Modal, Select, Space } from 'antd'
 import { useState } from 'react'
 import { api } from '../api/client'
-import { ItemOption, PartyOption } from '../utils/lookups'
+import { ITEM_TYPE_LABELS, ItemOption, masterDataSelectOptions, PartyOption, useMasterDataOptions } from '../utils/lookups'
 
-type ItemType =
-  | 'steel_grade'
-  | 'raw_material'
-  | 'alloy'
-  | 'finished_product'
-  | 'semi_finished'
-  | 'scrap'
-
-const itemTypeLabels: Record<ItemType, string> = {
-  steel_grade: '钢种',
-  raw_material: '原料',
-  alloy: '合金',
-  finished_product: '成品',
-  semi_finished: '半成品',
-  scrap: '废料'
-}
+type ItemType = string
 
 type RoleKey = 'is_internal' | 'is_customer' | 'is_supplier' | 'is_processor'
 const PARTY_ROLES: Array<{ key: RoleKey; label: string }> = [
@@ -144,6 +129,10 @@ export function QuickCreateItemModal({
   const qc = useQueryClient()
   const { message } = AntApp.useApp()
   const [form] = Form.useForm<ItemFormValues>()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeOptions = itemTypesQuery.data?.length
+    ? masterDataSelectOptions(itemTypesQuery.data)
+    : Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 
   const createMut = useMutation({
     mutationFn: (payload: ItemFormValues) =>
@@ -172,7 +161,7 @@ export function QuickCreateItemModal({
           <Input placeholder="如 H13、钼铁、2Cr14Ni" />
         </Form.Item>
         <Form.Item name="item_type" label="类型" rules={[{ required: true }]}>
-          <Select options={Object.entries(itemTypeLabels).map(([value, label]) => ({ value, label }))} />
+          <Select loading={itemTypesQuery.isLoading} options={itemTypeOptions} />
         </Form.Item>
         <Form.Item name="notes" label="备注">
           <Input.TextArea rows={2} />

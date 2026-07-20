@@ -117,6 +117,8 @@ def _validate_line_dates(
             raise ValueError(f"{label}明细第 {line.line_no} 行必须选择钢种")
         if line.owner_id is None:
             raise ValueError(f"{label}明细第 {line.line_no} 行必须选择所属单位")
+        if line.side == "out" and not (line.spec or "").strip():
+            raise ValueError(f"{label}明细第 {line.line_no} 行必须选择规格")
     for index, line in enumerate(alloy_lines or [], start=1):
         if line.date is None:
             raise ValueError(f"补加合金明细第 {index} 行必须填写日期")

@@ -1,6 +1,7 @@
 from app.models.finance import Invoice, Payment
 from app.models.inventory import Inventory, InventoryLog
 from app.models.item import Item
+from app.models.master_data import MasterDataOption
 from app.models.operation_log import OperationLog
 from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOutbound
 from app.models.party import Party
@@ -17,6 +18,7 @@ __all__ = [
     "Inventory",
     "InventoryLog",
     "Item",
+    "MasterDataOption",
     "OperationLog",
     "OutsourceOrder",
     "Party",

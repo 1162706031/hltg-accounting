@@ -19,6 +19,7 @@ from app.schemas.outsource import (
     RejectRequest,
 )
 from app.services.batch import generate_batch_no
+from app.services.master_data import require_master_option, require_specification
 from app.services.outsource import (
     apply_complete_inventory,
     apply_start_inventory,
@@ -119,12 +120,18 @@ async def create_order(
     async with db.begin():
         if await db.get(Party, payload.party_id) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="外协厂不存在")
-        prefix = _BATCH_PREFIX[payload.process_type]
+        process_option = await require_master_option(
+            db,
+            category="process",
+            code=payload.process_type,
+            detail="请选择基础资料中已有的工艺",
+        )
+        prefix = _BATCH_PREFIX.get(process_option.code, "W")
         batch_no = await generate_batch_no(db, column=OutsourceOrder.batch_no, prefix=prefix, width=6)
         order = OutsourceOrder(
             batch_no=batch_no,
             party_id=payload.party_id,
-            process_type=payload.process_type,
+            process_type=process_option.code,
             unit_price=payload.unit_price,
             tax_rate=payload.tax_rate,
             saw_head_ton=payload.saw_head_ton,
@@ -138,7 +145,10 @@ async def create_order(
         for line in payload.outbound_lines:
             order.outbound_lines.append(ProcessingOutbound(**line.model_dump()))
         for line in payload.inbound_lines:
-            order.inbound_lines.append(ProcessingInbound(**line.model_dump()))
+            specification = await require_specification(db, line.spec or "")
+            line_data = line.model_dump()
+            line_data["spec"] = specification.code
+            order.inbound_lines.append(ProcessingInbound(**line_data))
         excluded_item_ids = await get_yield_excluded_item_ids(db, (line.item_id for line in order.inbound_lines))
         recompute_amounts(order, excluded_item_ids)
         db.add(order)
@@ -162,6 +172,14 @@ async def update_order(
             exclude_unset=True,
             exclude={"outbound_lines", "inbound_lines", "out_date", "in_date"},
         )
+        if "process_type" in data:
+            process_option = await require_master_option(
+                db,
+                category="process",
+                code=data["process_type"],
+                detail="请选择基础资料中已有的工艺",
+            )
+            data["process_type"] = process_option.code
         for key, value in data.items():
             setattr(order, key, value)
 
@@ -173,7 +191,10 @@ async def update_order(
         if payload.inbound_lines is not None:
             order.inbound_lines.clear()
             for line in payload.inbound_lines:
-                order.inbound_lines.append(ProcessingInbound(**line.model_dump()))
+                specification = await require_specification(db, line.spec or "")
+                line_data = line.model_dump()
+                line_data["spec"] = specification.code
+                order.inbound_lines.append(ProcessingInbound(**line_data))
 
         excluded_item_ids = await get_yield_excluded_item_ids(db, (line.item_id for line in order.inbound_lines))
         recompute_amounts(order, excluded_item_ids)

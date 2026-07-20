@@ -34,6 +34,39 @@ export interface InventoryStockOption {
   owner?: { id: number; name: string } | null
 }
 
+export type MasterDataCategory = 'process' | 'item_type' | 'specification'
+
+export interface MasterDataOption {
+  id: number
+  category: MasterDataCategory
+  code: string
+  name: string
+  is_system: boolean
+  created_by?: number | null
+  created_at: string
+  updated_at: string
+}
+
+/** 加载基础资料选项；业务下拉与配置页面共用同一份缓存。 */
+export function useMasterDataOptions(category?: MasterDataCategory) {
+  return useQuery({
+    queryKey: ['master-data-options', category ?? 'all'],
+    queryFn: async () => (
+      await api.get<MasterDataOption[]>('/master-data/options', {
+        params: category ? { category } : undefined
+      })
+    ).data
+  })
+}
+
+export function masterDataSelectOptions(options?: MasterDataOption[]) {
+  return (options ?? []).map((option) => ({ value: option.code, label: option.name }))
+}
+
+export function masterDataLabelMap(options?: MasterDataOption[]) {
+  return Object.fromEntries((options ?? []).map((option) => [option.code, option.name])) as Record<string, string>
+}
+
 /** 加载全部往来单位（最多 200），用于下拉选择。 */
 export function useParties() {
   return useQuery({
@@ -107,9 +140,9 @@ export function partyOptions(parties?: PartyOption[]) {
   })
 }
 
-export function itemOptions(items?: ItemOption[]) {
+export function itemOptions(items?: ItemOption[], itemTypeLabels: Record<string, string> = ITEM_TYPE_LABELS) {
   return (items ?? []).map((i) => {
-    const type = ITEM_TYPE_LABELS[i.item_type] ?? i.item_type
+    const type = itemTypeLabels[i.item_type] ?? i.item_type
     return { value: i.id, label: type ? `${i.name} · ${type}` : i.name }
   })
 }

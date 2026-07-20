@@ -19,6 +19,7 @@ from app.schemas.smelting import (
     SmeltingOrderUpdate,
 )
 from app.services.batch import generate_batch_no
+from app.services.master_data import require_specification
 from app.services.smelting import (
     apply_complete_inventory,
     apply_start_inventory,
@@ -134,7 +135,11 @@ async def create_order(
             created_by=current_user.id,
         )
         for line in payload.inbound_lines:
-            order.inbound_lines.append(SmeltingInbound(**line.model_dump()))
+            line_data = line.model_dump()
+            if line.side == "out":
+                specification = await require_specification(db, line.spec or "")
+                line_data["spec"] = specification.code
+            order.inbound_lines.append(SmeltingInbound(**line_data))
         for alloy in payload.alloy_lines:
             order.alloy_lines.append(AlloyAddition(**alloy.model_dump()))
         excluded_item_ids = await get_yield_excluded_item_ids(
@@ -176,7 +181,11 @@ async def update_order(
                 order.inbound_lines.clear()
                 lines_to_save = payload.inbound_lines
             for line in lines_to_save:
-                order.inbound_lines.append(SmeltingInbound(**line.model_dump()))
+                line_data = line.model_dump()
+                if line.side == "out":
+                    specification = await require_specification(db, line.spec or "")
+                    line_data["spec"] = specification.code
+                order.inbound_lines.append(SmeltingInbound(**line_data))
         if payload.alloy_lines is not None:
             if order.status not in STOCK_OUT_LOCKED_STATUSES:
                 order.alloy_lines.clear()

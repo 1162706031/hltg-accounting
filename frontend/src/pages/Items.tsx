@@ -21,8 +21,9 @@ import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
+import { masterDataLabelMap, masterDataSelectOptions, useMasterDataOptions } from '../utils/lookups'
 
-type ItemType = 'steel_grade' | 'raw_material' | 'alloy' | 'finished_product' | 'semi_finished' | 'scrap'
+type ItemType = string
 
 interface Item {
   id: number
@@ -35,7 +36,7 @@ interface Item {
   notes?: string | null
 }
 
-const typeLabels: Record<ItemType, string> = {
+const typeLabels: Record<string, string> = {
   steel_grade: '钢种',
   raw_material: '原料',
   alloy: '合金',
@@ -43,7 +44,7 @@ const typeLabels: Record<ItemType, string> = {
   semi_finished: '半成品',
   scrap: '废料'
 }
-const typeColors: Record<ItemType, string> = {
+const typeColors: Record<string, string> = {
   steel_grade: 'blue',
   raw_material: 'default',
   alloy: 'orange',
@@ -71,6 +72,11 @@ export function Items() {
   const { message, modal } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeOptions = itemTypesQuery.data?.length
+    ? masterDataSelectOptions(itemTypesQuery.data)
+    : Object.entries(typeLabels).map(([value, label]) => ({ value, label }))
+  const currentTypeLabels = { ...typeLabels, ...masterDataLabelMap(itemTypesQuery.data) }
 
   const [typeFilter, setTypeFilter] = useState<ItemType | undefined>()
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -248,7 +254,7 @@ export function Items() {
       </div>
 
       <ListFilters>
-        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} /></div>
+        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={itemTypeOptions} /></div>
         <div className="filter-item"><span>状态：</span><Select value={activeFilter} onChange={setActiveFilter} options={[{ value: 'all', label: '全部' }, { value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }]} /></div>
         <div className="filter-item"><span>化学成分：</span><Select value={chemicalFilter} onChange={setChemicalFilter} options={[{ value: 'all', label: '全部' }, { value: 'enabled', label: '已启用' }, { value: 'disabled', label: '未启用' }]} /></div>
         <div className="filter-item"><span>名称：</span><Input allowClear value={search} placeholder="搜索名称/规格" onChange={(e) => setSearch(e.target.value)} /></div>
@@ -278,7 +284,7 @@ export function Items() {
           {
             title: '类型',
             dataIndex: 'item_type',
-            render: (v: ItemType) => <Tag color={typeColors[v]}>{typeLabels[v]}</Tag>
+            render: (v: ItemType) => <Tag color={typeColors[v] ?? 'default'}>{currentTypeLabels[v] ?? v}</Tag>
           },
           {
             title: '化学成分',
@@ -393,7 +399,7 @@ export function Items() {
             label="类型"
             rules={[{ required: true }]}
           >
-            <Select options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))} />
+            <Select loading={itemTypesQuery.isLoading} options={itemTypeOptions} />
           </Form.Item>
           <Form.Item name="is_active" label="启用" valuePropName="checked">
             <Switch />
@@ -445,7 +451,7 @@ export function Items() {
           detail
             ? [
                 { label: '名称', value: detail.name },
-                { label: '类型', value: typeLabels[detail.item_type] },
+                { label: '类型', value: currentTypeLabels[detail.item_type] ?? detail.item_type },
                 { label: '状态', value: detail.is_active ? '启用' : '停用' },
                 { label: '化学成分', value: detail.chemical_enabled ? '已启用' : '未启用' },
                 { label: '默认单价', value: detail.default_price != null ? `${detail.default_price} 元/吨` : '—' },

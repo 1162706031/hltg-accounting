@@ -1,12 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
-
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import ORMModel
 
-ItemType = Literal["steel_grade", "raw_material", "alloy", "finished_product", "semi_finished", "scrap"]
+ItemType = str
 CHEMICAL_ELEMENTS = ("C", "Mn", "Si", "Cr", "W", "Mo", "V", "Co", "Nb", "Ni", "P", "S")
 
 
@@ -26,7 +24,7 @@ def normalize_composition(value: dict[str, Decimal] | None) -> dict[str, Decimal
 
 class ItemBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    item_type: ItemType
+    item_type: ItemType = Field(min_length=1, max_length=80)
     is_active: bool = True
     chemical_enabled: bool = False
     chemical_composition: dict[str, Decimal] | None = None
@@ -51,7 +49,7 @@ class ItemCreate(ItemBase):
 
 class ItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    item_type: ItemType | None = None
+    item_type: ItemType | None = Field(default=None, min_length=1, max_length=80)
     is_active: bool | None = None
     chemical_enabled: bool | None = None
     chemical_composition: dict[str, Decimal] | None = None

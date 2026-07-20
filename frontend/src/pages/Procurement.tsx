@@ -10,8 +10,17 @@ import { ListFilters } from '../components/ListFilters'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
+import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
 import { useAuth } from '../utils/AuthContext'
-import { UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import {
+  masterDataSelectOptions,
+  UNIT_OPTIONS,
+  itemOptions,
+  partyOptions,
+  useItems,
+  useMasterDataOptions,
+  useParties
+} from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
@@ -77,8 +86,11 @@ export function Procurement() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const parties = useParties()
   const items = useItems()
+  const specificationsQuery = useMasterDataOptions('specification')
+  const specificationOptions = masterDataSelectOptions(specificationsQuery.data)
 
   const query = useQuery({
     queryKey: ['procurement', appliedFilters, page, pageSize],
@@ -311,7 +323,7 @@ export function Procurement() {
                   <div className="line-list-header procurement-line-grid">
                     <span className="line-select-cell"><Checkbox checked={fields.length > 0 && fields.every((field) => selectedRowKeys.includes(field.key))} indeterminate={fields.some((field) => selectedRowKeys.includes(field.key)) && !fields.every((field) => selectedRowKeys.includes(field.key))} onChange={(event) => setSelectedRowKeys(event.target.checked ? fields.map((field) => field.key) : [])} /></span>
                     <span className="line-index-cell">序号</span>
-                    <span>入库日期</span><span>物品</span><span>规格/品位</span><span>数量</span><span>单位</span><span>单价</span><span>归属</span><span>操作</span>
+                    <span>入库日期</span><span>物品</span><span>规格</span><span>数量</span><span>单位</span><span>单价</span><span>归属</span><span>操作</span>
                   </div>
                   {fields.map((field, index) => (
                     <div className="line-editor-row procurement-line-grid" key={field.key}>
@@ -319,7 +331,16 @@ export function Procurement() {
                       <span className="line-index-cell">{index + 1}</span>
                       <Form.Item name={[field.name, 'in_date']} rules={[{ required: true, message: '请选择日期' }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
                       <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data)} /></Form.Item>
-                      <Form.Item name={[field.name, 'item_spec']}><Input placeholder="规格/品位" /></Form.Item>
+                      <Form.Item name={[field.name, 'item_spec']} rules={[{ required: true, message: '请选择规格' }]}>
+                        <SpecificationSelect
+                          showSearch
+                          optionFilterProp="label"
+                          options={specificationOptions}
+                          onAddSpecification={() => openSpecificationCreator(['items', field.name, 'item_spec'])}
+                          placeholder="选择规格"
+                          notFoundContent="暂无规格，请点击下方新增"
+                        />
+                      </Form.Item>
                       <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, type: 'number', min: 0.000001, message: '请输入数量' }]}><InputNumber min={0.000001} precision={6} style={{ width: '100%' }} /></Form.Item>
                       <Form.Item name={[field.name, 'unit']} rules={[{ required: true }]}><Select options={UNIT_OPTIONS} /></Form.Item>
                       <Form.Item name={[field.name, 'unit_price']} rules={[{ required: true, message: '请输入单价' }]}><InputNumber min={0} precision={4} style={{ width: '100%' }} /></Form.Item>
@@ -394,6 +415,7 @@ export function Procurement() {
           ]
         }] : []}
       />
+      {specificationCreatorModal}
     </div>
   )
 }

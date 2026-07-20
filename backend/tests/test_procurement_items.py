@@ -2,11 +2,43 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
+from pydantic import ValidationError
+
 from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.routers.procurement import _recompute
+from app.schemas.procurement import ProcurementItemInput, ProcurementItemRead
 
 
 class ProcurementItemsTests(unittest.TestCase):
+    def test_new_item_requires_specification(self):
+        with self.assertRaises(ValidationError):
+            ProcurementItemInput(
+                in_date=date(2026, 7, 20),
+                item_id=1,
+                item_spec="  ",
+                quantity=Decimal("1"),
+                owner_id=1,
+            )
+
+    def test_legacy_read_allows_missing_specification(self):
+        item = ProcurementItemRead(
+            id=1,
+            order_id=1,
+            line_no=1,
+            in_date=date(2026, 7, 20),
+            item_id=1,
+            item_spec=None,
+            quantity=Decimal("1"),
+            unit="吨",
+            unit_price=Decimal("1"),
+            owner_id=1,
+            amount=Decimal("1"),
+            created_at="2026-07-20T00:00:00",
+            updated_at="2026-07-20T00:00:00",
+        )
+
+        self.assertIsNone(item.item_spec)
+
     def test_order_date_and_amount_use_all_items(self):
         order = ProcurementOrder(
             owner_id=1,

@@ -613,6 +613,100 @@ body {
   border-bottom: 1px solid #f0f1f4;
 }
 
+.master-data-tabs .ant-tabs-content-holder,
+.master-data-tabs .ant-tabs-tabpane,
+.master-data-tabs .ant-card {
+  min-width: 0;
+}
+
+.master-data-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.master-data-panel-heading .ant-typography {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.master-data-create-guide {
+  display: grid;
+  gap: 14px;
+  margin: 8px 0 20px;
+}
+
+.master-data-create-modal .ant-modal-body {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.specification-select-add {
+  height: 36px;
+  justify-content: flex-start;
+  color: #1677ff;
+  font-weight: 500;
+}
+
+.specification-select-popup {
+  max-width: calc(100vw - 24px);
+}
+
+.specification-select-popup .ant-select-item-option-content {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.master-data-rule-card {
+  padding: 14px 16px;
+  border: 1px solid #e7e9ee;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.master-data-rule-card .ant-typography {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.master-data-rule-card ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: #3f4652;
+  line-height: 1.8;
+}
+
+.master-data-example {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+.master-data-example > span {
+  border-radius: 4px;
+  padding: 2px 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.master-data-example-valid > span {
+  color: #237804;
+  background: #f6ffed;
+}
+
+.master-data-example-invalid > span {
+  color: #a8071a;
+  background: #fff1f0;
+}
+
 .list-filters-title {
   color: #30343b;
   font-weight: 650;
@@ -1234,8 +1328,8 @@ body {
 .procurement-line-grid {
   display: grid !important;
   width: 100%;
-  min-width: 1180px;
-  grid-template-columns: 44px 48px 140px minmax(240px, 1fr) 130px 120px 90px 140px 180px 64px;
+  min-width: 1250px;
+  grid-template-columns: 44px 48px 140px minmax(240px, 1fr) 200px 120px 90px 140px 180px 64px;
   align-items: stretch;
 }
 
@@ -1287,6 +1381,52 @@ body {
   flex-wrap: wrap;
 }
 
+.inventory-in-warning {
+  margin-bottom: 10px;
+}
+
+.inventory-in-warning .ant-alert-message {
+  font-weight: 700;
+}
+
+.inventory-in-rules {
+  margin-bottom: 14px;
+}
+
+.inventory-in-rule-content ol {
+  margin: 8px 0 10px;
+  padding-left: 22px;
+  line-height: 1.75;
+}
+
+.inventory-in-rule-examples {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  line-height: 1.6;
+}
+
+.inventory-adjust-warning,
+.inventory-adjust-rules,
+.inventory-out-warning,
+.inventory-out-rules {
+  margin-bottom: 10px;
+}
+
+.inventory-adjust-warning .ant-alert-message,
+.inventory-out-warning .ant-alert-message {
+  font-weight: 700;
+}
+
+.inventory-adjust-rule-content ol,
+.inventory-out-rule-content ol {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  line-height: 1.7;
+}
+
 .inventory-in-lines .line-list-toolbar > div > .section-heading {
   margin-bottom: 2px;
 }
@@ -1299,8 +1439,8 @@ body {
 .inventory-in-line-grid {
   display: grid !important;
   width: 100%;
-  min-width: 1080px;
-  grid-template-columns: 44px 48px 130px minmax(180px, 1fr) 110px 110px 80px 170px minmax(150px, 1fr) 64px;
+  min-width: 1170px;
+  grid-template-columns: 44px 48px 130px minmax(180px, 1fr) 200px 110px 80px 170px minmax(150px, 1fr) 64px;
   align-items: stretch;
 }
 
@@ -1509,6 +1649,28 @@ body {
 
   .page {
     gap: 12px;
+  }
+
+  .master-data-tabs .ant-tabs-nav-wrap {
+    overflow-x: auto;
+  }
+
+  .master-data-panel-heading {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .master-data-page .ant-card-body {
+    padding: 14px 12px;
+  }
+
+  .master-data-example {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .master-data-example > span {
+    width: fit-content;
   }
 
   .list-filter-grid {

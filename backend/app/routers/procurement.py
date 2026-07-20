@@ -20,6 +20,7 @@ from app.schemas.procurement import (
 )
 from app.services.batch import generate_batch_no
 from app.services.inventory import stock_in
+from app.services.master_data import require_specification
 from app.services.order_status import (
     DELETABLE_STATUSES,
     UNAUDITABLE_STATUSES,
@@ -67,20 +68,24 @@ async def _replace_items(db: AsyncSession, order: ProcurementOrder, payload_item
     if missing := owner_ids - existing_owner_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"所属单位不存在：{sorted(missing)}")
 
-    order.items.clear()
-    order.items.extend(
-        ProcurementOrderItem(
-            line_no=index,
-            in_date=line.in_date,
-            item_id=line.item_id,
-            item_spec=line.item_spec,
-            quantity=line.quantity,
-            unit=line.unit,
-            unit_price=line.unit_price,
-            owner_id=line.owner_id,
+    validated_items = []
+    for index, line in enumerate(payload_items, start=1):
+        specification = await require_specification(db, line.item_spec or "")
+        validated_items.append(
+            ProcurementOrderItem(
+                line_no=index,
+                in_date=line.in_date,
+                item_id=line.item_id,
+                item_spec=specification.code,
+                quantity=line.quantity,
+                unit=line.unit,
+                unit_price=line.unit_price,
+                owner_id=line.owner_id,
+            )
         )
-        for index, line in enumerate(payload_items, start=1)
-    )
+
+    order.items.clear()
+    order.items.extend(validated_items)
     _recompute(order)
 
 

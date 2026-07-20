@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
@@ -12,18 +12,26 @@ from app.schemas.party import PartyRead
 OrderStatus = Literal["draft", "pending_review", "approved", "in_progress", "completed", "rejected"]
 
 
-class ProcurementItemInput(BaseModel):
+class ProcurementItemBase(BaseModel):
     line_no: int = Field(default=1, ge=1)
     in_date: date_type
     item_id: int
-    item_spec: str | None = Field(default=None, max_length=50)
+    item_spec: str | None = Field(default=None, max_length=80)
     quantity: Decimal = Field(gt=0)
     unit: str = Field(default="吨", max_length=10)
     unit_price: Decimal = Field(default=Decimal("0"), ge=0)
     owner_id: int
 
 
-class ProcurementItemRead(ProcurementItemInput, ORMModel):
+class ProcurementItemInput(ProcurementItemBase):
+    @model_validator(mode="after")
+    def validate_specification(self):
+        if not (self.item_spec or "").strip():
+            raise ValueError(f"采购明细第 {self.line_no} 行必须选择规格")
+        return self
+
+
+class ProcurementItemRead(ProcurementItemBase, ORMModel):
     id: int
     order_id: int
     amount: Decimal

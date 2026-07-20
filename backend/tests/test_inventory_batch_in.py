@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 from app.routers.inventory import create_batch_stock_in
 from app.schemas.inventory import InventoryBatchInRequest
+from app.services.inventory import find_or_create_inventory
 
 
 def _line(item_id: int):
@@ -70,7 +71,9 @@ class InventoryBatchInTests(unittest.IsolatedAsyncioTestCase):
         payload = InventoryBatchInRequest(lines=[_line(11), _line(12)])
         db = _FakeDb([_inventory(101, 11), _inventory(102, 12)])
 
-        with patch("app.routers.inventory.stock_in", new_callable=AsyncMock) as stock_in:
+        with patch("app.routers.inventory.require_specification", new_callable=AsyncMock), patch(
+            "app.routers.inventory.stock_in", new_callable=AsyncMock
+        ) as stock_in:
             stock_in.side_effect = [SimpleNamespace(id=101), SimpleNamespace(id=102)]
             result = await create_batch_stock_in(payload, db=db, current_user=SimpleNamespace(id=7))
 
@@ -85,13 +88,32 @@ class InventoryBatchInTests(unittest.IsolatedAsyncioTestCase):
         payload = InventoryBatchInRequest(lines=[_line(11), _line(12)])
         db = _FakeDb([])
 
-        with patch("app.routers.inventory.stock_in", new_callable=AsyncMock) as stock_in:
+        with patch("app.routers.inventory.require_specification", new_callable=AsyncMock), patch(
+            "app.routers.inventory.stock_in", new_callable=AsyncMock
+        ) as stock_in:
             stock_in.side_effect = [SimpleNamespace(id=101), HTTPException(status_code=400, detail="入库数量不能为 0")]
             with self.assertRaises(HTTPException):
                 await create_batch_stock_in(payload, db=db, current_user=SimpleNamespace(id=7))
 
         self.assertIs(db.transaction.exit_error, HTTPException)
         self.assertFalse(db.scalars_called)
+
+    async def test_existing_inventory_rejects_a_different_unit(self):
+        existing = SimpleNamespace(unit="吨")
+        db = SimpleNamespace(scalar=AsyncMock(return_value=existing))
+
+        with self.assertRaises(HTTPException) as context:
+            await find_or_create_inventory(
+                db,
+                item_id=11,
+                owner_id=2,
+                spec="Φ150",
+                unit="千克",
+                created_by=7,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertIn("统一计量单位", context.exception.detail)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ SENSITIVE_KEYS = {"password", "access_token", "refresh_token", "token", "authori
 
 TARGET_TYPE_MAP = {
     "items": "item",
+    "master-data": "master_data",
     "parties": "party",
     "users": "user",
     "inventory": "inventory",

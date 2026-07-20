@@ -11,15 +11,19 @@ import { InventoryLineList } from '../components/InventoryLines'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
+import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
 import { useAuth } from '../utils/AuthContext'
 import {
   countsForProcessingFee,
   InventoryStockOption,
+  masterDataLabelMap,
+  masterDataSelectOptions,
   UNIT_OPTIONS,
   itemOptions,
   partyOptions,
   useInventoryStock,
   useItems,
+  useMasterDataOptions,
   useParties
 } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
@@ -31,7 +35,7 @@ interface OutsourceOrder {
   id: number
   batch_no: string
   party_id: number
-  process_type: 'forging' | 'esr' | 'turning' | 'annealing'
+  process_type: string
   out_date?: string | null
   in_date?: string | null
   yield_rate?: string | null
@@ -57,6 +61,12 @@ export function Outsource() {
   const { message } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
+  const processesQuery = useMasterDataOptions('process')
+  const processOptions = processesQuery.data?.length ? masterDataSelectOptions(processesQuery.data) : PROCESS_OPTIONS
+  const processLabels = Object.fromEntries(PROCESS_OPTIONS.map((option) => [option.value, option.label]))
+  Object.assign(processLabels, masterDataLabelMap(processesQuery.data))
+  const specificationsQuery = useMasterDataOptions('specification')
+  const specificationOptions = masterDataSelectOptions(specificationsQuery.data)
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -83,6 +93,7 @@ export function Outsource() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
@@ -252,7 +263,7 @@ export function Outsource() {
               <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>回厂日期</span>
               <span style={{ width: 150 }}>钢种</span>
-              <span style={{ width: 90 }}>规格</span>
+              <span style={{ width: 200 }}>规格</span>
               <span style={{ width: 90 }}>数量</span>
               <span style={{ width: 80 }}>单位</span>
               <span style={{ width: 110 }}>单价（可选）</span>
@@ -280,8 +291,16 @@ export function Outsource() {
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true, message: '请选择钢种' }]}>
                 <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'spec']} label="规格">
-                <Input style={{ width: 90 }} />
+              <Form.Item {...field} name={[field.name, 'spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
+                <SpecificationSelect
+                  showSearch
+                  optionFilterProp="label"
+                  options={specificationOptions}
+                  onAddSpecification={() => openSpecificationCreator([name, field.name, 'spec'])}
+                  placeholder="选择规格"
+                  notFoundContent="暂无规格，请点击下方新增"
+                  style={{ width: 200 }}
+                />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
                 <InputNumber style={{ width: 90 }} min={0} step={0.001} />
@@ -348,7 +367,7 @@ export function Outsource() {
       <ListFilters>
         <div className="filter-item">
           <span>工艺：</span>
-          <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...PROCESS_OPTIONS]} />
+          <Select value={typeFilter} style={{ width: 130 }} onChange={setTypeFilter} options={[{ value: '', label: '全部' }, ...processOptions]} />
         </div>
         <div className="filter-item">
           <span>状态：</span>
@@ -395,7 +414,7 @@ export function Outsource() {
             width: 130,
             render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
           },
-          { title: '工艺', dataIndex: 'process_type', render: (v) => PROCESS_OPTIONS.find((o) => o.value === v)?.label ?? v },
+          { title: '工艺', dataIndex: 'process_type', render: (v) => processLabels[v] ?? v },
           { title: '外协厂', dataIndex: ['party', 'name'], render: (v) => v ?? '—' },
           {
             title: '发出日',
@@ -457,7 +476,7 @@ export function Outsource() {
               <PartySelect options={partyOptions(parties.data)} placeholder="外协厂" style={{ width: 200 }} />
             </Form.Item>
             <Form.Item name="process_type" label="工艺" rules={[{ required: true }]}>
-              <Select style={{ width: 130 }} options={PROCESS_OPTIONS} />
+              <Select style={{ width: 160 }} loading={processesQuery.isLoading} options={processOptions} />
             </Form.Item>
           </Space>
 
@@ -541,7 +560,7 @@ export function Outsource() {
                 { label: '批次号', value: detailQuery.data.batch_no },
                 {
                   label: '工艺',
-                  value: PROCESS_OPTIONS.find((o) => o.value === detailQuery.data!.process_type)?.label
+                  value: processLabels[detailQuery.data!.process_type] ?? detailQuery.data!.process_type
                 },
                 { label: '外协厂', value: detailQuery.data.party?.name },
                 { label: '发出日期', value: detailQuery.data.out_date },
@@ -581,6 +600,7 @@ export function Outsource() {
             : []
         }
       />
+      {specificationCreatorModal}
     </div>
   )
 }

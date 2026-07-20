@@ -9,7 +9,7 @@ from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
 from app.schemas.party import PartyRead
 
-ProcessType = Literal["forging", "esr", "turning", "annealing"]
+ProcessType = str
 OrderStatus = Literal["draft", "pending_review", "approved", "in_progress", "completed", "rejected"]
 
 
@@ -55,7 +55,7 @@ class InboundLineRead(InboundLineBase, ORMModel):
 # ---- 主表 ----
 class OutsourceOrderBase(BaseModel):
     party_id: int
-    process_type: ProcessType
+    process_type: ProcessType = Field(min_length=1, max_length=80)
     out_date: date_type | None = None
     in_date: date_type | None = None
     unit_price: Decimal | None = Field(default=None, ge=0)
@@ -79,7 +79,7 @@ class OutsourceOrderCreate(OutsourceOrderBase):
 
 class OutsourceOrderUpdate(BaseModel):
     party_id: int | None = None
-    process_type: ProcessType | None = None
+    process_type: ProcessType | None = Field(default=None, min_length=1, max_length=80)
     out_date: date_type | None = None
     in_date: date_type | None = None
     unit_price: Decimal | None = Field(default=None, ge=0)
@@ -114,6 +114,8 @@ def _validate_line_dates(
             raise ValueError(f"回厂明细第 {line.line_no} 行必须选择钢种")
         if line.owner_id is None:
             raise ValueError(f"回厂明细第 {line.line_no} 行必须选择所属单位")
+        if not (line.spec or "").strip():
+            raise ValueError(f"回厂明细第 {line.line_no} 行必须选择规格")
 
 
 class OutsourceOrderListItem(ORMModel):

@@ -7,6 +7,7 @@ import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
 import { ListFilters } from '../components/ListFilters'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
+import { masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
 
 interface InventoryLog {
   id: number
@@ -45,6 +46,8 @@ const itemTypeLabels: Record<string, string> = {
 }
 
 export function InventoryLogs() {
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const currentItemTypeLabels = { ...itemTypeLabels, ...masterDataLabelMap(itemTypesQuery.data) }
   const [changeType, setChangeType] = useState<string | undefined>()
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [q, setQ] = useState('')
@@ -136,7 +139,7 @@ export function InventoryLogs() {
             title: '物品类型',
             dataIndex: 'item_type',
             width: 90,
-            render: (v?: string) => (v ? <Tag>{itemTypeLabels[v] ?? v}</Tag> : '—')
+            render: (v?: string) => (v ? <Tag>{currentItemTypeLabels[v] ?? v}</Tag> : '—')
           },
           { title: '归属', dataIndex: 'owner_name', width: 120, render: (v) => v ?? '—' },
           {
@@ -185,7 +188,7 @@ export function InventoryLogs() {
           { label: '变动类型', value: labels[detail.change_type] },
           { label: '物品', value: detail.item_name },
           { label: '规格', value: detail.item_spec },
-          { label: '物品类型', value: detail.item_type ? itemTypeLabels[detail.item_type] ?? detail.item_type : '—' },
+          { label: '物品类型', value: detail.item_type ? currentItemTypeLabels[detail.item_type] ?? detail.item_type : '—' },
           { label: '归属', value: detail.owner_name },
           { label: '变动数量', value: `${Number(detail.delta_quantity) > 0 ? '+' : ''}${detail.delta_quantity} ${detail.unit ?? ''}` },
           { label: '变动前后', value: `${detail.before_quantity} → ${detail.after_quantity}` },

@@ -17,6 +17,7 @@ from app.routers import (
     inventory,
     invoices,
     items,
+    master_data,
     operation_logs,
     outsource,
     parties,
@@ -95,6 +96,7 @@ app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(parties.router, prefix=settings.api_prefix)
 app.include_router(items.router, prefix=settings.api_prefix)
+app.include_router(master_data.router, prefix=settings.api_prefix)
 app.include_router(inventory.router, prefix=settings.api_prefix)
 app.include_router(operation_logs.router, prefix=settings.api_prefix)
 app.include_router(payments.router, prefix=settings.api_prefix)

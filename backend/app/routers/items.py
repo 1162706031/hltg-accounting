@@ -13,6 +13,7 @@ from app.models.smelting import SmeltingInbound, SmeltingOrder
 from app.models.steelmaking import SteelmakingRecordMaterial
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.item import ItemCreate, ItemRead, ItemType, ItemUpdate
+from app.services.master_data import require_master_option
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_current_user)])
@@ -113,7 +114,14 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
+    item_type_option = await require_master_option(
+        db,
+        category="item_type",
+        code=payload.item_type,
+        detail="请选择基础资料中已有的物品类型",
+    )
     data = payload.model_dump()
+    data["item_type"] = item_type_option.code
     if data["chemical_enabled"]:
         data["chemical_composition"] = _composition_json(data["chemical_composition"])
     else:
@@ -149,6 +157,14 @@ async def update_item(
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
     data = payload.model_dump(exclude_unset=True)
+    if "item_type" in data:
+        item_type_option = await require_master_option(
+            db,
+            category="item_type",
+            code=data["item_type"],
+            detail="请选择基础资料中已有的物品类型",
+        )
+        data["item_type"] = item_type_option.code
     chemical_enabled = data.get("chemical_enabled", item.chemical_enabled)
     if not chemical_enabled:
         data["chemical_composition"] = None

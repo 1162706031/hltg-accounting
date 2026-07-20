@@ -73,7 +73,8 @@ const menuItems: AppMenuItem[] = [
     label: '基础资料',
     children: [
       { key: '/parties', label: '往来单位' },
-      { key: '/items', label: '物品管理' }
+      { key: '/items', label: '物品管理' },
+      { key: '/master-data', label: '基础资料配置', roles: ['admin', 'accountant'] }
     ]
   },
   {

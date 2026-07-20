@@ -115,13 +115,39 @@ INSERT INTO party (name, short_name, is_internal, notes) VALUES
 ('本厂', '本厂', TRUE, '系统默认内部单位');
 
 
--- 2. 统一物品字典（替代原 steel_grade + material）
+-- 2. 基础资料配置 + 统一物品字典（替代原 steel_grade + material）
 -- 物品为抽象定义，仅含名称/类型/状态；规格(spec)与单位属于库存与单据，不在此表
+CREATE TABLE master_data_option (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    category    VARCHAR(32) NOT NULL COMMENT 'process/item_type/specification',
+    code        VARCHAR(80) NOT NULL COMMENT '业务存储值；规格与名称相同',
+    name        VARCHAR(80) NOT NULL COMMENT '显示名称',
+    is_system   BOOLEAN NOT NULL DEFAULT FALSE COMMENT '系统内置项不可删除',
+    created_by  BIGINT UNSIGNED DEFAULT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_master_data_category_code (category, code),
+    UNIQUE KEY uk_master_data_category_name (category, name),
+    INDEX idx_master_data_category (category),
+    CONSTRAINT fk_master_data_created_by FOREIGN KEY (created_by) REFERENCES user(id)
+) ENGINE=InnoDB COMMENT='基础资料选项：工艺名称、物品类型、规格';
+
+INSERT INTO master_data_option (category, code, name, is_system) VALUES
+('item_type', 'steel_grade', '钢种', TRUE),
+('item_type', 'raw_material', '原料', TRUE),
+('item_type', 'alloy', '合金', TRUE),
+('item_type', 'finished_product', '成品', TRUE),
+('item_type', 'semi_finished', '半成品', TRUE),
+('item_type', 'scrap', '废料', TRUE),
+('process', 'forging', '锻造', TRUE),
+('process', 'esr', '电渣', TRUE),
+('process', 'turning', '车光', TRUE),
+('process', 'annealing', '退火', TRUE);
+
 CREATE TABLE item (
     id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(100)  NOT NULL COMMENT '物品名称 — H13, 钼铁60%, 2Cr14Ni ...',
-    item_type   ENUM('steel_grade','raw_material','alloy','finished_product','semi_finished','scrap')
-                NOT NULL COMMENT '物品类型',
+    item_type   VARCHAR(80) NOT NULL COMMENT '物品类型（基础资料编码）',
     is_active   BOOLEAN       DEFAULT TRUE COMMENT '是否启用',
     chemical_enabled     TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否启用化学成分',
     chemical_composition JSON DEFAULT NULL COMMENT 'C/Mn/Si/Cr/W/Mo/V/Co/Nb/Ni/P/S 质量百分比',
@@ -325,7 +351,7 @@ CREATE TABLE outsource_order (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     batch_no      VARCHAR(30)   NOT NULL COMMENT '批次号',
     party_id      BIGINT UNSIGNED NOT NULL COMMENT '外协厂',
-    process_type  ENUM('forging','esr','turning','annealing') NOT NULL COMMENT '锻造/电渣/车光/退火',
+    process_type  VARCHAR(80) NOT NULL COMMENT '工艺（基础资料编码）',
     out_date      DATE          DEFAULT NULL COMMENT '发出日期（总体，明细行默认值/兜底）',
     in_date       DATE          DEFAULT NULL COMMENT '回厂日期（总体，明细行默认值/兜底）',
 
@@ -423,7 +449,7 @@ CREATE TABLE procurement_order (
     owner_id          BIGINT UNSIGNED NOT NULL COMMENT '入库归属单位，默认本厂 party，由应用层写入',
     purchase_date     DATE          DEFAULT NULL,
     item_id           BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (原料/合金)',
-    item_spec         VARCHAR(50)   DEFAULT NULL COMMENT '规格/品位 — 59.6%',
+    item_spec         VARCHAR(80)   DEFAULT NULL COMMENT '规格/品位 — 59.6%',
     quantity          DECIMAL(10,3) DEFAULT 0,
     unit              VARCHAR(10)   DEFAULT '吨',
     unit_price        DECIMAL(10,2) DEFAULT 0,
@@ -466,7 +492,7 @@ CREATE TABLE procurement_order_item (
     line_no         INT UNSIGNED NOT NULL DEFAULT 1,
     in_date         DATE NOT NULL COMMENT '本行入库日期',
     item_id         BIGINT UNSIGNED NOT NULL,
-    item_spec       VARCHAR(50) DEFAULT NULL COMMENT '规格/品位',
+    item_spec       VARCHAR(80) DEFAULT NULL COMMENT '规格/品位',
     quantity        DECIMAL(18,6) NOT NULL DEFAULT 0,
     unit            VARCHAR(10) NOT NULL DEFAULT '吨',
     unit_price      DECIMAL(18,4) NOT NULL DEFAULT 0,

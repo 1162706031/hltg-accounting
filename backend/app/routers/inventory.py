@@ -26,6 +26,7 @@ from app.services.inventory import (
     stock_in,
     stock_out,
 )
+from app.services.master_data import require_specification
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depends(get_current_user)])
@@ -142,6 +143,7 @@ async def create_stock_in(
     current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
+        await require_specification(db, payload.spec)
         inventory = await stock_in(db, **payload.model_dump(), created_by=current_user.id)
     stmt = inventory_with_relations_stmt().where(Inventory.id == inventory.id)
     return await db.scalar(stmt)
@@ -157,6 +159,7 @@ async def create_batch_stock_in(
     inventory_ids: list[int] = []
     async with db.begin():
         for line in payload.lines:
+            await require_specification(db, line.spec)
             inventory = await stock_in(db, **line.model_dump(), created_by=current_user.id)
             inventory_ids.append(inventory.id)
 

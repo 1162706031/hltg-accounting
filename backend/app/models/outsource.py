@@ -15,7 +15,7 @@ class OutsourceOrder(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     batch_no: Mapped[str] = mapped_column(String(30), nullable=False)
     party_id: Mapped[int] = mapped_column(ForeignKey("party.id"), nullable=False)
-    process_type: Mapped[str] = mapped_column(Enum("forging", "esr", "turning", "annealing"), nullable=False)
+    process_type: Mapped[str] = mapped_column(String(80), nullable=False)
     out_date: Mapped[date | None] = mapped_column(Date)
     in_date: Mapped[date | None] = mapped_column(Date)
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))

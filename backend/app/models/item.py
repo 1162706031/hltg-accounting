@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, Enum, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -12,10 +12,7 @@ class Item(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    item_type: Mapped[str] = mapped_column(
-        Enum("steel_grade", "raw_material", "alloy", "finished_product", "semi_finished", "scrap"),
-        nullable=False,
-    )
+    item_type: Mapped[str] = mapped_column(String(80), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     chemical_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     chemical_composition: Mapped[dict[str, str] | None] = mapped_column(JSON)

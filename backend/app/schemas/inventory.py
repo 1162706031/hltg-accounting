@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ORMModel
 from app.schemas.item import ItemRead
@@ -28,13 +28,21 @@ class InventoryRead(ORMModel):
 class InventoryInRequest(BaseModel):
     item_id: int
     owner_id: int
-    spec: str | None = Field(default=None, max_length=80)
+    spec: str = Field(min_length=1, max_length=80)
     unit: str = Field(default="吨", max_length=10)
     quantity: Decimal = Field(default=Decimal("0"), ge=0)
     change_date: date
     notes: str | None = Field(default=None, max_length=200)
     ref_type: str | None = Field(default=None, max_length=30)
     ref_id: int | None = None
+
+    @field_validator("spec")
+    @classmethod
+    def normalize_spec(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("请选择规格")
+        return normalized
 
 
 class InventoryBatchInRequest(BaseModel):

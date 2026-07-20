@@ -11,15 +11,18 @@ import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { InventoryLineList } from '../components/InventoryLines'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
+import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
 import { useAuth } from '../utils/AuthContext'
 import {
   countsForProcessingFee,
   InventoryStockOption,
+  masterDataSelectOptions,
   UNIT_OPTIONS,
   itemOptions,
   partyOptions,
   useInventoryStock,
   useItems,
+  useMasterDataOptions,
   useParties
 } from '../utils/lookups'
 import { OrderStatus, OrderStatusTag, STATUS_FILTER_OPTIONS } from '../utils/orderStatus'
@@ -84,10 +87,13 @@ export function Smelting() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
   const stock = useInventoryStock()
+  const specificationsQuery = useMasterDataOptions('specification')
+  const specificationOptions = masterDataSelectOptions(specificationsQuery.data)
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
   const query = useQuery({
@@ -280,7 +286,7 @@ export function Smelting() {
               <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>出钢日期</span>
               <span style={{ width: 150 }}>钢种</span>
-              <span style={{ width: 90 }}>规格</span>
+              <span style={{ width: 200 }}>规格</span>
               <span style={{ width: 90 }}>数量</span>
               <span style={{ width: 80 }}>单位</span>
               <span style={{ width: 90 }}>炉号</span>
@@ -308,8 +314,16 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true }]}>
                 <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'spec']} label="规格">
-                <Input style={{ width: 90 }} />
+              <Form.Item {...field} name={[field.name, 'spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
+                <SpecificationSelect
+                  showSearch
+                  optionFilterProp="label"
+                  options={specificationOptions}
+                  onAddSpecification={() => openSpecificationCreator(['tap_lines', field.name, 'spec'])}
+                  placeholder="选择规格"
+                  notFoundContent="暂无规格，请点击下方新增"
+                  style={{ width: 200 }}
+                />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'quantity']} label="数量">
                 <InputNumber style={{ width: 90 }} min={0} step={0.001} />
@@ -632,6 +646,7 @@ export function Smelting() {
             : []
         }
       />
+      {specificationCreatorModal}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   App as AntApp,
+  Alert,
   Button,
   Checkbox,
   DatePicker,
@@ -21,8 +22,20 @@ import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
+import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
 import { useAuth } from '../utils/AuthContext'
-import { ItemOption, PartyOption, UNIT_OPTIONS, itemOptions, partyOptions, useItems, useParties } from '../utils/lookups'
+import {
+  ItemOption,
+  masterDataLabelMap,
+  masterDataSelectOptions,
+  PartyOption,
+  UNIT_OPTIONS,
+  itemOptions,
+  partyOptions,
+  useItems,
+  useMasterDataOptions,
+  useParties
+} from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
@@ -59,7 +72,7 @@ const itemTypeColors: Record<string, string> = {
 interface InLineForm {
   item_id: number
   owner_id: number
-  spec?: string
+  spec: string
   unit: string
   quantity: number
   change_date: Dayjs
@@ -75,6 +88,11 @@ export function Inventory() {
   const { message } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
+  const itemTypesQ = useMasterDataOptions('item_type')
+  const currentItemTypeLabels = { ...itemTypeLabels, ...masterDataLabelMap(itemTypesQ.data) }
+  const itemTypeOpts = itemTypesQ.data?.length
+    ? masterDataSelectOptions(itemTypesQ.data)
+    : Object.entries(itemTypeLabels).map(([value, label]) => ({ value, label }))
   const [typeFilter, setTypeFilter] = useState<string | undefined>()
   const [ownerFilter, setOwnerFilter] = useState<number | undefined>()
   const [search, setSearch] = useState('')
@@ -93,7 +111,7 @@ export function Inventory() {
 
   const itemsQ = useItems()
   const itemList: ItemOption[] = itemsQ.data ?? []
-  const itemOpts = itemOptions(itemList)
+  const itemOpts = itemOptions(itemList, currentItemTypeLabels)
 
   const list = useQuery({
     queryKey: ['inventory', appliedFilters, page, pageSize],
@@ -188,7 +206,7 @@ export function Inventory() {
         <h1 className="page-title">库房管理</h1>
       </div>
       <ListFilters>
-        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={Object.entries(itemTypeLabels).map(([v, l]) => ({ value: v, label: l }))} /></div>
+        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={itemTypeOpts} /></div>
         <div className="filter-item"><span>归属：</span><Select allowClear placeholder="全部归属" value={ownerFilter} onChange={setOwnerFilter} options={partyOpts} showSearch optionFilterProp="label" /></div>
         <div className="filter-item"><span>物品：</span><Input placeholder="搜索物品/规格" allowClear value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <div className="filter-actions"><Button type="primary" onClick={() => {
@@ -224,7 +242,7 @@ export function Inventory() {
             render: (_, row) =>
               row.item ? (
                 <Tag color={itemTypeColors[row.item.item_type] ?? 'default'}>
-                  {itemTypeLabels[row.item.item_type] ?? row.item.item_type}
+                  {currentItemTypeLabels[row.item.item_type] ?? row.item.item_type}
                 </Tag>
               ) : (
                 '-'
@@ -316,7 +334,7 @@ export function Inventory() {
             ? [
                 {
                   label: '类型',
-                  value: detail.item ? itemTypeLabels[detail.item.item_type] ?? detail.item.item_type : '—'
+                  value: detail.item ? currentItemTypeLabels[detail.item.item_type] ?? detail.item.item_type : '—'
                 },
                 { label: '物品', value: detail.item?.name },
                 { label: '规格', value: detail.spec },
@@ -350,6 +368,9 @@ function BatchInFormModal({
   submitting: boolean
 }) {
   const [form] = Form.useForm<BatchInForm>()
+  const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
+  const specificationsQ = useMasterDataOptions('specification')
+  const specificationOpts = masterDataSelectOptions(specificationsQ.data)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   return (
     <Form
@@ -358,6 +379,35 @@ function BatchInFormModal({
       initialValues={{ lines: [createInLine()] }}
       onFinish={(v) => onSubmit(v)}
     >
+      <Alert
+        className="inventory-in-warning"
+        type="error"
+        showIcon
+        message="重要警告：入库提交后无法修改，请谨慎入库"
+        description="错误的入库数据无法在后期直接编辑，只能删除后重新入库；库存仍有结余时，需要先按规定清空后才能删除。提交前请逐行核对入库日期、物品、规格、数量、单位和归属单位。"
+      />
+      <Alert
+        className="inventory-in-rules"
+        type="info"
+        showIcon
+        message="批量入库规则（提交前请逐行确认）"
+        description={
+          <div className="inventory-in-rule-content">
+            <ol>
+              <li>每一行代表一笔入库，入库日期、物品、规格、数量、单位和归属单位均为必填项。</li>
+              <li>规格只能选择基础资料中的已有规格；没有合适规格时，点击下拉框底部“＋ 新增规格”并按规范创建。</li>
+              <li>归属单位决定库存所有权，请勿把本厂库存、客户来料或其他单位库存选错归属。</li>
+              <li>相同“物品＋规格＋归属单位”会累计到同一库存，计量单位必须与原库存保持一致。</li>
+              <li>数量必须大于 0；重复填写相同库存组合会重复累加，请提交前检查是否存在重复行。</li>
+              <li>每批可提交 1–100 行；任意一行校验或入库失败，整批都会撤销，不会只入库其中一部分。</li>
+            </ol>
+            <div className="inventory-in-rule-examples">
+              <div><b>正确示例：</b>H13｜Φ150｜2 吨｜本厂｜选择实际入库日期</div>
+              <div><b>常见错误：</b>规格中写入物品或数量、选错归属、同一库存混用“吨/千克”、误填重复行</div>
+            </div>
+          </div>
+        }
+      />
       <Form.List
         name="lines"
         rules={[
@@ -373,7 +423,7 @@ function BatchInFormModal({
             <div className="line-list-toolbar">
               <div>
                 <div className="section-heading">入库明细</div>
-                <span>可一次添加多种物品；提交失败时整批不会入库</span>
+                <span>逐行核对必填信息；相同库存组合将累计数量</span>
               </div>
               <Space>
                 <Button type="primary" ghost disabled={fields.length >= 100} icon={<PlusOutlined />} onClick={() => add(createInLine())}>
@@ -429,8 +479,15 @@ function BatchInFormModal({
                   <Form.Item {...field} name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}>
                     <ItemSelect options={itemOpts} placeholder="选择物品" />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'spec']}>
-                    <Input placeholder="可选" />
+                  <Form.Item {...field} name={[field.name, 'spec']} rules={[{ required: true, message: '请选择规格' }]}>
+                    <SpecificationSelect
+                      showSearch
+                      optionFilterProp="label"
+                      options={specificationOpts}
+                      onAddSpecification={() => openSpecificationCreator(['lines', field.name, 'spec'])}
+                      placeholder="选择已有规格"
+                      notFoundContent="暂无规格，请点击下方新增"
+                    />
                   </Form.Item>
                   <Form.Item
                     {...field}
@@ -475,6 +532,7 @@ function BatchInFormModal({
           </Button>
         </Space>
       </div>
+      {specificationCreatorModal}
     </Form>
   )
 }
@@ -502,8 +560,64 @@ function OutAdjustModal({
       onCancel={onClose}
       footer={null}
       destroyOnClose
-      width={480}
+      width={620}
     >
+      {isAdjust && (
+        <>
+          <Alert
+            className="inventory-adjust-warning"
+            type="error"
+            showIcon
+            message="重要警告：错误的盘点调整可能导致草稿订单无法进行"
+            description="盘点会直接改写当前可用库存。若错误调低库存，已经选用该库存的冶炼、外协、销售等草稿订单，可能在开始、审核或实际扣库时因库存不足而无法继续。请核对相关待办订单后再提交。"
+          />
+          <Alert
+            className="inventory-adjust-rules"
+            type="warning"
+            showIcon
+            message="盘点调整规则"
+            description={
+              <div className="inventory-adjust-rule-content">
+                <ol>
+                  <li>“实际数量”填写盘点完成后的库存总数，不是本次需要增加或减少的差额。</li>
+                  <li>系统会用“实际数量－当前库存”自动计算盘盈或盘亏，并保存完整变动记录。</li>
+                  <li>填写 0 表示实物库存已经为零；数量不能小于 0，计量单位沿用当前库存单位。</li>
+                  <li>盘点日期应填写实际盘点发生日期；建议在备注中写明盘盈、盘亏原因和盘点依据。</li>
+                  <li>提交前请确认该库存是否已被尚未执行的草稿订单选用，避免调整后库存不足。</li>
+                </ol>
+              </div>
+            }
+          />
+        </>
+      )}
+      {!isAdjust && (
+        <>
+          <Alert
+            className="inventory-out-warning"
+            type="error"
+            showIcon
+            message="重要警告：错误的出库可能导致草稿订单无法进行"
+            description="手工出库会立即减少当前可用库存，提交后不能直接编辑。若出库数量、物品库存或归属单位核对错误，已经选用该库存的冶炼、外协、销售等草稿订单，可能因库存不足而无法继续。请谨慎出库。"
+          />
+          <Alert
+            className="inventory-out-rules"
+            type="warning"
+            showIcon
+            message="出库规则"
+            description={
+              <div className="inventory-out-rule-content">
+                <ol>
+                  <li>“出库数量”填写本次要从库存中扣减的数量，不是出库后的剩余数量。</li>
+                  <li>出库数量必须大于 0，且不能超过页面显示的当前库存；计量单位沿用当前库存单位。</li>
+                  <li>请再次核对物品、规格和归属单位，确保从正确的库存项中扣减。</li>
+                  <li>出库日期应填写实际出库发生日期；建议在备注中写明用途、领用单位或相关凭证。</li>
+                  <li>提交前请确认该库存是否已被尚未执行的草稿订单选用，并预留订单所需数量。</li>
+                </ol>
+              </div>
+            }
+          />
+        </>
+      )}
       <div style={{ background: '#f5f7fb', padding: 12, borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
         当前库存：<b>{target.current_quantity}</b> {target.unit} · 归属：
         {target.owner?.name ?? '-'}
@@ -519,12 +633,22 @@ function OutAdjustModal({
         onFinish={onSubmit}
       >
         {isAdjust ? (
-          <Form.Item name="actual_quantity" label={`实际数量（${target.unit}）`}>
-            <InputNumber min={0} step={0.001} style={{ width: 200 }} />
+          <Form.Item
+            name="actual_quantity"
+            label={`盘点后的实际库存总数（${target.unit}）`}
+            extra="请填写最终实物总数，不要填写本次增减差额。"
+            rules={[{ required: true, message: '请输入盘点后的实际库存总数' }]}
+          >
+            <InputNumber min={0} step={0.001} style={{ width: '100%' }} />
           </Form.Item>
         ) : (
-          <Form.Item name="quantity" label={`出库数量（≤ ${target.current_quantity} ${target.unit}）`}>
-            <InputNumber min={0} max={Number(target.current_quantity)} step={0.001} style={{ width: 240 }} />
+          <Form.Item
+            name="quantity"
+            label={`本次出库数量（≤ ${target.current_quantity} ${target.unit}）`}
+            extra="填写本次扣减量，不要填写出库后的剩余库存。"
+            rules={[{ required: true, type: 'number', min: 0.001, message: '请输入大于0且不超过当前库存的出库数量' }]}
+          >
+            <InputNumber min={0.001} max={Number(target.current_quantity)} step={0.001} style={{ width: '100%' }} />
           </Form.Item>
         )}
         <Form.Item name="change_date" label={isAdjust ? '盘点日期' : '出库日期'} rules={[{ required: true }]}>

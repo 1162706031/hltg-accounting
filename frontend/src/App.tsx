@@ -10,6 +10,7 @@ import { InventoryLogs } from './pages/InventoryLogs'
 import { Invoices } from './pages/Invoices'
 import { Items } from './pages/Items'
 import { Login } from './pages/Login'
+import { MasterData } from './pages/MasterData'
 import { OperationLogs } from './pages/OperationLogs'
 import { Outsource } from './pages/Outsource'
 import { Parties } from './pages/Parties'
@@ -35,6 +36,14 @@ export default function App() {
               <Route path="help" element={<Help />} />
               <Route path="parties" element={<Parties />} />
               <Route path="items" element={<Items />} />
+              <Route
+                path="master-data"
+                element={
+                  <RequireRole roles={['admin', 'accountant']}>
+                    <MasterData />
+                  </RequireRole>
+                }
+              />
               <Route path="inventory" element={<Inventory />} />
               <Route path="inventory/logs" element={<InventoryLogs />} />
               <Route path="smelting" element={<Smelting />} />

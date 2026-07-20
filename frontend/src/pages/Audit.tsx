@@ -7,6 +7,7 @@ import { DetailModal, type DetailField, type DetailTable } from '../components/D
 import { ListFilters } from '../components/ListFilters'
 import { OrderStatusTag } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, localTablePagination } from '../utils/pagination'
+import { masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
 
 interface PendingAudit {
   order_kind: 'smelting' | 'outsource' | 'procurement' | 'sales'
@@ -30,7 +31,7 @@ const KIND_META: Record<PendingAudit['order_kind'], { label: string; color: stri
 const SMELTING_TYPE_LABELS: Record<string, string> = { ext_smelting: '外部冶炼', inhouse: '本厂冶炼' }
 const PROCESS_TYPE_LABELS: Record<string, string> = { forging: '锻造', esr: '电渣', turning: '车加工', annealing: '退火' }
 
-function auditDetailFields(target: PendingAudit | null, detail: any): DetailField[] {
+function auditDetailFields(target: PendingAudit | null, detail: any, processTypeLabels = PROCESS_TYPE_LABELS): DetailField[] {
   if (!target || !detail) return []
   const common: DetailField[] = [
     { label: '批次号', value: detail.batch_no },
@@ -76,7 +77,7 @@ function auditDetailFields(target: PendingAudit | null, detail: any): DetailFiel
   }
   return [
     ...common,
-    { label: '工艺', value: PROCESS_TYPE_LABELS[detail.process_type] ?? detail.process_type },
+    { label: '工艺', value: processTypeLabels[detail.process_type] ?? detail.process_type },
     { label: '发出日期', value: detail.out_date },
     { label: '回厂日期', value: detail.in_date },
     { label: '成材率', value: detail.yield_rate != null ? `${(Number(detail.yield_rate) * 100).toFixed(2)}%` : '—' },
@@ -139,6 +140,8 @@ function auditDetailTables(target: PendingAudit | null, detail: any): DetailTabl
 
 export function Audit() {
   const { message } = AntApp.useApp()
+  const processesQuery = useMasterDataOptions('process')
+  const processTypeLabels = { ...PROCESS_TYPE_LABELS, ...masterDataLabelMap(processesQuery.data) }
   const queryClient = useQueryClient()
   const [kind, setKind] = useState('')
   const [appliedKind, setAppliedKind] = useState('')
@@ -283,7 +286,7 @@ export function Audit() {
         onClose={() => setDetailTarget(null)}
         loading={detailQuery.isLoading}
         title={detailTarget ? `${KIND_META[detailTarget.order_kind].label}订单 ${detailTarget.batch_no}` : '审核订单详情'}
-        fields={auditDetailFields(detailTarget, detailQuery.data)}
+        fields={auditDetailFields(detailTarget, detailQuery.data, processTypeLabels)}
         tables={auditDetailTables(detailTarget, detailQuery.data)}
       />
 
