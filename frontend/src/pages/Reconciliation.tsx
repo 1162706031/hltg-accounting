@@ -26,6 +26,7 @@ import { useAuth } from '../utils/AuthContext'
 import { partyOptions, UNIT_OPTIONS, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
+import { replaceCachedPageItem } from '../utils/queryCache'
 import { makeSortableColumns } from '../utils/tableSorting'
 
 type ReconStatus = 'unreconciled' | 'verified' | 'completed' | 'disabled'

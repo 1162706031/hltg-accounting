@@ -181,7 +181,7 @@ export function SteelmakingRecords() {
     queryKey: ['items', 'chemical-enabled', materialSearch],
     queryFn: async () => (
       await api.get<PageResult<ChemicalItem>>('/items', {
-        params: { page: 1, page_size: 200, chemical_enabled: true, is_active: true, q: materialSearch || undefined }
+        params: { page: 1, page_size: 200, chemical_enabled: true, q: materialSearch || undefined }
       })
     ).data.items
   })
@@ -386,7 +386,7 @@ export function SteelmakingRecords() {
               <div className="steelmaking-material-toolbar">
                 <div>
                   <div className="section-heading">原料投入</div>
-                  <span>仅显示已启用化学成分的物品</span>
+                  <span>显示所有已开启化学成分的物品（包含已停用物品）</span>
                 </div>
                 <Space>
                   <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ input_weight_unit: 'kg' })}>添加原料</Button>

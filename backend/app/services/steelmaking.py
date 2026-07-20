@@ -52,6 +52,15 @@ def choose_final_price(default_price: Decimal | None, custom_price: Decimal | No
     return Decimal(custom_price) if custom_price is not None else (Decimal(default_price) if default_price is not None else None)
 
 
+def ensure_steelmaking_material_allowed(item: Item) -> None:
+    """Steelmaking materials only need chemical composition to be enabled."""
+    if not item.chemical_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"物品“{item.name}”未启用化学成分，不能用作炼钢原料",
+        )
+
+
 def calculate_materials_and_composition(
     *,
     furnace_weight_kg: Decimal,
@@ -122,11 +131,7 @@ async def replace_calculated_details(
     material_rows: list[dict] = []
     for index, line in enumerate(materials, start=1):
         item = by_id[line.item_id]
-        if not item.is_active or not item.chemical_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"物品“{item.name}”未启用化学成分，不能用作炼钢原料",
-            )
+        ensure_steelmaking_material_allowed(item)
         snapshot = normalize_composition_snapshot(item.chemical_composition)
         default_price = Decimal(item.default_price) if item.default_price is not None else None
         custom_price = Decimal(line.custom_price) if line.custom_price is not None else None

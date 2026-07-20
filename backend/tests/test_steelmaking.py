@@ -1,17 +1,45 @@
 import unittest
 from decimal import Decimal
 
+from fastapi import HTTPException
+
+from app.models.item import Item
 from app.schemas.item import ItemCreate
 from app.services.steelmaking import (
     calculate_materials_and_composition,
     choose_final_price,
     convert_weight_to_kg,
+    ensure_steelmaking_material_allowed,
     normalize_composition_snapshot,
     resolve_furnace_no,
 )
 
 
 class SteelmakingCalculationTests(unittest.TestCase):
+    def test_inactive_item_with_chemical_composition_enabled_is_allowed(self):
+        item = Item(
+            name="停用但有化学成分的原料",
+            item_type="alloy",
+            is_active=False,
+            chemical_enabled=True,
+            chemical_composition={"Mo": "60"},
+        )
+
+        ensure_steelmaking_material_allowed(item)
+
+    def test_item_without_chemical_composition_enabled_is_rejected(self):
+        item = Item(
+            name="未启用化学成分的原料",
+            item_type="alloy",
+            is_active=True,
+            chemical_enabled=False,
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            ensure_steelmaking_material_allowed(item)
+
+        self.assertEqual(context.exception.status_code, 409)
+
     def test_blank_furnace_number_uses_batch_number(self):
         self.assertEqual(resolve_furnace_no(None, "LG000001"), "LG000001")
         self.assertEqual(resolve_furnace_no("   ", "LG000001"), "LG000001")
