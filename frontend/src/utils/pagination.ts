@@ -17,6 +17,8 @@ export function tablePagination<T>(
     total: data?.total ?? 0,
     showSizeChanger: true,
     showQuickJumper: true,
+    responsive: true,
+    showLessItems: true,
     pageSizeOptions: PAGE_SIZE_OPTIONS,
     showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
     onChange: (nextPage, nextPageSize) => {
@@ -36,6 +38,8 @@ export function localTablePagination(
     total,
     showSizeChanger: true,
     showQuickJumper: true,
+    responsive: true,
+    showLessItems: true,
     pageSizeOptions: PAGE_SIZE_OPTIONS,
     showTotal: (count, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${count} 条`,
     onShowSizeChange: (_page, nextPageSize) => setPageSize(nextPageSize)

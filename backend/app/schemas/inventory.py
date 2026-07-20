@@ -37,6 +37,15 @@ class InventoryInRequest(BaseModel):
     ref_id: int | None = None
 
 
+class InventoryBatchInRequest(BaseModel):
+    lines: list[InventoryInRequest] = Field(min_length=1, max_length=100)
+
+
+class InventoryBatchInResponse(BaseModel):
+    processed_count: int
+    items: list[InventoryRead]
+
+
 class InventoryOutRequest(BaseModel):
     quantity: Decimal = Field(default=Decimal("0"), ge=0)
     change_date: date

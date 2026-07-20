@@ -1,7 +1,9 @@
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   App as AntApp,
   Button,
+  Checkbox,
   DatePicker,
   Form,
   Input,
@@ -54,7 +56,7 @@ const itemTypeColors: Record<string, string> = {
   scrap: 'red'
 }
 
-interface InForm {
+interface InLineForm {
   item_id: number
   owner_id: number
   spec?: string
@@ -62,6 +64,10 @@ interface InForm {
   quantity: number
   change_date: Dayjs
   notes?: string
+}
+
+interface BatchInForm {
+  lines: InLineForm[]
 }
 
 export function Inventory() {
@@ -108,16 +114,17 @@ export function Inventory() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['inventory'] })
 
   const stockInMut = useMutation({
-    mutationFn: async (v: InForm) =>
+    mutationFn: async (v: BatchInForm) =>
       (
-        await api.post('/inventory/in', {
-          ...v,
-          change_date: v.change_date.format('YYYY-MM-DD')
+        await api.post('/inventory/batch-in', {
+          lines: v.lines.map((line) => ({
+            ...line,
+            change_date: line.change_date.format('YYYY-MM-DD')
+          }))
         })
       ).data,
-    onSuccess: (updated: InventoryRow) => {
-      message.success('入库成功')
-      replaceCachedPageItem(qc, ['inventory'], updated)
+    onSuccess: (result: { processed_count: number }) => {
+      message.success(`已完成 ${result.processed_count} 条入库`)
       setInOpen(false)
       invalidate()
       qc.invalidateQueries({ queryKey: ['inventory-logs'] })
@@ -195,7 +202,7 @@ export function Inventory() {
       </ListFilters>
       <BusinessTable
         tableId="inventory"
-        toolbarActions={canManage ? <><Button type="primary" onClick={() => setInOpen(true)}>+ 入库</Button><Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>批量删除</Button></> : null}
+        toolbarActions={canManage ? <><Button type="primary" onClick={() => setInOpen(true)}>+ 批量入库</Button><Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>批量删除</Button></> : null}
         rowKey="id"
         loading={list.isLoading}
         dataSource={list.data?.items}
@@ -259,20 +266,19 @@ export function Inventory() {
       />
 
       <Modal
-        title="入库"
+        title="批量入库"
         open={inOpen}
         onCancel={() => setInOpen(false)}
-        okText="确认入库"
-        onOk={() => stockInMut.mutateAsync}
         confirmLoading={stockInMut.isPending}
         destroyOnClose
-        width={520}
+        width={1120}
         footer={null}
       >
-        <InFormModal
+        <BatchInFormModal
           partyOpts={partyOpts}
           itemOpts={itemOpts}
           onSubmit={(v) => stockInMut.mutate(v)}
+          onCancel={() => setInOpen(false)}
           submitting={stockInMut.isPending}
         />
       </Modal>
@@ -326,52 +332,146 @@ export function Inventory() {
   )
 }
 
-function InFormModal({
+function createInLine(): Partial<InLineForm> {
+  return { unit: '吨', change_date: dayjs() }
+}
+
+function BatchInFormModal({
   partyOpts,
   itemOpts,
   onSubmit,
+  onCancel,
   submitting
 }: {
   partyOpts: { value: number; label: string }[]
   itemOpts: { value: number; label: string }[]
-  onSubmit: (v: InForm) => void
+  onSubmit: (v: BatchInForm) => void
+  onCancel: () => void
   submitting: boolean
 }) {
-  const [form] = Form.useForm<InForm>()
+  const [form] = Form.useForm<BatchInForm>()
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   return (
     <Form
       form={form}
       layout="vertical"
-      initialValues={{ unit: '吨', quantity: 0, change_date: dayjs() }}
+      initialValues={{ lines: [createInLine()] }}
       onFinish={(v) => onSubmit(v)}
     >
-      <Form.Item name="item_id" label="物品" rules={[{ required: true, message: '请选择物品' }]}>
-        <ItemSelect options={itemOpts} />
-      </Form.Item>
-      <Form.Item name="owner_id" label="归属" rules={[{ required: true }]}>
-        <PartySelect options={partyOpts} />
-      </Form.Item>
-      <Form.Item name="spec" label="规格">
-        <Input />
-      </Form.Item>
-      <Space>
-        <Form.Item name="unit" label="单位" rules={[{ required: true }]}>
-          <Select options={UNIT_OPTIONS} style={{ width: 120 }} placeholder="选择单位" />
-        </Form.Item>
-        <Form.Item name="quantity" label="入库数量" rules={[{ required: true }]}>
-          <InputNumber min={0} step={0.001} style={{ width: 160 }} />
-        </Form.Item>
-      </Space>
-      <Form.Item name="change_date" label="入库日期" rules={[{ required: true }]}>
-        <DatePicker style={{ width: '100%' }} />
-      </Form.Item>
-      <Form.Item name="notes" label="备注">
-        <Input.TextArea rows={2} />
-      </Form.Item>
-      <div style={{ textAlign: 'right' }}>
+      <Form.List
+        name="lines"
+        rules={[
+          {
+            validator: async (_, lines) => {
+              if (!lines?.length) throw new Error('请至少添加一条入库明细')
+            }
+          }
+        ]}
+      >
+        {(fields, { add, remove }, { errors }) => (
+          <div className="compact-line-list inventory-in-lines">
+            <div className="line-list-toolbar">
+              <div>
+                <div className="section-heading">入库明细</div>
+                <span>可一次添加多种物品；提交失败时整批不会入库</span>
+              </div>
+              <Space>
+                <Button type="primary" ghost disabled={fields.length >= 100} icon={<PlusOutlined />} onClick={() => add(createInLine())}>
+                  添加入库行
+                </Button>
+                <Button
+                  danger
+                  disabled={!selectedRowKeys.length}
+                  onClick={() => {
+                    remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                    setSelectedRowKeys([])
+                  }}
+                >
+                  移除所选
+                </Button>
+              </Space>
+            </div>
+            <div className="line-list-table">
+              {fields.length > 0 && (
+                <div className="line-list-header inventory-in-line-grid">
+                  <span className="line-select-cell">
+                    <Checkbox
+                      checked={fields.every((field) => selectedRowKeys.includes(field.key))}
+                      indeterminate={fields.some((field) => selectedRowKeys.includes(field.key)) && !fields.every((field) => selectedRowKeys.includes(field.key))}
+                      onChange={(event) => setSelectedRowKeys(event.target.checked ? fields.map((field) => field.key) : [])}
+                    />
+                  </span>
+                  <span className="line-index-cell">序号</span>
+                  <span>入库日期</span>
+                  <span>物品</span>
+                  <span>规格</span>
+                  <span>数量</span>
+                  <span>单位</span>
+                  <span>归属</span>
+                  <span>备注</span>
+                  <span className="line-action-cell">操作</span>
+                </div>
+              )}
+              {fields.map((field, index) => (
+                <div key={field.key} className="line-editor-row inventory-in-line-grid">
+                  <span className="line-select-cell">
+                    <Checkbox
+                      checked={selectedRowKeys.includes(field.key)}
+                      onChange={(event) => setSelectedRowKeys((keys) =>
+                        event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key)
+                      )}
+                    />
+                  </span>
+                  <span className="line-index-cell">{index + 1}</span>
+                  <Form.Item {...field} name={[field.name, 'change_date']} rules={[{ required: true, message: '请选择日期' }]}>
+                    <DatePicker />
+                  </Form.Item>
+                  <Form.Item {...field} name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}>
+                    <ItemSelect options={itemOpts} placeholder="选择物品" />
+                  </Form.Item>
+                  <Form.Item {...field} name={[field.name, 'spec']}>
+                    <Input placeholder="可选" />
+                  </Form.Item>
+                  <Form.Item
+                    {...field}
+                    name={[field.name, 'quantity']}
+                    rules={[{ required: true, type: 'number', min: 0.001, message: '请输入大于 0 的数量' }]}
+                  >
+                    <InputNumber min={0.001} step={0.001} />
+                  </Form.Item>
+                  <Form.Item {...field} name={[field.name, 'unit']} rules={[{ required: true, message: '请选择单位' }]}>
+                    <Select options={UNIT_OPTIONS} />
+                  </Form.Item>
+                  <Form.Item {...field} name={[field.name, 'owner_id']} rules={[{ required: true, message: '请选择归属' }]}>
+                    <PartySelect options={partyOpts} placeholder="选择归属单位" />
+                  </Form.Item>
+                  <Form.Item {...field} name={[field.name, 'notes']}>
+                    <Input placeholder="可选" maxLength={200} />
+                  </Form.Item>
+                  <Button
+                    type="text"
+                    danger
+                    className="line-action-cell"
+                    aria-label={`删除第 ${index + 1} 行`}
+                    icon={<MinusCircleOutlined />}
+                    onClick={() => {
+                      remove(field.name)
+                      setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                    }}
+                  />
+                </div>
+              ))}
+              {!fields.length && <div className="line-list-empty">暂无明细，请点击“添加入库行”</div>}
+            </div>
+            <Form.ErrorList errors={errors} />
+          </div>
+        )}
+      </Form.List>
+      <div className="inventory-in-footer">
         <Space>
+          <Button onClick={onCancel} disabled={submitting}>取消</Button>
           <Button htmlType="submit" type="primary" loading={submitting}>
-            确认入库
+            确认批量入库
           </Button>
         </Space>
       </div>

@@ -11,6 +11,8 @@ from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.inventory import (
     InventoryAdjustRequest,
+    InventoryBatchInRequest,
+    InventoryBatchInResponse,
     InventoryInRequest,
     InventoryLogRead,
     InventoryLogWithRelations,
@@ -143,6 +145,32 @@ async def create_stock_in(
         inventory = await stock_in(db, **payload.model_dump(), created_by=current_user.id)
     stmt = inventory_with_relations_stmt().where(Inventory.id == inventory.id)
     return await db.scalar(stmt)
+
+
+@router.post("/batch-in", response_model=InventoryBatchInResponse)
+async def create_batch_stock_in(
+    payload: InventoryBatchInRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "accountant")),
+):
+    """一次性入库多行；任意一行失败时整批事务回滚。"""
+    inventory_ids: list[int] = []
+    async with db.begin():
+        for line in payload.lines:
+            inventory = await stock_in(db, **line.model_dump(), created_by=current_user.id)
+            inventory_ids.append(inventory.id)
+
+    unique_ids = list(dict.fromkeys(inventory_ids))
+    rows = list(
+        await db.scalars(
+            inventory_with_relations_stmt().where(Inventory.id.in_(unique_ids))
+        )
+    )
+    rows_by_id = {row.id: row for row in rows}
+    return InventoryBatchInResponse(
+        processed_count=len(payload.lines),
+        items=[InventoryRead.model_validate(rows_by_id[inventory_id]) for inventory_id in unique_ids],
+    )
 
 
 @router.post("/{inventory_id}/out", response_model=InventoryRead)

@@ -1,5 +1,5 @@
 import { PrinterOutlined, SettingOutlined } from '@ant-design/icons'
-import { Button, Checkbox, Popover, Space, Table, Typography } from 'antd'
+import { Button, Checkbox, Grid, Popover, Space, Table, Typography } from 'antd'
 import type { Key, ReactNode } from 'react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnType, TableProps } from 'antd/es/table'
@@ -44,10 +44,14 @@ export function BusinessTable<T extends object>({
   rowSelection,
   dataSource,
   rowKey = 'key',
+  scroll,
   ...tableProps
 }: BusinessTableProps<T>) {
+  const screens = Grid.useBreakpoint()
+  const isMobile = screens.md === false
   const workspaceRef = useRef<HTMLElement>(null)
   const storageKey = `business-table-columns:${tableId}`
+  const mobileStorageKey = `${storageKey}:mobile`
   const normalizedColumns = columns as ColumnType<T>[]
   const operationColumn = normalizedColumns.find(isOperationColumn)
   const configurableColumns = normalizedColumns.filter((column) => !isOperationColumn(column))
@@ -56,7 +60,17 @@ export function BusinessTable<T extends object>({
     [columns]
   )
   const allColumnIds = useMemo(() => columnEntries.map((entry) => entry.id), [columnEntries])
+  const defaultMobileColumnIds = useMemo(() => {
+    const primaryIds = columnEntries.slice(0, 3).map((entry) => entry.id)
+    const statusId = columnEntries.find(({ column, id }) =>
+      column.title === '状态' || id.toLowerCase() === 'status'
+    )?.id
+    return Array.from(new Set([...primaryIds, ...(statusId ? [statusId] : [])]))
+  }, [columnEntries])
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => readSavedColumns(storageKey) ?? allColumnIds)
+  const [mobileVisibleColumnIds, setMobileVisibleColumnIds] = useState<string[]>(
+    () => readSavedColumns(mobileStorageKey) ?? defaultMobileColumnIds
+  )
   const [internalSelectedKeys, setInternalSelectedKeys] = useState<Key[]>([])
   const selectedKeys = rowSelection?.selectedRowKeys ?? internalSelectedKeys
 
@@ -75,6 +89,21 @@ export function BusinessTable<T extends object>({
       // 浏览器禁用存储时仍可在当前页面正常使用。
     }
   }, [storageKey, visibleColumnIds])
+
+  useEffect(() => {
+    setMobileVisibleColumnIds((current) => {
+      const stillValid = current.filter((id) => allColumnIds.includes(id))
+      return stillValid.length ? stillValid : defaultMobileColumnIds
+    })
+  }, [allColumnIds.join('|'), defaultMobileColumnIds.join('|')])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(mobileStorageKey, JSON.stringify(mobileVisibleColumnIds))
+    } catch {
+      // 浏览器禁用存储时仍可在当前页面正常使用。
+    }
+  }, [mobileStorageKey, mobileVisibleColumnIds])
 
   const resolveKey = (record: T): Key => {
     if (typeof rowKey === 'function') return rowKey(record)
@@ -98,11 +127,12 @@ export function BusinessTable<T extends object>({
         }
       }
     : undefined
+  const activeColumnIds = isMobile ? mobileVisibleColumnIds : visibleColumnIds
   const visibleColumns = makeSortableColumns(
     columnEntries
-      .filter((entry) => visibleColumnIds.includes(entry.id))
+      .filter((entry) => activeColumnIds.includes(entry.id))
       .map((entry) => entry.column)
-  )
+  ).map((column) => isMobile ? { ...column, fixed: undefined, width: undefined } : column)
 
   const operationButtons =
     singleSelectedKey != null && selectedRecord && operationColumn?.render
@@ -139,14 +169,24 @@ export function BusinessTable<T extends object>({
   const columnSettings = (
     <div className="column-settings-panel">
       <div className="column-settings-heading">
-        <Typography.Text strong>显示列</Typography.Text>
-        <Button type="link" size="small" onClick={() => setVisibleColumnIds(allColumnIds)}>恢复默认</Button>
+        <Typography.Text strong>{isMobile ? '手机显示列' : '显示列'}</Typography.Text>
+        <Button
+          type="link"
+          size="small"
+          onClick={() => isMobile
+            ? setMobileVisibleColumnIds(defaultMobileColumnIds)
+            : setVisibleColumnIds(allColumnIds)}
+        >
+          恢复默认
+        </Button>
       </div>
       <Checkbox.Group
-        value={visibleColumnIds}
+        value={activeColumnIds}
         onChange={(values) => {
           const next = values as string[]
-          if (next.length) setVisibleColumnIds(next)
+          if (!next.length) return
+          if (isMobile) setMobileVisibleColumnIds(next)
+          else setVisibleColumnIds(next)
         }}
       >
         <div className="column-settings-list">
@@ -164,10 +204,10 @@ export function BusinessTable<T extends object>({
     <section ref={workspaceRef} className="business-table-workspace">
       <div className="business-table-toolbar">
         <div className="business-table-actions">
-          <Space wrap size={8}>
-            {toolbarActions}
-            {operationButtons}
-          </Space>
+          <div className="business-table-action-buttons">
+            {toolbarActions && <Space wrap size={8}>{toolbarActions}</Space>}
+            {operationButtons && <div className="business-table-row-actions">{operationButtons}</div>}
+          </div>
           {enableSelection && (
             <Typography.Text type="secondary" className="selection-summary">
               {selectedKeys.length ? `已选择 ${selectedKeys.length} 项` : '请选择记录后操作'}
@@ -175,12 +215,17 @@ export function BusinessTable<T extends object>({
             </Typography.Text>
           )}
         </div>
-        <Space>
+        <Space className="business-table-utilities">
           <Button icon={<PrinterOutlined />} disabled={!selectedKeys.length} onClick={printSelected}>打印所选</Button>
           <Popover content={columnSettings} trigger="click" placement="bottomRight">
             <Button icon={<SettingOutlined />}>列设置</Button>
           </Popover>
         </Space>
+        {isMobile && (
+          <Typography.Text type="secondary" className="mobile-table-hint">
+            已显示关键列，可在“列设置”中调整
+          </Typography.Text>
+        )}
       </div>
       <Table<T>
         {...tableProps}
@@ -188,6 +233,7 @@ export function BusinessTable<T extends object>({
         dataSource={dataSource}
         rowSelection={mergedRowSelection}
         columns={visibleColumns}
+        scroll={isMobile ? { ...scroll, x: 'max-content' } : scroll}
       />
     </section>
   )

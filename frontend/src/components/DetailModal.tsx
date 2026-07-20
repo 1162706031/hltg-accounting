@@ -1,5 +1,5 @@
 import { PrinterOutlined } from '@ant-design/icons'
-import { Button, Descriptions, Modal, Spin, Table } from 'antd'
+import { Button, Descriptions, Grid, Modal, Spin, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useRef } from 'react'
 import { makeSortableColumns } from '../utils/tableSorting'
@@ -39,6 +39,8 @@ export function DetailModal({
   tables?: DetailTable[]
   width?: number
 }) {
+  const screens = Grid.useBreakpoint()
+  const isMobile = screens.md === false
   const printRef = useRef<HTMLDivElement>(null)
 
   const printDetail = () => {
@@ -80,9 +82,9 @@ export function DetailModal({
           </div>
         ) : (
           <>
-          <Descriptions column={2} bordered size="small">
+          <Descriptions column={isMobile ? 1 : 2} bordered size="small">
             {fields.map((f, i) => (
-              <Descriptions.Item key={i} label={f.label} span={f.span ?? 1}>
+              <Descriptions.Item key={i} label={f.label} span={isMobile ? 1 : (f.span ?? 1)}>
                 {f.value ?? '—'}
               </Descriptions.Item>
             ))}
