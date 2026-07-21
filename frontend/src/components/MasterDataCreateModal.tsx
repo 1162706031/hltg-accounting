@@ -33,12 +33,25 @@ export const MASTER_DATA_CATEGORY_META: Record<MasterDataCategory, MasterDataCat
     placeholder: '例如：包装物',
     purpose: '物品类型是稳定的分类名称，不是某一种具体物品。',
     rules: [
-      '一次只创建一个类别；“辅料”和“包装物”应分别创建。',
+      '一次只创建一个具体类别；“合金辅料”和“包装物”应分别创建。',
       '填写类别名称，不要填写具体钢种、合金牌号、规格或供应商。',
-      '分类粒度应与现有“原料、合金、成品”等保持一致，避免过细或含义重叠。'
+      '禁止创建“原料、成品、半成品”等无法准确区分物品用途或材质的笼统类别。'
     ],
-    validExamples: '包装物、辅料（每个类别分别创建）',
-    invalidExamples: '辅料/包装物；钼铁60%；Φ150圆钢'
+    validExamples: '模具钢、合金辅料、包装物（每个类别分别创建）',
+    invalidExamples: '原料；成品；半成品；辅料/包装物；钼铁60%；Φ150圆钢'
+  },
+  item_name: {
+    label: '物品名称',
+    description: '用于新建物品时优先搜索和选择统一名称。',
+    placeholder: '例如：H13',
+    purpose: '物品名称表示一个可重复使用的标准名称，规格、类别和归属单位应在各自字段维护。',
+    rules: [
+      '一次只创建一个物品名称，创建前必须先搜索现有列表，避免同义名称和重复项。',
+      '只填写物品本身的名称或牌号，不要拼接规格、数量、单位、供应商或备注。',
+      '同一物品统一使用公司确定的名称；大小写、数字和牌号写法应保持一致。'
+    ],
+    validExamples: 'H13、钼铁60%、2Cr14Ni（每个名称分别创建）',
+    invalidExamples: 'H13 Φ300；富烽H13；H13两吨；H13/Cr12'
   },
   specification: {
     label: '规格',
@@ -122,6 +135,7 @@ export function MasterDataCreateModal({ category, open, onClose, onCreated }: Ma
   const { message } = AntApp.useApp()
   const [form] = Form.useForm<CreateFormValues>()
   const meta = MASTER_DATA_CATEGORY_META[category]
+  const maxNameLength = category === 'item_name' ? 100 : 80
   const specificationKind = Form.useWatch('specification_kind', form)
   const diameter = Form.useWatch('diameter_mm', form)
   const length = Form.useWatch('length_mm', form)
@@ -351,11 +365,11 @@ export function MasterDataCreateModal({ category, open, onClose, onCreated }: Ma
             label={`${meta.label}名称`}
             extra="请先核对现有列表；同一分类下不能创建重名项。"
             rules={[
-              { max: 80, message: '名称最多80个字符' },
+              { max: maxNameLength, message: `名称最多${maxNameLength}个字符` },
               { validator: validateSingleValue }
             ]}
           >
-            <Input allowClear maxLength={80} showCount placeholder={meta.placeholder} autoFocus />
+            <Input allowClear maxLength={maxNameLength} showCount placeholder={meta.placeholder} autoFocus />
           </Form.Item>
         )}
       </Form>

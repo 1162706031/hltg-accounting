@@ -9,6 +9,10 @@ from app.models.outsource import OutsourceOrder, ProcessingInbound, ProcessingOu
 from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.models.sales import SalesOrderItem
 from app.models.smelting import AlloyAddition, SmeltingInbound
+from app.models.steelmaking import SteelmakingRecordMaterial
+
+
+RETIRED_ITEM_TYPE_CODES = frozenset({"raw_material", "finished_product", "semi_finished"})
 
 
 async def require_master_option(
@@ -19,6 +23,8 @@ async def require_master_option(
     detail: str,
 ) -> MasterDataOption:
     normalized = (code or "").strip()
+    if category == "item_type" and normalized in RETIRED_ITEM_TYPE_CODES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     option = await db.scalar(
         select(MasterDataOption)
         .where(
@@ -54,6 +60,13 @@ async def master_option_reference_reason(
             (InventoryLog, InventoryLog.item_type, "已有库存变动历史使用该类型"),
         )
         value = option.code
+    elif option.category == "item_name":
+        checks = (
+            (Item, Item.name, "已有物品使用该名称"),
+            (InventoryLog, InventoryLog.item_name, "已有库存变动历史使用该名称"),
+            (SteelmakingRecordMaterial, SteelmakingRecordMaterial.item_name_snapshot, "已有炼钢历史使用该名称"),
+        )
+        value = option.name
     else:
         checks = (
             (Inventory, Inventory.spec, "已有库存使用该规格"),

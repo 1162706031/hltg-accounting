@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Checkbox, Divider, Form, Input, Modal, Select, Space } from 'antd'
 import { useState } from 'react'
 import { api } from '../api/client'
-import { ITEM_TYPE_LABELS, ItemOption, masterDataSelectOptions, PartyOption, useMasterDataOptions } from '../utils/lookups'
+import { ItemOption, itemTypeSelectOptions, PartyOption, useMasterDataOptions } from '../utils/lookups'
+import { ItemNameSelect } from './ItemNameSelect'
 
 type ItemType = string
 
@@ -55,6 +56,7 @@ export function ItemSelect({
         options={options}
         showSearch
         optionFilterProp="label"
+        popupMatchSelectWidth={320}
         placeholder={placeholder}
         style={style ?? { width: '100%' }}
         popupRender={(menu) => withCreateFooter(menu, '物品', () => setCreateOpen(true))}
@@ -130,9 +132,7 @@ export function QuickCreateItemModal({
   const { message } = AntApp.useApp()
   const [form] = Form.useForm<ItemFormValues>()
   const itemTypesQuery = useMasterDataOptions('item_type')
-  const itemTypeOptions = itemTypesQuery.data?.length
-    ? masterDataSelectOptions(itemTypesQuery.data)
-    : Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+  const itemTypeOptions = itemTypeSelectOptions(itemTypesQuery.data)
 
   const createMut = useMutation({
     mutationFn: (payload: ItemFormValues) =>
@@ -156,12 +156,18 @@ export function QuickCreateItemModal({
       confirmLoading={createMut.isPending}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" preserve={false} initialValues={{ item_type: 'steel_grade' }}>
+      <Form form={form} layout="vertical" preserve={false}>
         <Form.Item name="name" label="名称" rules={[{ required: true, min: 1, max: 100 }]}>
-          <Input placeholder="如 H13、钼铁、2Cr14Ni" />
+          <ItemNameSelect />
         </Form.Item>
         <Form.Item name="item_type" label="类型" rules={[{ required: true }]}>
-          <Select loading={itemTypesQuery.isLoading} options={itemTypeOptions} />
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="输入关键词搜索具体类别"
+            loading={itemTypesQuery.isLoading}
+            options={itemTypeOptions}
+          />
         </Form.Item>
         <Form.Item name="notes" label="备注">
           <Input.TextArea rows={2} />

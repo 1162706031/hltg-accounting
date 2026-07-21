@@ -7,7 +7,7 @@ from app.schemas.inventory import InventoryInRequest
 from app.schemas.item import ItemCreate
 from app.schemas.master_data import MasterDataOptionCreate
 from app.schemas.outsource import OutsourceOrderCreate
-from app.services.master_data import master_option_reference_reason
+from app.services.master_data import RETIRED_ITEM_TYPE_CODES, master_option_reference_reason
 
 
 class _ScalarDb:
@@ -19,12 +19,22 @@ class _ScalarDb:
 
 
 class MasterDataSchemaTests(unittest.TestCase):
+    def test_generic_item_type_codes_are_retired(self):
+        self.assertEqual(
+            RETIRED_ITEM_TYPE_CODES,
+            {"raw_material", "finished_product", "semi_finished"},
+        )
+
     def test_custom_item_type_and_process_codes_are_accepted_by_payload_schemas(self):
         item = ItemCreate(name="包装纸", item_type="custom_packaging")
         order = OutsourceOrderCreate(party_id=1, process_type="custom_normalizing")
 
         self.assertEqual(item.item_type, "custom_packaging")
         self.assertEqual(order.process_type, "custom_normalizing")
+
+    def test_item_name_is_a_supported_master_data_category(self):
+        option = MasterDataOptionCreate(category="item_name", name="H13")
+        self.assertEqual(option.name, "H13")
 
     def test_master_data_name_is_trimmed_and_blank_name_is_rejected(self):
         option = MasterDataOptionCreate(category="specification", name="  Φ150  ")
@@ -60,6 +70,11 @@ class MasterDataReferenceTests(unittest.IsolatedAsyncioTestCase):
         option = SimpleNamespace(category="specification", code="Φ150", name="Φ150")
         reason = await master_option_reference_reason(_ScalarDb([0, 0, 0, 0, 0, 0, 0, 0, 0]), option)
         self.assertIsNone(reason)
+
+    async def test_item_name_referenced_by_inventory_history_cannot_be_deleted(self):
+        option = SimpleNamespace(category="item_name", code="H13", name="H13")
+        reason = await master_option_reference_reason(_ScalarDb([0, 1]), option)
+        self.assertEqual(reason, "已有库存变动历史使用该名称")
 
 
 if __name__ == "__main__":

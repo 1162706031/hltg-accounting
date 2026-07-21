@@ -6,12 +6,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ORMModel
 
-MasterDataCategory = Literal["process", "item_type", "specification"]
+MasterDataCategory = Literal["process", "item_type", "item_name", "specification"]
 
 
 class MasterDataOptionCreate(BaseModel):
     category: MasterDataCategory
-    name: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=100)
 
     @field_validator("name")
     @classmethod

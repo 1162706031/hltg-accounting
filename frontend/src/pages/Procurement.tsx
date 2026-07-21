@@ -13,6 +13,8 @@ import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
 import { useAuth } from '../utils/AuthContext'
 import {
+  ITEM_TYPE_LABELS,
+  masterDataLabelMap,
   masterDataSelectOptions,
   UNIT_OPTIONS,
   itemOptions,
@@ -63,7 +65,7 @@ interface ProcurementOrder {
 }
 
 export function Procurement() {
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
@@ -89,6 +91,8 @@ export function Procurement() {
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const parties = useParties()
   const items = useItems()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const specificationsQuery = useMasterDataOptions('specification')
   const specificationOptions = masterDataSelectOptions(specificationsQuery.data)
 
@@ -313,10 +317,15 @@ export function Procurement() {
                   <div style={{ fontWeight: 600 }}>采购入库明细</div>
                   <Space>
                     <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ in_date: dayjs(), quantity: 0, unit: '吨', unit_price: 0, owner_id: parties.data?.find((party) => party.is_internal)?.id })}>添加物品</Button>
-                    <Button danger icon={<DeleteOutlined />} disabled={selectedRowKeys.length === 0} onClick={() => {
-                      remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
-                      setSelectedRowKeys([])
-                    }}>移除所选</Button>
+                    <Button danger icon={<DeleteOutlined />} disabled={selectedRowKeys.length === 0} onClick={() => modal.confirm({
+                      title: `确认移除选中的 ${selectedRowKeys.length} 条采购明细？`,
+                      content: '移除后需保存采购单才会生效。',
+                      okButtonProps: { danger: true },
+                      onOk: () => {
+                        remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                        setSelectedRowKeys([])
+                      }
+                    })}>移除所选</Button>
                   </Space>
                 </div>
                 <div className="line-list-table">
@@ -330,7 +339,7 @@ export function Procurement() {
                       <span className="line-select-cell"><Checkbox checked={selectedRowKeys.includes(field.key)} onChange={(event) => setSelectedRowKeys((keys) => event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))} /></span>
                       <span className="line-index-cell">{index + 1}</span>
                       <Form.Item name={[field.name, 'in_date']} rules={[{ required: true, message: '请选择日期' }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
-                      <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data)} /></Form.Item>
+                      <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data, itemTypeLabels)} /></Form.Item>
                       <Form.Item name={[field.name, 'item_spec']} rules={[{ required: true, message: '请选择规格' }]}>
                         <SpecificationSelect
                           showSearch
@@ -345,7 +354,15 @@ export function Procurement() {
                       <Form.Item name={[field.name, 'unit']} rules={[{ required: true }]}><Select options={UNIT_OPTIONS} /></Form.Item>
                       <Form.Item name={[field.name, 'unit_price']} rules={[{ required: true, message: '请输入单价' }]}><InputNumber min={0} precision={4} style={{ width: '100%' }} /></Form.Item>
                       <Form.Item name={[field.name, 'owner_id']} rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="归属单位" /></Form.Item>
-                      <Button type="link" danger size="small" onClick={() => { remove(field.name); setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key)) }}>删除</Button>
+                      <Button type="link" danger size="small" onClick={() => modal.confirm({
+                        title: '确认删除这条采购明细？',
+                        content: '删除后需保存采购单才会生效。',
+                        okButtonProps: { danger: true },
+                        onOk: () => {
+                          remove(field.name)
+                          setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                        }
+                      })}>删除</Button>
                     </div>
                   ))}
                   {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加物品”新增一行</div>}

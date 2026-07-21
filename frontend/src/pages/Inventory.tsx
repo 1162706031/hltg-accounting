@@ -85,7 +85,7 @@ interface BatchInForm {
 
 export function Inventory() {
   const qc = useQueryClient()
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const itemTypesQ = useMasterDataOptions('item_type')
@@ -190,7 +190,17 @@ export function Inventory() {
     mutationFn: async (ids: number[]) => (await api.post('/inventory/batch-delete', { ids })).data,
     onSuccess: (data: { deleted_count: number; skipped: { id: number; reason: string }[] }) => {
       if (data.skipped?.length) {
-        message.warning(`已删除 ${data.deleted_count} 条，跳过 ${data.skipped.length} 条（库存非空）`)
+        message.warning(`已删除 ${data.deleted_count} 条，跳过 ${data.skipped.length} 条（存在订单引用或库存项已不存在）`)
+        modal.info({
+          title: '以下库存项未删除',
+          content: (
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              {data.skipped.map((item) => (
+                <li key={item.id}>#{item.id}：{item.reason}</li>
+              ))}
+            </ul>
+          )
+        })
       } else {
         message.success(`已删除 ${data.deleted_count} 条`)
       }
@@ -220,7 +230,12 @@ export function Inventory() {
       </ListFilters>
       <BusinessTable
         tableId="inventory"
-        toolbarActions={canManage ? <><Button type="primary" onClick={() => setInOpen(true)}>+ 批量入库</Button><Button danger disabled={!selected.length} onClick={() => batchDeleteMut.mutate(selected)}>批量删除</Button></> : null}
+        toolbarActions={canManage ? <><Button type="primary" onClick={() => setInOpen(true)}>+ 批量入库</Button><Button danger disabled={!selected.length} loading={batchDeleteMut.isPending} onClick={() => modal.confirm({
+          title: `确认删除选中的 ${selected.length} 条库存项？`,
+          content: '未被订单引用的库存项将被删除，即使仍有库存结余；被订单引用的库存项会自动跳过。',
+          okButtonProps: { danger: true },
+          onOk: () => batchDeleteMut.mutateAsync(selected)
+        })}>批量删除</Button></> : null}
         rowKey="id"
         loading={list.isLoading}
         dataSource={list.data?.items}
@@ -367,6 +382,7 @@ function BatchInFormModal({
   onCancel: () => void
   submitting: boolean
 }) {
+  const { modal } = AntApp.useApp()
   const [form] = Form.useForm<BatchInForm>()
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const specificationsQ = useMasterDataOptions('specification')
@@ -384,7 +400,7 @@ function BatchInFormModal({
         type="error"
         showIcon
         message="重要警告：入库提交后无法修改，请谨慎入库"
-        description="错误的入库数据无法在后期直接编辑，只能删除后重新入库；库存仍有结余时，需要先按规定清空后才能删除。提交前请逐行核对入库日期、物品、规格、数量、单位和归属单位。"
+        description="错误的入库数据无法在后期直接编辑，只能在未被业务订单引用时删除后重新入库。提交前请逐行核对入库日期、物品、规格、数量、单位和归属单位。"
       />
       <Alert
         className="inventory-in-rules"
@@ -432,10 +448,14 @@ function BatchInFormModal({
                 <Button
                   danger
                   disabled={!selectedRowKeys.length}
-                  onClick={() => {
-                    remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
-                    setSelectedRowKeys([])
-                  }}
+                  onClick={() => modal.confirm({
+                    title: `确认移除选中的 ${selectedRowKeys.length} 条入库明细？`,
+                    okButtonProps: { danger: true },
+                    onOk: () => {
+                      remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                      setSelectedRowKeys([])
+                    }
+                  })}
                 >
                   移除所选
                 </Button>
@@ -511,10 +531,14 @@ function BatchInFormModal({
                     className="line-action-cell"
                     aria-label={`删除第 ${index + 1} 行`}
                     icon={<MinusCircleOutlined />}
-                    onClick={() => {
-                      remove(field.name)
-                      setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                    }}
+                    onClick={() => modal.confirm({
+                      title: `确认删除第 ${index + 1} 条入库明细？`,
+                      okButtonProps: { danger: true },
+                      onOk: () => {
+                        remove(field.name)
+                        setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                      }
+                    })}
                   />
                 </div>
               ))}

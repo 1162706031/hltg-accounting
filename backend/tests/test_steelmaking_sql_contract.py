@@ -41,6 +41,20 @@ class SteelmakingSqlContractTests(unittest.TestCase):
         self.assertNotIn("stock_in(", combined)
         self.assertNotIn("stock_out(", combined)
 
+    def test_delete_routes_physically_remove_snapshot_rows(self):
+        self.assertIn("async def hard_delete_records", SERVICE)
+        material_delete = "delete(SteelmakingRecordMaterial)"
+        composition_delete = "delete(SteelmakingRecordComposition)"
+        record_delete = "delete(SteelmakingRecord)"
+        self.assertIn(material_delete, SERVICE)
+        self.assertIn(composition_delete, SERVICE)
+        self.assertIn(record_delete, SERVICE)
+        self.assertLess(SERVICE.index(material_delete), SERVICE.index(record_delete))
+        self.assertLess(SERVICE.index(composition_delete), SERVICE.index(record_delete))
+        self.assertIn("await hard_delete_records(db, [record.id])", ROUTER)
+        self.assertIn("await hard_delete_records(db, record_ids)", ROUTER)
+        self.assertNotIn("record.deleted = True", ROUTER)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,8 @@ import { useAuth } from '../utils/AuthContext'
 import {
   countsForProcessingFee,
   InventoryStockOption,
+  ITEM_TYPE_LABELS,
+  masterDataLabelMap,
   masterDataSelectOptions,
   UNIT_OPTIONS,
   itemOptions,
@@ -58,7 +60,7 @@ const ORDER_TYPE_OPTIONS = [
 ]
 
 export function Smelting() {
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const queryClient = useQueryClient()
@@ -91,6 +93,8 @@ export function Smelting() {
   const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const stock = useInventoryStock()
   const specificationsQuery = useMasterDataOptions('specification')
   const specificationOptions = masterDataSelectOptions(specificationsQuery.data)
@@ -264,10 +268,15 @@ export function Smelting() {
                 danger
                 size="middle"
                 disabled={tapSelectedRowKeys.length === 0}
-                onClick={() => {
-                  remove(fields.filter((field) => tapSelectedRowKeys.includes(field.key)).map((field) => field.name))
-                  setTapSelectedRowKeys([])
-                }}
+                onClick={() => modal.confirm({
+                  title: `确认移除选中的 ${tapSelectedRowKeys.length} 条出钢明细？`,
+                  content: '移除后需保存冶炼单才会生效。',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    remove(fields.filter((field) => tapSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                    setTapSelectedRowKeys([])
+                  }
+                })}
               >
                 移除所选
               </Button>
@@ -312,7 +321,7 @@ export function Smelting() {
                 <DatePicker style={{ width: 140 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true }]}>
-                <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
+                <ItemSelect options={itemOptions(items.data, itemTypeLabels)} placeholder="钢种" style={{ width: 180 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
                 <SpecificationSelect
@@ -338,10 +347,15 @@ export function Smelting() {
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
               <span className="line-action-cell">
-                <MinusCircleOutlined onClick={() => {
-                  remove(field.name)
-                  setTapSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                }} />
+                <MinusCircleOutlined onClick={() => modal.confirm({
+                  title: '确认删除这条出钢明细？',
+                  content: '删除后需保存冶炼单才会生效。',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    remove(field.name)
+                    setTapSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                  }
+                })} />
               </span>
             </Space>
           ))}

@@ -17,6 +17,8 @@ export interface ItemOption {
   item_type: string
 }
 
+export const RETIRED_ITEM_TYPE_CODES = new Set(['raw_material', 'finished_product', 'semi_finished'])
+
 export const PROCESSING_FEE_EXCLUDED_ITEM_TYPES = new Set(['raw_material', 'scrap'])
 
 export function countsForProcessingFee(itemId: number | null | undefined, items?: ItemOption[]) {
@@ -34,7 +36,7 @@ export interface InventoryStockOption {
   owner?: { id: number; name: string } | null
 }
 
-export type MasterDataCategory = 'process' | 'item_type' | 'specification'
+export type MasterDataCategory = 'process' | 'item_type' | 'item_name' | 'specification'
 
 export interface MasterDataOption {
   id: number
@@ -99,9 +101,13 @@ export function useInventoryStock() {
 }
 
 /** 库存项下拉选项：展示 物品·规格·归属·结余，便于销售时定位具体批次。 */
-export function inventoryStockOptions(rows?: InventoryStockOption[]) {
+export function inventoryStockOptions(
+  rows?: InventoryStockOption[],
+  itemTypeLabels: Record<string, string> = ITEM_TYPE_LABELS
+) {
   return (rows ?? []).map((r) => {
     const parts = [r.item?.name ?? '未知物品']
+    if (r.item?.item_type) parts.push(`类别：${itemTypeLabels[r.item.item_type] ?? r.item.item_type}`)
     if (r.spec) parts.push(r.spec)
     const owner = r.owner?.name ? `（${r.owner.name}）` : ''
     const balance = `结余 ${r.current_quantity}${r.unit}`
@@ -117,6 +123,14 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   finished_product: '成品',
   semi_finished: '半成品',
   scrap: '废料'
+}
+
+export function itemTypeSelectOptions(options?: MasterDataOption[]) {
+  const configured = masterDataSelectOptions(options).filter((option) => !RETIRED_ITEM_TYPE_CODES.has(String(option.value)))
+  if (configured.length) return configured
+  return Object.entries(ITEM_TYPE_LABELS)
+    .filter(([value]) => !RETIRED_ITEM_TYPE_CODES.has(value))
+    .map(([value, label]) => ({ value, label }))
 }
 
 /** 往来单位角色中文标签。 */

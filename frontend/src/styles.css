@@ -632,6 +632,10 @@ body {
   margin-bottom: 4px;
 }
 
+.master-data-page .list-filters {
+  margin-bottom: 16px;
+}
+
 .master-data-create-guide {
   display: grid;
   gap: 14px;

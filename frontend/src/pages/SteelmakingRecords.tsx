@@ -24,7 +24,7 @@ import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import { partyOptions, useParties } from '../utils/lookups'
+import { ITEM_TYPE_LABELS, masterDataLabelMap, partyOptions, useMasterDataOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
@@ -116,13 +116,14 @@ interface FormValues {
   actual_composition?: Record<string, string | null>
 }
 
-function compositionSummary(item: ChemicalItem) {
+function compositionSummary(item: ChemicalItem, itemTypeLabels: Record<string, string>) {
   const values = ELEMENTS
     .filter((code) => Number(item.chemical_composition?.[code] ?? 0) !== 0)
     .slice(0, 4)
     .map((code) => `${code}=${item.chemical_composition?.[code]}%`)
   const price = item.default_price != null ? `默认价${item.default_price}元/吨` : '无默认价'
-  return `#${item.id} ${item.name}，${values.join('，') || '成分均为0'}，${price}`
+  const type = itemTypeLabels[item.item_type] ?? item.item_type
+  return `#${item.id} ${item.name}，类别：${type}，${values.join('，') || '成分均为0'}，${price}`
 }
 
 function timeValue(value?: string | null) {
@@ -134,6 +135,8 @@ export function SteelmakingRecords() {
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const qc = useQueryClient()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const [form] = Form.useForm<FormValues>()
   const editRequestSequence = useRef(0)
   const [page, setPage] = useState(1)
@@ -323,7 +326,7 @@ export function SteelmakingRecords() {
 
       <BusinessTable<SteelmakingRecord>
         tableId="steelmaking-records"
-        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建炼钢记录</Button><BatchDeleteButton selectedKeys={selectedRecordIds} endpoint="/steelmaking-records/batch-delete" entityName="炼钢记录" onSuccess={() => { setSelectedRecordIds([]); invalidate() }} /></> : null}
+        toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建炼钢记录</Button><BatchDeleteButton selectedKeys={selectedRecordIds} endpoint="/steelmaking-records/batch-delete" entityName="炼钢记录" confirmContent="炼钢记录及其材料、成分快照将被永久删除且无法恢复，同时释放相关物品引用。" onSuccess={() => { setSelectedRecordIds([]); invalidate() }} /></> : null}
         rowSelection={{ selectedRowKeys: selectedRecordIds, onChange: (keys) => setSelectedRecordIds(keys as number[]) }}
         rowKey="id"
         loading={query.isLoading}
@@ -349,7 +352,7 @@ export function SteelmakingRecords() {
               <Button type="link" size="small" onClick={() => setDetailId(row.id)}>查看</Button>
               {canManage && row.status === 'draft' && <Button type="link" size="small" onClick={() => openEdit(row.id)}>编辑</Button>}
               {canManage && row.status === 'draft' && <Button type="link" size="small" onClick={() => confirm.mutate(row.id)}>确认</Button>}
-              {canManage && <Button type="link" danger size="small" onClick={() => modal.confirm({ title: '确认删除该炼钢记录？', onOk: () => remove.mutateAsync(row.id) })}>删除</Button>}
+              {canManage && <Button type="link" danger size="small" onClick={() => modal.confirm({ title: '确认永久删除该炼钢记录？', content: '记录及其材料、成分快照将被删除且无法恢复，同时释放相关物品引用。', okButtonProps: { danger: true }, onOk: () => remove.mutateAsync(row.id) })}>删除</Button>}
             </Space>
           }
         ]}
@@ -394,10 +397,15 @@ export function SteelmakingRecords() {
                     danger
                     icon={<DeleteOutlined />}
                     disabled={materialSelectedRowKeys.length === 0}
-                    onClick={() => {
-                      removeLine(fields.filter((field) => materialSelectedRowKeys.includes(field.key)).map((field) => field.name))
-                      setMaterialSelectedRowKeys([])
-                    }}
+                    onClick={() => modal.confirm({
+                      title: `确认移除选中的 ${materialSelectedRowKeys.length} 条原料明细？`,
+                      content: '移除后需保存炼钢记录才会生效。',
+                      okButtonProps: { danger: true },
+                      onOk: () => {
+                        removeLine(fields.filter((field) => materialSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                        setMaterialSelectedRowKeys([])
+                      }
+                    })}
                   >
                     移除所选
                   </Button>
@@ -437,7 +445,7 @@ export function SteelmakingRecords() {
                       onSearch={(value) => setMaterialSearch(value.trim())}
                       placeholder="搜索名称或物品编号"
                       options={(chemicalItems.data ?? []).map((item) => {
-                        const summary = compositionSummary(item)
+                        const summary = compositionSummary(item, itemTypeLabels)
                         return { value: item.id, label: summary, title: summary }
                       })}
                     />
@@ -449,10 +457,15 @@ export function SteelmakingRecords() {
                     type="link"
                     danger
                     size="small"
-                    onClick={() => {
-                      removeLine(field.name)
-                      setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                    }}
+                    onClick={() => modal.confirm({
+                      title: '确认删除这条原料明细？',
+                      content: '删除后需保存炼钢记录才会生效。',
+                      okButtonProps: { danger: true },
+                      onOk: () => {
+                        removeLine(field.name)
+                        setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                      }
+                    })}
                   >删除</Button>
                 </div>)}
               </div>

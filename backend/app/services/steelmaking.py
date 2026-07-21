@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -188,3 +188,25 @@ async def load_record(db: AsyncSession, record_id: int, *, include_deleted: bool
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="炼钢记录不存在")
     return record
+
+
+async def hard_delete_records(db: AsyncSession, record_ids: list[int]) -> int:
+    """物理删除炼钢记录及其快照明细，立即释放对物品的引用。"""
+    ids = list(dict.fromkeys(record_ids))
+    if not ids:
+        return 0
+
+    await db.execute(
+        delete(SteelmakingRecordComposition).where(
+            SteelmakingRecordComposition.record_id.in_(ids)
+        )
+    )
+    await db.execute(
+        delete(SteelmakingRecordMaterial).where(
+            SteelmakingRecordMaterial.record_id.in_(ids)
+        )
+    )
+    result = await db.execute(
+        delete(SteelmakingRecord).where(SteelmakingRecord.id.in_(ids))
+    )
+    return result.rowcount or 0

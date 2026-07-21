@@ -1,12 +1,15 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.inventory import Inventory, InventoryLog
 from app.models.item import Item
+from app.models.outsource import ProcessingOutbound
+from app.models.sales import SalesOrderItem
+from app.models.smelting import AlloyAddition, SmeltingInbound
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.inventory import (
@@ -59,11 +62,63 @@ def inventory_log_display_fields(ref_type: str | None, notes: str | None) -> dic
     }
 
 
-def inventory_delete_reason(inventory: Inventory) -> str | None:
-    """返回库存项不可删除的原因；None 表示可删。"""
-    if inventory.current_quantity != 0:
-        return "该库存项仍有结余，请先出库清空后再删除"
-    return None
+INVENTORY_ORDER_REFERENCE_LABELS = {
+    "outsource_order": "外协加工订单",
+    "sales_order": "销售订单",
+    "smelting_order": "冶炼订单",
+}
+
+
+async def inventory_delete_reasons(
+    db: AsyncSession, inventory_ids: list[int]
+) -> dict[int, str]:
+    """批量查询库存项的订单引用；库存数量本身不限制删除。"""
+    unique_ids = list(dict.fromkeys(inventory_ids))
+    if not unique_ids:
+        return {}
+
+    references = union_all(
+        select(
+            ProcessingOutbound.inventory_id.label("inventory_id"),
+            literal("outsource_order").label("ref_type"),
+        ).where(ProcessingOutbound.inventory_id.in_(unique_ids)),
+        select(
+            SalesOrderItem.inventory_id.label("inventory_id"),
+            literal("sales_order").label("ref_type"),
+        ).where(SalesOrderItem.inventory_id.in_(unique_ids)),
+        select(
+            SmeltingInbound.inventory_id.label("inventory_id"),
+            literal("smelting_order").label("ref_type"),
+        ).where(SmeltingInbound.inventory_id.in_(unique_ids)),
+        select(
+            AlloyAddition.inventory_id.label("inventory_id"),
+            literal("smelting_order").label("ref_type"),
+        ).where(AlloyAddition.inventory_id.in_(unique_ids)),
+        # 出钢、外协回厂等入库明细不直接保存 inventory_id；库存日志是
+        # 订单撤销时的精确回滚依据，因此也属于有效订单引用。
+        select(InventoryLog.inventory_id, InventoryLog.ref_type).where(
+            InventoryLog.inventory_id.in_(unique_ids),
+            InventoryLog.ref_type.in_(tuple(INVENTORY_ORDER_REFERENCE_LABELS)),
+        ),
+    )
+    rows = (await db.execute(references)).all()
+
+    referenced_by: dict[int, set[str]] = {}
+    for inventory_id, ref_type in rows:
+        if inventory_id is not None and ref_type in INVENTORY_ORDER_REFERENCE_LABELS:
+            referenced_by.setdefault(inventory_id, set()).add(ref_type)
+
+    reasons: dict[int, str] = {}
+    for inventory_id, ref_types in referenced_by.items():
+        labels = [
+            label
+            for ref_type, label in INVENTORY_ORDER_REFERENCE_LABELS.items()
+            if ref_type in ref_types
+        ]
+        reasons[inventory_id] = (
+            f"该库存项已被{'、'.join(labels)}引用，请先删除或修改相关订单"
+        )
+    return reasons
 
 
 async def paginate_inventory(db: AsyncSession, stmt: Select[tuple[Inventory]], page: int, page_size: int) -> PageResult[InventoryRead]:
@@ -209,10 +264,10 @@ async def delete_inventory(
     current_user: User = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
-        inventory = await db.get(Inventory, inventory_id)
+        inventory = await db.get(Inventory, inventory_id, with_for_update=True)
         if inventory is None:
             raise HTTPException(status_code=404, detail="库存不存在")
-        reason = inventory_delete_reason(inventory)
+        reason = (await inventory_delete_reasons(db, [inventory_id])).get(inventory_id)
         if reason:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
         await delete_inventory_with_log(
@@ -230,9 +285,22 @@ async def batch_delete_inventory(
     deleted = 0
     skipped: list[dict[str, object]] = []
     async with db.begin():
-        rows = list(await db.scalars(select(Inventory).where(Inventory.id.in_(payload.ids))))
-        for row in rows:
-            reason = inventory_delete_reason(row)
+        unique_ids = list(dict.fromkeys(payload.ids))
+        rows = list(
+            await db.scalars(
+                select(Inventory)
+                .where(Inventory.id.in_(unique_ids))
+                .with_for_update()
+            )
+        )
+        rows_by_id = {row.id: row for row in rows}
+        reasons = await inventory_delete_reasons(db, unique_ids)
+        for inventory_id in unique_ids:
+            row = rows_by_id.get(inventory_id)
+            if row is None:
+                skipped.append({"id": inventory_id, "reason": "库存项不存在"})
+                continue
+            reason = reasons.get(inventory_id)
             if reason:
                 skipped.append({"id": row.id, "reason": reason})
                 continue

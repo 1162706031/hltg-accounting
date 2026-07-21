@@ -1,7 +1,7 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Checkbox, DatePicker, Form, FormInstance, Input, InputNumber, Select, Space } from 'antd'
+import { App as AntApp, Button, Checkbox, DatePicker, Form, FormInstance, Input, InputNumber, Select, Space } from 'antd'
 import { useEffect, useState } from 'react'
-import { InventoryStockOption } from '../utils/lookups'
+import { InventoryStockOption, ITEM_TYPE_LABELS, masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
 
 interface InventoryLineListProps {
   /** 所属 Form 实例，用于在选中库存项后回填隐藏字段。 */
@@ -60,6 +60,9 @@ export function InventoryLineList({
   allowFillAllQuantity = false,
   compactTable = false
 }: InventoryLineListProps) {
+  const { modal } = AntApp.useApp()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const watchedLines = Form.useWatch(name, form)
   useEffect(() => {
@@ -69,6 +72,7 @@ export function InventoryLineList({
   const byId = new Map<number, InventoryStockOption>(rows.map((r) => [r.id, r]))
   const options = rows.map((r) => {
     const parts = [r.item?.name ?? '未知物品']
+    if (r.item?.item_type) parts.push(`类别：${itemTypeLabels[r.item.item_type] ?? r.item.item_type}`)
     if (r.spec) parts.push(r.spec)
     const owner = r.owner?.name ? `（${r.owner.name}）` : ''
     return { value: r.id, label: `${parts.join(' · ')}${owner} 结余 ${r.current_quantity}${r.unit}` }
@@ -93,10 +97,15 @@ export function InventoryLineList({
               <Button
                 danger
                 disabled={disabled || selectedRowKeys.length === 0}
-                onClick={() => {
-                  remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
-                  setSelectedRowKeys([])
-                }}
+                onClick={() => modal.confirm({
+                  title: `确认移除选中的 ${selectedRowKeys.length} 条明细？`,
+                  content: '移除后需保存表单才会生效。',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    remove(fields.filter((field) => selectedRowKeys.includes(field.key)).map((field) => field.name))
+                    setSelectedRowKeys([])
+                  }
+                })}
               >
                 移除所选
               </Button>
@@ -264,8 +273,15 @@ export function InventoryLineList({
                   style={disabled ? { color: '#bfbfbf', cursor: 'not-allowed' } : undefined}
                   onClick={() => {
                     if (!disabled) {
-                      remove(field.name)
-                      setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                      modal.confirm({
+                        title: '确认删除这条明细？',
+                        content: '删除后需保存表单才会生效。',
+                        okButtonProps: { danger: true },
+                        onOk: () => {
+                          remove(field.name)
+                          setSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                        }
+                      })
                     }
                   }}
                 />

@@ -16,12 +16,13 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
+import { ItemNameSelect } from '../components/ItemNameSelect'
 import { ListFilters } from '../components/ListFilters'
 import { useAuth } from '../utils/AuthContext'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
-import { masterDataLabelMap, masterDataSelectOptions, useMasterDataOptions } from '../utils/lookups'
+import { itemTypeSelectOptions, masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
 
 type ItemType = string
 
@@ -73,9 +74,7 @@ export function Items() {
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const itemTypesQuery = useMasterDataOptions('item_type')
-  const itemTypeOptions = itemTypesQuery.data?.length
-    ? masterDataSelectOptions(itemTypesQuery.data)
-    : Object.entries(typeLabels).map(([value, label]) => ({ value, label }))
+  const itemTypeOptions = itemTypeSelectOptions(itemTypesQuery.data)
   const currentTypeLabels = { ...typeLabels, ...masterDataLabelMap(itemTypesQuery.data) }
 
   const [typeFilter, setTypeFilter] = useState<ItemType | undefined>()
@@ -254,7 +253,7 @@ export function Items() {
       </div>
 
       <ListFilters>
-        <div className="filter-item"><span>类型：</span><Select allowClear placeholder="全部类型" value={typeFilter} onChange={setTypeFilter} options={itemTypeOptions} /></div>
+        <div className="filter-item"><span>类型：</span><Select showSearch optionFilterProp="label" allowClear placeholder="搜索或选择类型" value={typeFilter} onChange={setTypeFilter} options={itemTypeOptions} /></div>
         <div className="filter-item"><span>状态：</span><Select value={activeFilter} onChange={setActiveFilter} options={[{ value: 'all', label: '全部' }, { value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }]} /></div>
         <div className="filter-item"><span>化学成分：</span><Select value={chemicalFilter} onChange={setChemicalFilter} options={[{ value: 'all', label: '全部' }, { value: 'enabled', label: '已启用' }, { value: 'disabled', label: '未启用' }]} /></div>
         <div className="filter-item"><span>名称：</span><Input allowClear value={search} placeholder="搜索名称/规格" onChange={(e) => setSearch(e.target.value)} /></div>
@@ -377,8 +376,8 @@ export function Items() {
                   notes: editing.notes ?? ''
                 }
               : {
-                  name: '',
-                  item_type: 'steel_grade',
+                  name: undefined,
+                  item_type: undefined,
                   is_active: true,
                   chemical_enabled: false,
                   chemical_composition: emptyChemicalComposition(),
@@ -392,14 +391,20 @@ export function Items() {
             label="名称"
             rules={[{ required: true, min: 1, max: 100 }]}
           >
-            <Input placeholder="如 H13、钼铁、2Cr14Ni" />
+            <ItemNameSelect />
           </Form.Item>
           <Form.Item
             name="item_type"
             label="类型"
             rules={[{ required: true }]}
           >
-            <Select loading={itemTypesQuery.isLoading} options={itemTypeOptions} />
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="输入关键词搜索具体类别"
+              loading={itemTypesQuery.isLoading}
+              options={itemTypeOptions}
+            />
           </Form.Item>
           <Form.Item name="is_active" label="启用" valuePropName="checked">
             <Switch />

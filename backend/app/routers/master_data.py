@@ -13,7 +13,8 @@ from app.schemas.master_data import (
     MasterDataOptionCreate,
     MasterDataOptionRead,
 )
-from app.services.master_data import master_option_reference_reason
+from app.schemas.common import BatchDeleteRequest
+from app.services.master_data import RETIRED_ITEM_TYPE_CODES, master_option_reference_reason
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(
@@ -35,6 +36,12 @@ async def list_master_data_options(
     )
     if category:
         stmt = stmt.where(MasterDataOption.category == category)
+    stmt = stmt.where(
+        ~(
+            (MasterDataOption.category == "item_type")
+            & MasterDataOption.code.in_(RETIRED_ITEM_TYPE_CODES)
+        )
+    )
     return list(await db.scalars(stmt))
 
 
@@ -44,7 +51,12 @@ async def create_master_data_option(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "accountant")),
 ):
-    code = payload.name if payload.category == "specification" else f"custom_{uuid4().hex[:16]}"
+    if payload.category == "item_type" and payload.name in {"原料", "成品", "半成品"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该名称过于笼统，请创建能准确区分物品用途或材质的具体类型",
+        )
+    code = payload.name if payload.category in {"specification", "item_name"} else f"custom_{uuid4().hex[:16]}"
     option = MasterDataOption(
         category=payload.category,
         code=code,
@@ -83,3 +95,37 @@ async def delete_master_data_option(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{reason}，无法删除")
         await db.delete(option)
     return {"message": "配置已删除"}
+
+
+@router.post("/options/batch-delete")
+async def batch_delete_master_data_options(
+    payload: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("admin", "accountant")),
+):
+    deleted_count = 0
+    skipped: list[dict[str, int | str]] = []
+    async with db.begin():
+        rows = list(
+            await db.scalars(
+                select(MasterDataOption)
+                .where(MasterDataOption.id.in_(payload.ids))
+                .with_for_update()
+            )
+        )
+        by_id = {row.id: row for row in rows}
+        for option_id in dict.fromkeys(payload.ids):
+            option = by_id.get(option_id)
+            if option is None:
+                skipped.append({"id": option_id, "reason": "配置不存在"})
+                continue
+            if option.is_system:
+                skipped.append({"id": option_id, "reason": "系统内置配置不能删除"})
+                continue
+            reason = await master_option_reference_reason(db, option)
+            if reason:
+                skipped.append({"id": option_id, "reason": f"{reason}，无法删除"})
+                continue
+            await db.delete(option)
+            deleted_count += 1
+    return {"deleted_count": deleted_count, "skipped": skipped}

@@ -114,6 +114,12 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
+    item_name_option = await require_master_option(
+        db,
+        category="item_name",
+        code=payload.name,
+        detail="请优先选择基础资料中已有的物品名称；没有时请先新增名称",
+    )
     item_type_option = await require_master_option(
         db,
         category="item_type",
@@ -121,6 +127,7 @@ async def create_item(
         detail="请选择基础资料中已有的物品类型",
     )
     data = payload.model_dump()
+    data["name"] = item_name_option.name
     data["item_type"] = item_type_option.code
     if data["chemical_enabled"]:
         data["chemical_composition"] = _composition_json(data["chemical_composition"])
@@ -157,7 +164,15 @@ async def update_item(
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
     data = payload.model_dump(exclude_unset=True)
-    if "item_type" in data:
+    if "name" in data and data["name"] != item.name:
+        item_name_option = await require_master_option(
+            db,
+            category="item_name",
+            code=data["name"],
+            detail="请优先选择基础资料中已有的物品名称；没有时请先新增名称",
+        )
+        data["name"] = item_name_option.name
+    if "item_type" in data and data["item_type"] != item.item_type:
         item_type_option = await require_master_option(
             db,
             category="item_type",

@@ -14,10 +14,11 @@ interface BatchDeleteButtonProps {
   endpoint: string
   entityName: string
   onSuccess: () => void
+  confirmContent?: React.ReactNode
 }
 
 /** 使用各业务已有的批量删除接口，并统一展示删除/跳过结果。 */
-export function BatchDeleteButton({ selectedKeys, endpoint, entityName, onSuccess }: BatchDeleteButtonProps) {
+export function BatchDeleteButton({ selectedKeys, endpoint, entityName, onSuccess, confirmContent }: BatchDeleteButtonProps) {
   const { message, modal } = AntApp.useApp()
   const mutation = useMutation({
     mutationFn: () => api.post<BatchDeleteResult>(endpoint, { ids: selectedKeys }).then((response) => response.data),
@@ -39,7 +40,7 @@ export function BatchDeleteButton({ selectedKeys, endpoint, entityName, onSucces
       loading={mutation.isPending}
       onClick={() => modal.confirm({
         title: `确认删除选中的 ${selectedKeys.length} 条${entityName}？`,
-        content: '不符合删除条件的记录会自动跳过。',
+        content: confirmContent ?? '不符合删除条件的记录会自动跳过。',
         okButtonProps: { danger: true },
         onOk: () => mutation.mutateAsync()
       })}

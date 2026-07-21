@@ -18,7 +18,13 @@ from app.schemas.steelmaking import (
     SteelmakingRecordUpdate,
 )
 from app.services.batch import generate_batch_no
-from app.services.steelmaking import convert_weight_to_kg, load_record, replace_calculated_details, resolve_furnace_no
+from app.services.steelmaking import (
+    convert_weight_to_kg,
+    hard_delete_records,
+    load_record,
+    replace_calculated_details,
+    resolve_furnace_no,
+)
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(
@@ -144,31 +150,28 @@ async def confirm_record(
 async def delete_record(
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "accountant")),
+    _: object = Depends(require_roles("admin", "accountant")),
 ):
     async with db.begin():
         record = await load_record(db, record_id)
-        record.deleted = True
-        record.updated_by = current_user.id
-    return {"message": "炼钢记录已删除"}
+        await hard_delete_records(db, [record.id])
+    return {"message": "炼钢记录已永久删除"}
 
 
 @router.post("/batch-delete")
 async def batch_delete_records(
     payload: BatchDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "accountant")),
+    _: object = Depends(require_roles("admin", "accountant")),
 ):
-    rows = list(
-        await db.scalars(
-            select(SteelmakingRecord).where(
-                SteelmakingRecord.id.in_(payload.ids),
-                SteelmakingRecord.deleted.is_(False),
+    async with db.begin():
+        record_ids = list(
+            await db.scalars(
+                select(SteelmakingRecord.id).where(
+                    SteelmakingRecord.id.in_(payload.ids),
+                    SteelmakingRecord.deleted.is_(False),
+                )
             )
         )
-    )
-    for record in rows:
-        record.deleted = True
-        record.updated_by = current_user.id
-    await db.commit()
-    return {"deleted_count": len(rows), "skipped": []}
+        deleted_count = await hard_delete_records(db, record_ids)
+    return {"deleted_count": deleted_count, "skipped": []}

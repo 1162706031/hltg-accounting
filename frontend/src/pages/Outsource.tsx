@@ -16,6 +16,7 @@ import { useAuth } from '../utils/AuthContext'
 import {
   countsForProcessingFee,
   InventoryStockOption,
+  ITEM_TYPE_LABELS,
   masterDataLabelMap,
   masterDataSelectOptions,
   UNIT_OPTIONS,
@@ -58,7 +59,7 @@ const PROCESS_OPTIONS = [
 ]
 
 export function Outsource() {
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const { user } = useAuth()
   const canManage = canManageData(user?.role)
   const processesQuery = useMasterDataOptions('process')
@@ -97,6 +98,8 @@ export function Outsource() {
   const editRequestSequence = useRef(0)
   const parties = useParties()
   const items = useItems()
+  const itemTypesQuery = useMasterDataOptions('item_type')
+  const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const stock = useInventoryStock()
   const internalPartyId = (parties.data ?? []).find((p) => p.is_internal)?.id ?? null
 
@@ -241,10 +244,15 @@ export function Outsource() {
                 danger
                 size="middle"
                 disabled={inboundSelectedRowKeys.length === 0}
-                onClick={() => {
-                  remove(fields.filter((field) => inboundSelectedRowKeys.includes(field.key)).map((field) => field.name))
-                  setInboundSelectedRowKeys([])
-                }}
+                onClick={() => modal.confirm({
+                  title: `确认移除选中的 ${inboundSelectedRowKeys.length} 条回厂明细？`,
+                  content: '移除后需保存外协单才会生效。',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    remove(fields.filter((field) => inboundSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                    setInboundSelectedRowKeys([])
+                  }
+                })}
               >
                 移除所选
               </Button>
@@ -289,7 +297,7 @@ export function Outsource() {
                 <DatePicker style={{ width: 140 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'item_id']} label="钢种" rules={[{ required: true, message: '请选择钢种' }]}>
-                <ItemSelect options={itemOptions(items.data)} placeholder="钢种" style={{ width: 150 }} />
+                <ItemSelect options={itemOptions(items.data, itemTypeLabels)} placeholder="钢种" style={{ width: 180 }} />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
                 <SpecificationSelect
@@ -315,10 +323,15 @@ export function Outsource() {
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
               </Form.Item>
               <span className="line-action-cell">
-                <MinusCircleOutlined onClick={() => {
-                  remove(field.name)
-                  setInboundSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                }} />
+                <MinusCircleOutlined onClick={() => modal.confirm({
+                  title: '确认删除这条回厂明细？',
+                  content: '删除后需保存外协单才会生效。',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    remove(field.name)
+                    setInboundSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                  }
+                })} />
               </span>
             </Space>
           ))}

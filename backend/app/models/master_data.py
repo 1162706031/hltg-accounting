@@ -14,7 +14,7 @@ class MasterDataOption(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     category: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    code: Mapped[str] = mapped_column(String(80), nullable=False)
-    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("user.id"))
