@@ -7,6 +7,7 @@ import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
+import { LineTotals } from '../components/LineTotals'
 import { InventoryLineList } from '../components/InventoryLines'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
@@ -94,6 +95,7 @@ export function Outsource() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const watchedInboundLines = Form.useWatch('inbound_lines', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const editRequestSequence = useRef(0)
   const parties = useParties()
@@ -270,7 +272,7 @@ export function Outsource() {
               </span>
               <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>回厂日期</span>
-              <span style={{ width: 150 }}>钢种</span>
+              <span style={{ width: 180 }}>钢种</span>
               <span style={{ width: 200 }}>规格</span>
               <span style={{ width: 90 }}>数量</span>
               <span style={{ width: 80 }}>单位</span>
@@ -337,6 +339,7 @@ export function Outsource() {
           ))}
           {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加回厂”新增一行</div>}
           </div>
+          <LineTotals lines={watchedInboundLines} />
         </div>
       )}
     </Form.List>
@@ -469,6 +472,7 @@ export function Outsource() {
       />
 
       <Modal
+        className="processing-order-modal outsource-order-modal"
         title={editingId ? '编辑外协单' : '新建外协单'}
         open={creating || editingId !== null}
         width={920}

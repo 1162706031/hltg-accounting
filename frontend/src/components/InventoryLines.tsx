@@ -2,6 +2,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { App as AntApp, Button, Checkbox, DatePicker, Form, FormInstance, Input, InputNumber, Select, Space } from 'antd'
 import { useEffect, useState } from 'react'
 import { InventoryStockOption, ITEM_TYPE_LABELS, masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
+import { LineTotals } from './LineTotals'
 
 interface InventoryLineListProps {
   /** 所属 Form 实例，用于在选中库存项后回填隐藏字段。 */
@@ -289,6 +290,7 @@ export function InventoryLineList({
             </Space>
           ))}
           </div>
+          <LineTotals lines={watchedLines} />
           {!compactTable && actions}
         </div>
         )

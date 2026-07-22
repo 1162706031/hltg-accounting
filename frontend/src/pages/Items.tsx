@@ -348,6 +348,7 @@ export function Items() {
       />
 
       <Modal
+        className="item-editor-modal"
         title={editing ? '编辑物品' : '新建物品'}
         open={open}
         onCancel={() => {

@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
+import { LineTotals } from '../components/LineTotals'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
 import { SpecificationSelect, useSpecificationCreator } from '../components/SpecificationSelect'
@@ -388,6 +389,7 @@ function BatchInFormModal({
   const specificationsQ = useMasterDataOptions('specification')
   const specificationOpts = masterDataSelectOptions(specificationsQ.data)
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const watchedLines = Form.useWatch('lines', form)
   return (
     <Form
       form={form}
@@ -493,13 +495,13 @@ function BatchInFormModal({
                     />
                   </span>
                   <span className="line-index-cell">{index + 1}</span>
-                  <Form.Item {...field} name={[field.name, 'change_date']} rules={[{ required: true, message: '请选择日期' }]}>
+                  <Form.Item {...field} name={[field.name, 'change_date']} label="入库日期" rules={[{ required: true, message: '请选择日期' }]}>
                     <DatePicker />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}>
+                  <Form.Item {...field} name={[field.name, 'item_id']} label="物品" rules={[{ required: true, message: '请选择物品' }]}>
                     <ItemSelect options={itemOpts} placeholder="选择物品" />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'spec']} rules={[{ required: true, message: '请选择规格' }]}>
+                  <Form.Item {...field} name={[field.name, 'spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
                     <SpecificationSelect
                       showSearch
                       optionFilterProp="label"
@@ -512,17 +514,18 @@ function BatchInFormModal({
                   <Form.Item
                     {...field}
                     name={[field.name, 'quantity']}
+                    label="数量"
                     rules={[{ required: true, type: 'number', min: 0.001, message: '请输入大于 0 的数量' }]}
                   >
                     <InputNumber min={0.001} step={0.001} />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'unit']} rules={[{ required: true, message: '请选择单位' }]}>
+                  <Form.Item {...field} name={[field.name, 'unit']} label="单位" rules={[{ required: true, message: '请选择单位' }]}>
                     <Select options={UNIT_OPTIONS} />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'owner_id']} rules={[{ required: true, message: '请选择归属' }]}>
+                  <Form.Item {...field} name={[field.name, 'owner_id']} label="归属" rules={[{ required: true, message: '请选择归属' }]}>
                     <PartySelect options={partyOpts} placeholder="选择归属单位" />
                   </Form.Item>
-                  <Form.Item {...field} name={[field.name, 'notes']}>
+                  <Form.Item {...field} name={[field.name, 'notes']} label="备注">
                     <Input placeholder="可选" maxLength={200} />
                   </Form.Item>
                   <Button
@@ -545,6 +548,7 @@ function BatchInFormModal({
               {!fields.length && <div className="line-list-empty">暂无明细，请点击“添加入库行”</div>}
             </div>
             <Form.ErrorList errors={errors} />
+            <LineTotals lines={watchedLines} showAmount={false} />
           </div>
         )}
       </Form.List>
@@ -681,7 +685,7 @@ function OutAdjustModal({
         <Form.Item name="notes" label="备注">
           <Input.TextArea rows={2} />
         </Form.Item>
-        <div style={{ textAlign: 'right' }}>
+        <div className="modal-inline-footer">
           <Space>
             <Button onClick={onClose}>取消</Button>
             <Button type="primary" htmlType="submit" loading={submitting}>

@@ -7,6 +7,7 @@ import { api, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
+import { LineTotals } from '../components/LineTotals'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { ItemSelect, PartySelect } from '../components/QuickCreate'
@@ -88,6 +89,7 @@ export function Procurement() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const watchedItems = Form.useWatch('items', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const parties = useParties()
   const items = useItems()
@@ -338,9 +340,9 @@ export function Procurement() {
                     <div className="line-editor-row procurement-line-grid" key={field.key}>
                       <span className="line-select-cell"><Checkbox checked={selectedRowKeys.includes(field.key)} onChange={(event) => setSelectedRowKeys((keys) => event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))} /></span>
                       <span className="line-index-cell">{index + 1}</span>
-                      <Form.Item name={[field.name, 'in_date']} rules={[{ required: true, message: '请选择日期' }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
-                      <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data, itemTypeLabels)} /></Form.Item>
-                      <Form.Item name={[field.name, 'item_spec']} rules={[{ required: true, message: '请选择规格' }]}>
+                      <Form.Item name={[field.name, 'in_date']} label="入库日期" rules={[{ required: true, message: '请选择日期' }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'item_id']} label="物品" rules={[{ required: true, message: '请选择物品' }]}><ItemSelect options={itemOptions(items.data, itemTypeLabels)} /></Form.Item>
+                      <Form.Item name={[field.name, 'item_spec']} label="规格" rules={[{ required: true, message: '请选择规格' }]}>
                         <SpecificationSelect
                           showSearch
                           optionFilterProp="label"
@@ -350,10 +352,10 @@ export function Procurement() {
                           notFoundContent="暂无规格，请点击下方新增"
                         />
                       </Form.Item>
-                      <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, type: 'number', min: 0.000001, message: '请输入数量' }]}><InputNumber min={0.000001} precision={6} style={{ width: '100%' }} /></Form.Item>
-                      <Form.Item name={[field.name, 'unit']} rules={[{ required: true }]}><Select options={UNIT_OPTIONS} /></Form.Item>
-                      <Form.Item name={[field.name, 'unit_price']} rules={[{ required: true, message: '请输入单价' }]}><InputNumber min={0} precision={4} style={{ width: '100%' }} /></Form.Item>
-                      <Form.Item name={[field.name, 'owner_id']} rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="归属单位" /></Form.Item>
+                      <Form.Item name={[field.name, 'quantity']} label="数量" rules={[{ required: true, type: 'number', min: 0.000001, message: '请输入数量' }]}><InputNumber min={0.000001} precision={6} style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'unit']} label="单位" rules={[{ required: true }]}><Select options={UNIT_OPTIONS} /></Form.Item>
+                      <Form.Item name={[field.name, 'unit_price']} label="单价" rules={[{ required: true, message: '请输入单价' }]}><InputNumber min={0} precision={4} style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'owner_id']} label="归属" rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="归属单位" /></Form.Item>
                       <Button type="link" danger size="small" onClick={() => modal.confirm({
                         title: '确认删除这条采购明细？',
                         content: '删除后需保存采购单才会生效。',
@@ -368,6 +370,7 @@ export function Procurement() {
                   {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加物品”新增一行</div>}
                 </div>
                 <Form.ErrorList errors={errors} />
+                <LineTotals lines={watchedItems} />
               </div>
             )}
           </Form.List>

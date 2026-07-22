@@ -530,7 +530,7 @@ export function Dashboard() {
         </Card>
       </>}
 
-      <Drawer title={<Space><RobotOutlined />智能问数</Space>} width={520} open={aiOpen} onClose={() => setAiOpen(false)}>
+      <Drawer rootClassName="dashboard-ai-drawer" title={<Space><RobotOutlined />智能问数</Space>} width={520} open={aiOpen} onClose={() => setAiOpen(false)}>
         <Alert
           type={aiStatusQuery.data?.reachable ? 'success' : 'info'}
           showIcon

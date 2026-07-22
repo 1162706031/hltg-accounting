@@ -797,7 +797,7 @@ export function Reconciliation() {
         />
 
         <Card size="small" title="导入预览" style={{ marginTop: 12 }}>
-          <Descriptions size="small" column={4}>
+          <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }}>
             <Descriptions.Item label="应收合计">¥{money(importTotals.debit)}</Descriptions.Item>
             <Descriptions.Item label="应付合计">¥{money(importTotals.credit)}</Descriptions.Item>
             <Descriptions.Item label="应开发票合计">¥{money(importTotals.issue)}</Descriptions.Item>

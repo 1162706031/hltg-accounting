@@ -1,4 +1,4 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   App as AntApp,
@@ -22,6 +22,7 @@ import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
+import { LineTotals } from '../components/LineTotals'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
 import { ITEM_TYPE_LABELS, masterDataLabelMap, partyOptions, useMasterDataOptions, useParties } from '../utils/lookups'
@@ -138,6 +139,7 @@ export function SteelmakingRecords() {
   const itemTypesQuery = useMasterDataOptions('item_type')
   const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const [form] = Form.useForm<FormValues>()
+  const watchedMaterials = Form.useWatch('materials', form)
   const editRequestSequence = useRef(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -395,7 +397,6 @@ export function SteelmakingRecords() {
                   <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ input_weight_unit: 'kg' })}>添加原料</Button>
                   <Button
                     danger
-                    icon={<DeleteOutlined />}
                     disabled={materialSelectedRowKeys.length === 0}
                     onClick={() => modal.confirm({
                       title: `确认移除选中的 ${materialSelectedRowKeys.length} 条原料明细？`,
@@ -436,7 +437,7 @@ export function SteelmakingRecords() {
                     />
                   </span>
                   <span className="steelmaking-material-index">{index + 1}</span>
-                  <Form.Item name={[field.name, 'item_id']} rules={[{ required: true, message: '请选择原料' }]}>
+                  <Form.Item name={[field.name, 'item_id']} label="原料" rules={[{ required: true, message: '请选择原料' }]}>
                     <Select
                       className="steelmaking-material-select-box"
                       showSearch
@@ -450,25 +451,39 @@ export function SteelmakingRecords() {
                       })}
                     />
                   </Form.Item>
-                  <Form.Item name={[field.name, 'input_weight']} rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
-                  <Form.Item name={[field.name, 'input_weight_unit']} rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
-                  <Form.Item name={[field.name, 'custom_price']}><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
-                  <Button
-                    type="link"
-                    danger
-                    size="small"
-                    onClick={() => modal.confirm({
-                      title: '确认删除这条原料明细？',
-                      content: '删除后需保存炼钢记录才会生效。',
-                      okButtonProps: { danger: true },
-                      onOk: () => {
-                        removeLine(field.name)
-                        setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                      }
-                    })}
-                  >删除</Button>
+                  <Form.Item name={[field.name, 'input_weight']} label="投入重量" rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name={[field.name, 'input_weight_unit']} label="单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
+                  <Form.Item name={[field.name, 'custom_price']} label="本次单价（元/吨）"><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
+                  <span className="steelmaking-material-action">
+                    <MinusCircleOutlined
+                      onClick={() => modal.confirm({
+                        title: '确认删除这条原料明细？',
+                        content: '删除后需保存炼钢记录才会生效。',
+                        okButtonProps: { danger: true },
+                        onOk: () => {
+                          removeLine(field.name)
+                          setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                        }
+                      })}
+                    />
+                  </span>
                 </div>)}
               </div>
+              <LineTotals
+                lines={watchedMaterials}
+                quantityKey="input_weight"
+                unitKey="input_weight_unit"
+                quantityLabel="投入总重"
+                normalizeQuantity={(line) => ({
+                  quantity: Number(line?.input_weight || 0) * (line?.input_weight_unit === 'ton' ? 1000 : 1),
+                  unit: 'kg'
+                })}
+                amountQuantity={(line) => Number(line?.input_weight || 0) * (line?.input_weight_unit === 'ton' ? 1 : 0.001)}
+                resolveUnitPrice={(line) => {
+                  if (line?.custom_price != null && line.custom_price !== '') return line.custom_price
+                  return chemicalItems.data?.find((item) => item.id === line?.item_id)?.default_price
+                }}
+              />
             </div>}
           </Form.List>
 

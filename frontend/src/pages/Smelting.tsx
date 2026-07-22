@@ -7,6 +7,7 @@ import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
 import { ListFilters } from '../components/ListFilters'
+import { LineTotals } from '../components/LineTotals'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
 import { InventoryLineList } from '../components/InventoryLines'
@@ -89,6 +90,7 @@ export function Smelting() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
   const [form] = Form.useForm()
+  const watchedTapLines = Form.useWatch('tap_lines', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const editRequestSequence = useRef(0)
   const parties = useParties()
@@ -294,7 +296,7 @@ export function Smelting() {
               </span>
               <span className="line-index-cell">序号</span>
               <span style={{ width: 140 }}>出钢日期</span>
-              <span style={{ width: 150 }}>钢种</span>
+              <span style={{ width: 180 }}>钢种</span>
               <span style={{ width: 200 }}>规格</span>
               <span style={{ width: 90 }}>数量</span>
               <span style={{ width: 80 }}>单位</span>
@@ -361,6 +363,7 @@ export function Smelting() {
           ))}
           {fields.length === 0 && <div className="line-list-empty">暂无明细，请点击“添加出钢”新增一行</div>}
           </div>
+          <LineTotals lines={watchedTapLines} />
         </div>
       )}
     </Form.List>
@@ -497,6 +500,7 @@ export function Smelting() {
       />
 
       <Modal
+        className="processing-order-modal smelting-order-modal"
         title={editingId ? '编辑冶炼单' : '新建冶炼单'}
         open={creating || editingId !== null}
         width={960}
