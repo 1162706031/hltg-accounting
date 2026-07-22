@@ -19,6 +19,7 @@ from app.schemas.procurement import (
     RejectRequest,
 )
 from app.services.batch import generate_batch_no
+from app.services.creator import apply_creation_filters, serialize_with_creator_names
 from app.services.inventory import stock_in
 from app.services.master_data import require_specification
 from app.services.order_status import (
@@ -115,6 +116,10 @@ async def list_orders(
     order_status: str | None = Query(default=None, alias="status"),
     purchase_date_from: date | None = None,
     purchase_date_to: date | None = None,
+    created_by: int | None = None,
+    created_by_name: str | None = None,
+    created_at_from: date | None = None,
+    created_at_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -128,6 +133,14 @@ async def list_orders(
             selectinload(ProcurementOrder.items).selectinload(ProcurementOrderItem.owner),
         )
         .order_by(ProcurementOrder.id.desc())
+    )
+    stmt = apply_creation_filters(
+        stmt,
+        ProcurementOrder,
+        created_by=created_by,
+        created_by_name=created_by_name,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
     )
     if party_id:
         stmt = stmt.where(ProcurementOrder.party_id == party_id)
@@ -154,9 +167,12 @@ async def list_orders(
         )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
+    rows = list(await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
     return PageResult(
-        items=[ProcurementOrderRead.model_validate(r) for r in rows], total=total or 0, page=page, page_size=page_size
+        items=await serialize_with_creator_names(db, rows, ProcurementOrderRead),
+        total=total or 0,
+        page=page,
+        page_size=page_size,
     )
 
 

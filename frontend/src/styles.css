@@ -1542,6 +1542,56 @@ body {
   display: none;
 }
 
+.sales-spec-line-grid {
+  display: grid !important;
+  width: 100%;
+  min-width: 1080px;
+  grid-template-columns: 44px 48px 140px minmax(260px, 1fr) 200px 120px 90px 140px 64px;
+  align-items: stretch;
+}
+
+.sales-spec-line-grid.line-list-header > span,
+.sales-spec-line-grid.line-editor-row > span,
+.sales-spec-line-grid.line-editor-row > .ant-form-item {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.sales-spec-line-grid.line-list-header > span {
+  min-height: 48px;
+}
+
+.sales-spec-line-grid.line-editor-row > :last-child,
+.sales-spec-line-grid.line-list-header > :last-child {
+  border-right: 0;
+}
+
+.sales-spec-line-grid .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.sales-spec-line-grid .ant-form-item-row,
+.sales-spec-line-grid .ant-form-item-control,
+.sales-spec-line-grid .ant-form-item-control-input,
+.sales-spec-line-grid .ant-form-item-control-input-content,
+.sales-spec-line-grid .ant-picker,
+.sales-spec-line-grid .ant-select,
+.sales-spec-line-grid .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}
+
+.sales-spec-line-grid .ant-form-item-label {
+  display: none;
+}
+
 .line-totals {
   display: flex;
   width: 100%;
@@ -2270,6 +2320,7 @@ body {
     max-width: 100%;
   }
 
+  .sales-spec-line-grid.line-editor-row,
   .procurement-line-grid.line-editor-row,
   .inventory-in-line-grid.line-editor-row {
     display: grid !important;
@@ -2284,6 +2335,8 @@ body {
     background: #fff;
   }
 
+  .sales-spec-line-grid.line-editor-row > span,
+  .sales-spec-line-grid.line-editor-row > .ant-form-item,
   .procurement-line-grid.line-editor-row > span,
   .procurement-line-grid.line-editor-row > .ant-form-item,
   .procurement-line-grid.line-editor-row > .ant-btn,
@@ -2299,6 +2352,7 @@ body {
     border-right: 0;
   }
 
+  .sales-spec-line-grid.line-editor-row > .line-select-cell,
   .procurement-line-grid.line-editor-row > .line-select-cell,
   .inventory-in-line-grid.line-editor-row > .line-select-cell {
     display: flex;
@@ -2308,6 +2362,7 @@ body {
     grid-row: 1;
   }
 
+  .sales-spec-line-grid.line-editor-row > .line-index-cell,
   .procurement-line-grid.line-editor-row > .line-index-cell,
   .inventory-in-line-grid.line-editor-row > .line-index-cell {
     display: flex;
@@ -2318,6 +2373,7 @@ body {
     justify-content: flex-start;
   }
 
+  .sales-spec-line-grid.line-editor-row > .line-action-cell,
   .procurement-line-grid.line-editor-row > .ant-btn:last-child,
   .inventory-in-line-grid.line-editor-row > .ant-btn:last-child {
     display: inline-flex;
@@ -2329,11 +2385,13 @@ body {
     justify-content: center;
   }
 
+  .sales-spec-line-grid .ant-form-item-row,
   .procurement-line-grid .ant-form-item-row,
   .inventory-in-line-grid .ant-form-item-row {
     display: block;
   }
 
+  .sales-spec-line-grid .ant-form-item-label,
   .procurement-line-grid .ant-form-item-label,
   .inventory-in-line-grid .ant-form-item-label {
     display: block;
@@ -2341,11 +2399,16 @@ body {
     text-align: left;
   }
 
+  .sales-spec-line-grid .ant-form-item-label > label,
   .procurement-line-grid .ant-form-item-label > label,
   .inventory-in-line-grid .ant-form-item-label > label {
     height: auto;
   }
 
+  .sales-spec-line-grid .ant-picker,
+  .sales-spec-line-grid .ant-select,
+  .sales-spec-line-grid .ant-input,
+  .sales-spec-line-grid .ant-input-number,
   .procurement-line-grid .ant-picker,
   .procurement-line-grid .ant-select,
   .procurement-line-grid .ant-input,

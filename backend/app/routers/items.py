@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.inventory import Inventory
 from app.models.item import Item
 from app.models.outsource import OutsourceOrder, ProcessingOutbound
+from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.smelting import SmeltingInbound, SmeltingOrder
 from app.models.steelmaking import SteelmakingRecordMaterial
 from app.schemas.common import BatchDeleteRequest, PageResult
@@ -37,7 +38,9 @@ async def paginate(db: AsyncSession, stmt: Select[tuple[Item]], page: int, page_
 ACTIVE_ORDER_STATUSES = ("draft", "pending_review", "approved", "in_progress")
 
 
-async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | None:
+async def item_deletion_block_reason(
+    db: AsyncSession, item_id: int, *, include_history: bool = True
+) -> str | None:
     """返回不可删除/停用的原因；None 表示允许。
 
     设计 §5.3：
@@ -67,6 +70,25 @@ async def item_deletion_block_reason(db: AsyncSession, item_id: int) -> str | No
     )
     if active_outsource:
         return "该物品正在加工订单中使用，无法操作"
+
+    active_sales = await db.scalar(
+        select(func.count())
+        .select_from(SalesOrderItem)
+        .join(SalesOrder, SalesOrderItem.order_id == SalesOrder.id)
+        .where(
+            SalesOrderItem.item_id == item_id,
+            SalesOrder.status.in_(ACTIVE_ORDER_STATUSES),
+        )
+    )
+    if active_sales:
+        return "该物品正在销售订单中使用，请先删除或修改相关订单"
+
+    if include_history:
+        sales_history = await db.scalar(
+            select(func.count()).select_from(SalesOrderItem).where(SalesOrderItem.item_id == item_id)
+        )
+        if sales_history:
+            return "该物品已被销售订单引用，为保护历史明细不能删除"
 
     steelmaking_history = await db.scalar(
         select(func.count()).select_from(SteelmakingRecordMaterial).where(SteelmakingRecordMaterial.item_id == item_id)
@@ -164,6 +186,10 @@ async def update_item(
     if item is None:
         raise HTTPException(status_code=404, detail="物品不存在")
     data = payload.model_dump(exclude_unset=True)
+    if data.get("is_active") is False and item.is_active:
+        reason = await item_deletion_block_reason(db, item_id, include_history=False)
+        if reason:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
     if "name" in data and data["name"] != item.name:
         item_name_option = await require_master_option(
             db,
@@ -211,7 +237,7 @@ async def toggle_item_active(
         raise HTTPException(status_code=404, detail="物品不存在")
     if item.is_active:
         # 停用前检查
-        reason = await item_deletion_block_reason(db, item_id)
+        reason = await item_deletion_block_reason(db, item_id, include_history=False)
         if reason:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
         item.is_active = False

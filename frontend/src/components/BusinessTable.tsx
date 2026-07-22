@@ -9,6 +9,8 @@ type BusinessTableProps<T extends object> = TableProps<T> & {
   tableId: string
   toolbarActions?: ReactNode
   selectable?: boolean
+  /** 列设置中可选、但首次进入和恢复默认时不显示的列。 */
+  defaultHiddenColumnIds?: string[]
 }
 
 function columnId<T extends object>(column: ColumnType<T>, index: number) {
@@ -40,6 +42,7 @@ export function BusinessTable<T extends object>({
   tableId,
   toolbarActions,
   selectable,
+  defaultHiddenColumnIds = [],
   columns = [],
   rowSelection,
   dataSource,
@@ -60,6 +63,10 @@ export function BusinessTable<T extends object>({
     [columns]
   )
   const allColumnIds = useMemo(() => columnEntries.map((entry) => entry.id), [columnEntries])
+  const defaultVisibleColumnIds = useMemo(
+    () => allColumnIds.filter((id) => !defaultHiddenColumnIds.includes(id)),
+    [allColumnIds, defaultHiddenColumnIds.join('|')]
+  )
   const defaultMobileColumnIds = useMemo(() => {
     const primaryIds = columnEntries.slice(0, 3).map((entry) => entry.id)
     const statusId = columnEntries.find(({ column, id }) =>
@@ -67,7 +74,7 @@ export function BusinessTable<T extends object>({
     )?.id
     return Array.from(new Set([...primaryIds, ...(statusId ? [statusId] : [])]))
   }, [columnEntries])
-  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => readSavedColumns(storageKey) ?? allColumnIds)
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => readSavedColumns(storageKey) ?? defaultVisibleColumnIds)
   const [mobileVisibleColumnIds, setMobileVisibleColumnIds] = useState<string[]>(
     () => readSavedColumns(mobileStorageKey) ?? defaultMobileColumnIds
   )
@@ -77,10 +84,12 @@ export function BusinessTable<T extends object>({
   useEffect(() => {
     setVisibleColumnIds((current) => {
       const stillValid = current.filter((id) => allColumnIds.includes(id))
-      const newIds = allColumnIds.filter((id) => !current.includes(id))
+      const newIds = allColumnIds.filter(
+        (id) => !current.includes(id) && !defaultHiddenColumnIds.includes(id)
+      )
       return [...stillValid, ...newIds]
     })
-  }, [allColumnIds.join('|')])
+  }, [allColumnIds.join('|'), defaultHiddenColumnIds.join('|')])
 
   useEffect(() => {
     try {
@@ -175,7 +184,7 @@ export function BusinessTable<T extends object>({
           size="small"
           onClick={() => isMobile
             ? setMobileVisibleColumnIds(defaultMobileColumnIds)
-            : setVisibleColumnIds(allColumnIds)}
+            : setVisibleColumnIds(defaultVisibleColumnIds)}
         >
           恢复默认
         </Button>

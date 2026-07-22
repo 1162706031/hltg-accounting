@@ -17,6 +17,13 @@ export interface ItemOption {
   item_type: string
 }
 
+export interface CreatorOption {
+  id: number
+  username: string
+  real_name?: string | null
+  is_active: boolean
+}
+
 export const RETIRED_ITEM_TYPE_CODES = new Set(['raw_material', 'finished_product', 'semi_finished'])
 
 export const PROCESSING_FEE_EXCLUDED_ITEM_TYPES = new Set(['raw_material', 'scrap'])
@@ -123,6 +130,21 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   finished_product: '成品',
   semi_finished: '半成品',
   scrap: '废料'
+}
+
+/** 加载创建人筛选选项；包含停用用户，确保历史单据仍可筛选。 */
+export function useCreatorOptions() {
+  return useQuery({
+    queryKey: ['users', 'creator-options'],
+    queryFn: async () => (await api.get<CreatorOption[]>('/users/options')).data
+  })
+}
+
+export function creatorOptions(users?: CreatorOption[]) {
+  return (users ?? []).map((user) => ({
+    value: user.id,
+    label: `${user.real_name ? `${user.real_name}（${user.username}）` : user.username}${user.is_active ? '' : ' · 已停用'}`
+  }))
 }
 
 export function itemTypeSelectOptions(options?: MasterDataOption[]) {

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 ORDER_STATUS = ("draft", "pending_review", "approved", "in_progress", "completed", "rejected")
+SALES_MODE = ("inventory", "item_spec")
 
 
 class SalesOrder(Base):
@@ -15,6 +16,7 @@ class SalesOrder(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     batch_no: Mapped[str] = mapped_column(String(30), nullable=False)
     party_id: Mapped[int] = mapped_column(ForeignKey("party.id"), nullable=False)
+    sales_mode: Mapped[str] = mapped_column(Enum(*SALES_MODE), nullable=False, default="inventory")
     ship_date: Mapped[date | None] = mapped_column(Date)
     tax_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), default=Decimal("13.00"))
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))

@@ -101,6 +101,7 @@ class SteelmakingRecordListItem(ORMModel):
     cost_complete: bool
     status: RecordStatus
     remark: str | None
+    created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
     owner: PartyRead | None = None

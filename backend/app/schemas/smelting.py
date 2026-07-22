@@ -135,6 +135,7 @@ class SmeltingOrderListItem(ORMModel):
     total_amount: Decimal | None
     status: OrderStatus
     notes: str | None
+    created_by_name: str | None = None
     created_at: datetime
     party: PartyRead | None = None
 

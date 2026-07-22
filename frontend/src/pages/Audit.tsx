@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Input, Modal, Select, Space, Table, Tag } from 'antd'
+import { App as AntApp, Button, DatePicker, Input, Modal, Select, Space, Table, Tag } from 'antd'
+import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api } from '../api/client'
 import { BusinessTable } from '../components/BusinessTable'
@@ -7,7 +8,7 @@ import { DetailModal, type DetailField, type DetailTable } from '../components/D
 import { ListFilters } from '../components/ListFilters'
 import { OrderStatusTag } from '../utils/orderStatus'
 import { DEFAULT_PAGE_SIZE, localTablePagination } from '../utils/pagination'
-import { masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
+import { creatorOptions, masterDataLabelMap, useCreatorOptions, useMasterDataOptions } from '../utils/lookups'
 
 interface PendingAudit {
   order_kind: 'smelting' | 'outsource' | 'procurement' | 'sales'
@@ -144,18 +145,28 @@ export function Audit() {
   const processTypeLabels = { ...PROCESS_TYPE_LABELS, ...masterDataLabelMap(processesQuery.data) }
   const queryClient = useQueryClient()
   const [kind, setKind] = useState('')
-  const [appliedKind, setAppliedKind] = useState('')
+  const [creatorId, setCreatorId] = useState<number | undefined>()
+  const [createdAtRange, setCreatedAtRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [appliedFilters, setAppliedFilters] = useState({ kind: '', creatorId: undefined as number | undefined, createdAtFrom: '', createdAtTo: '' })
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [rejectTarget, setRejectTarget] = useState<PendingAudit | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [detailTarget, setDetailTarget] = useState<PendingAudit | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
   const [batchApproving, setBatchApproving] = useState(false)
+  const creators = useCreatorOptions()
 
   const query = useQuery({
-    queryKey: ['pending-audits', appliedKind],
+    queryKey: ['pending-audits', appliedFilters],
     queryFn: async () =>
-      (await api.get<PendingAudit[]>('/dashboard/pending-audits', { params: appliedKind ? { kind: appliedKind } : {} })).data
+      (await api.get<PendingAudit[]>('/dashboard/pending-audits', {
+        params: {
+          ...(appliedFilters.kind ? { kind: appliedFilters.kind } : {}),
+          ...(appliedFilters.creatorId ? { created_by: appliedFilters.creatorId } : {}),
+          ...(appliedFilters.createdAtFrom ? { created_at_from: appliedFilters.createdAtFrom } : {}),
+          ...(appliedFilters.createdAtTo ? { created_at_to: appliedFilters.createdAtTo } : {})
+        }
+      })).data
   })
 
   const detailQuery = useQuery({
@@ -230,10 +241,24 @@ export function Audit() {
             { value: 'sales', label: '销售' }
           ]}
         /></div>
-        <div className="filter-actions"><Button type="primary" onClick={() => setAppliedKind(kind)}>查询</Button><Button onClick={() => { setKind(''); setAppliedKind('') }}>重置</Button></div>
+        <div className="filter-item"><span>创建人：</span><Select allowClear showSearch value={creatorId} placeholder="全部创建人" style={{ width: 220 }} optionFilterProp="label" options={creatorOptions(creators.data)} onChange={setCreatorId} /></div>
+        <div className="filter-item"><span>创建时间：</span><DatePicker.RangePicker value={createdAtRange} onChange={(dates) => setCreatedAtRange(dates as [Dayjs, Dayjs] | null)} /></div>
+        <div className="filter-actions">
+          <Button type="primary" onClick={() => setAppliedFilters({
+            kind,
+            creatorId,
+            createdAtFrom: createdAtRange?.[0].format('YYYY-MM-DD') ?? '',
+            createdAtTo: createdAtRange?.[1].format('YYYY-MM-DD') ?? ''
+          })}>查询</Button>
+          <Button onClick={() => {
+            setKind(''); setCreatorId(undefined); setCreatedAtRange(null)
+            setAppliedFilters({ kind: '', creatorId: undefined, createdAtFrom: '', createdAtTo: '' })
+          }}>重置</Button>
+        </div>
       </ListFilters>
       <BusinessTable<PendingAudit>
-        tableId="audit"
+        tableId="audit-v2"
+        defaultHiddenColumnIds={['created_by_name', 'created_at']}
         toolbarActions={<Button type="primary" disabled={!selectedKeys.length} loading={batchApproving} onClick={approveSelected}>批量审核</Button>}
         rowKey={(r) => `${r.order_kind}-${r.order_id}`}
         loading={query.isLoading}
@@ -260,8 +285,8 @@ export function Audit() {
             align: 'right',
             render: (v: number | null) => (v != null ? v.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '—')
           },
-          { title: '录入人', dataIndex: 'created_by_name', render: (v) => v ?? '—' },
-          { title: '时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
+          { title: '创建人', dataIndex: 'created_by_name', render: (v) => v ?? '—' },
+          { title: '创建时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
           { title: '状态', dataIndex: 'status', render: (s) => <OrderStatusTag status={s} /> },
           {
             title: '操作',

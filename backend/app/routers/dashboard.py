@@ -25,6 +25,7 @@ from app.models.steelmaking import SteelmakingRecord
 from app.models.user import User
 from app.config import get_settings
 from app.services.party_balance import list_party_balances
+from app.services.creator import apply_creation_filters
 from app.utils.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
@@ -582,6 +583,10 @@ async def party_balances(db: AsyncSession = Depends(get_db)):
 @router.get("/pending-audits", response_model=list[PendingAuditItem])
 async def pending_audits(
     kind: str | None = Query(default=None, description="smelting/outsource/procurement/sales，空=全部"),
+    created_by: int | None = None,
+    created_by_name: str | None = None,
+    created_at_from: date | None = None,
+    created_at_to: date | None = None,
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("reviewer", "admin")),
 ):
@@ -607,6 +612,14 @@ async def pending_audits(
             .join(User, User.id == model.created_by, isouter=True)
             .where(model.status == "pending_review")
             .order_by(model.created_at.asc())
+        )
+        stmt = apply_creation_filters(
+            stmt,
+            model,
+            created_by=created_by,
+            created_by_name=created_by_name,
+            created_at_from=created_at_from,
+            created_at_to=created_at_to,
         )
         rows = await db.execute(stmt)
         for row in rows:

@@ -18,6 +18,7 @@ from app.schemas.steelmaking import (
     SteelmakingRecordUpdate,
 )
 from app.services.batch import generate_batch_no
+from app.services.creator import apply_creation_filters, serialize_with_creator_names
 from app.services.steelmaking import (
     convert_weight_to_kg,
     hard_delete_records,
@@ -44,11 +45,23 @@ async def list_records(
     furnace_no: str | None = None,
     steel_grade: str | None = None,
     record_status: RecordStatus | None = Query(default=None, alias="status"),
+    created_by: int | None = None,
+    created_by_name: str | None = None,
+    created_at_from: date | None = None,
+    created_at_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(SteelmakingRecord).options(selectinload(SteelmakingRecord.owner)).where(SteelmakingRecord.deleted.is_(False)).order_by(
         SteelmakingRecord.record_date.desc(), SteelmakingRecord.id.desc()
+    )
+    stmt = apply_creation_filters(
+        stmt,
+        SteelmakingRecord,
+        created_by=created_by,
+        created_by_name=created_by_name,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
     )
     if date_from:
         stmt = stmt.where(SteelmakingRecord.record_date >= date_from)
@@ -67,9 +80,9 @@ async def list_records(
         stmt = stmt.where(or_(SteelmakingRecord.batch_no.like(like), SteelmakingRecord.furnace_no.like(like), SteelmakingRecord.steel_grade.like(like)))
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
+    rows = list(await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
     return PageResult(
-        items=[SteelmakingRecordListItem.model_validate(row) for row in rows],
+        items=await serialize_with_creator_names(db, rows, SteelmakingRecordListItem),
         total=total or 0,
         page=page,
         page_size=page_size,

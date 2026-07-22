@@ -16,6 +16,7 @@ import { SpecificationSelect, useSpecificationCreator } from '../components/Spec
 import { useAuth } from '../utils/AuthContext'
 import {
   countsForProcessingFee,
+  creatorOptions,
   InventoryStockOption,
   ITEM_TYPE_LABELS,
   masterDataLabelMap,
@@ -23,6 +24,7 @@ import {
   UNIT_OPTIONS,
   itemOptions,
   partyOptions,
+  useCreatorOptions,
   useInventoryStock,
   useItems,
   useMasterDataOptions,
@@ -46,6 +48,8 @@ interface OutsourceOrder {
   total_amount?: string | null
   need_invoice: boolean
   status: OrderStatus
+  created_by_name?: string | null
+  created_at: string
   notes?: string | null
   party?: { name: string } | null
   outbound_lines: any[]
@@ -76,6 +80,8 @@ export function Outsource() {
   const [search, setSearch] = useState('')
   const [outDateRange, setOutDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [inDateRange, setInDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [creatorId, setCreatorId] = useState<number | undefined>()
+  const [createdAtRange, setCreatedAtRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [appliedFilters, setAppliedFilters] = useState({
     status: '',
     type: '',
@@ -84,7 +90,10 @@ export function Outsource() {
     outDateFrom: '',
     outDateTo: '',
     inDateFrom: '',
-    inDateTo: ''
+    inDateTo: '',
+    creatorId: undefined as number | undefined,
+    createdAtFrom: '',
+    createdAtTo: ''
   })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -99,6 +108,7 @@ export function Outsource() {
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const editRequestSequence = useRef(0)
   const parties = useParties()
+  const creators = useCreatorOptions()
   const items = useItems()
   const itemTypesQuery = useMasterDataOptions('item_type')
   const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
@@ -120,7 +130,10 @@ export function Outsource() {
             ...(appliedFilters.outDateFrom ? { out_date_from: appliedFilters.outDateFrom } : {}),
             ...(appliedFilters.outDateTo ? { out_date_to: appliedFilters.outDateTo } : {}),
             ...(appliedFilters.inDateFrom ? { in_date_from: appliedFilters.inDateFrom } : {}),
-            ...(appliedFilters.inDateTo ? { in_date_to: appliedFilters.inDateTo } : {})
+            ...(appliedFilters.inDateTo ? { in_date_to: appliedFilters.inDateTo } : {}),
+            ...(appliedFilters.creatorId ? { created_by: appliedFilters.creatorId } : {}),
+            ...(appliedFilters.createdAtFrom ? { created_at_from: appliedFilters.createdAtFrom } : {}),
+            ...(appliedFilters.createdAtTo ? { created_at_to: appliedFilters.createdAtTo } : {})
           }
         })
       ).data
@@ -356,7 +369,10 @@ export function Outsource() {
       outDateFrom: outDateRange?.[0].format('YYYY-MM-DD') ?? '',
       outDateTo: outDateRange?.[1].format('YYYY-MM-DD') ?? '',
       inDateFrom: inDateRange?.[0].format('YYYY-MM-DD') ?? '',
-      inDateTo: inDateRange?.[1].format('YYYY-MM-DD') ?? ''
+      inDateTo: inDateRange?.[1].format('YYYY-MM-DD') ?? '',
+      creatorId,
+      createdAtFrom: createdAtRange?.[0].format('YYYY-MM-DD') ?? '',
+      createdAtTo: createdAtRange?.[1].format('YYYY-MM-DD') ?? ''
     })
     setPage(1)
   }
@@ -368,9 +384,12 @@ export function Outsource() {
     setSearch('')
     setOutDateRange(null)
     setInDateRange(null)
+    setCreatorId(undefined)
+    setCreatedAtRange(null)
     setAppliedFilters({
       status: '', type: '', partyId: undefined, search: '',
-      outDateFrom: '', outDateTo: '', inDateFrom: '', inDateTo: ''
+      outDateFrom: '', outDateTo: '', inDateFrom: '', inDateTo: '',
+      creatorId: undefined, createdAtFrom: '', createdAtTo: ''
     })
     setPage(1)
   }
@@ -408,6 +427,14 @@ export function Outsource() {
           <span>名称：</span>
           <Input allowClear value={search} placeholder="搜索批次/单位/物品/规格" style={{ width: 280 }} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <div className="filter-item">
+          <span>创建人：</span>
+          <Select allowClear showSearch value={creatorId} placeholder="全部创建人" style={{ width: 220 }} optionFilterProp="label" options={creatorOptions(creators.data)} onChange={setCreatorId} />
+        </div>
+        <div className="filter-item">
+          <span>创建时间：</span>
+          <DatePicker.RangePicker value={createdAtRange} onChange={(dates) => setCreatedAtRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
         <div className="filter-actions">
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
@@ -415,6 +442,7 @@ export function Outsource() {
       </ListFilters>
       <BusinessTable<OutsourceOrder>
         tableId="outsource"
+        defaultHiddenColumnIds={['created_by_name', 'created_at']}
         toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建外协单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/outsource-orders/batch-delete" entityName="外协单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
         rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
@@ -447,6 +475,8 @@ export function Outsource() {
           { title: '成材率', dataIndex: 'yield_rate', render: (v) => (v ? `${(Number(v) * 100).toFixed(2)}%` : '—') },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '创建人', dataIndex: 'created_by_name', width: 120, render: (v) => v ?? '—' },
+          { title: '创建时间', dataIndex: 'created_at', width: 180, render: (v: string) => v ? v.slice(0, 19).replace('T', ' ') : '—' },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',

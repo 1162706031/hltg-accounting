@@ -19,6 +19,7 @@ from app.schemas.outsource import (
     RejectRequest,
 )
 from app.services.batch import generate_batch_no
+from app.services.creator import apply_creation_filters, serialize_with_creator_names
 from app.services.master_data import require_master_option, require_specification
 from app.services.outsource import (
     apply_complete_inventory,
@@ -52,10 +53,22 @@ async def list_orders(
     out_date_to: date | None = None,
     in_date_from: date | None = None,
     in_date_to: date | None = None,
+    created_by: int | None = None,
+    created_by_name: str | None = None,
+    created_at_from: date | None = None,
+    created_at_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(OutsourceOrder).options(selectinload(OutsourceOrder.party)).order_by(OutsourceOrder.id.desc())
+    stmt = apply_creation_filters(
+        stmt,
+        OutsourceOrder,
+        created_by=created_by,
+        created_by_name=created_by_name,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
+    )
     if process_type:
         stmt = stmt.where(OutsourceOrder.process_type == process_type)
     if party_id:
@@ -97,9 +110,9 @@ async def list_orders(
         )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
+    rows = list(await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
     return PageResult(
-        items=[OutsourceOrderListItem.model_validate(row) for row in rows],
+        items=await serialize_with_creator_names(db, rows, OutsourceOrderListItem),
         total=total or 0,
         page=page,
         page_size=page_size,

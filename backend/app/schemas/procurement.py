@@ -76,6 +76,7 @@ class ProcurementOrderRead(ProcurementOrderBase, ORMModel):
     total_amount: Decimal | None
     status: OrderStatus
     created_by: int | None
+    created_by_name: str | None = None
     audited_by: int | None
     audited_at: datetime | None
     created_at: datetime

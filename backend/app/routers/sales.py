@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.inventory import Inventory
 from app.models.item import Item
 from app.models.party import Party
 from app.models.sales import SalesOrder, SalesOrderItem
@@ -20,7 +21,9 @@ from app.schemas.sales import (
     SalesOrderUpdate,
 )
 from app.services.batch import generate_batch_no
-from app.services.inventory import stock_out
+from app.services.creator import apply_creation_filters, serialize_with_creator_names
+from app.services.inventory import stock_out, stock_out_inventory_obj
+from app.services.master_data import require_specification
 from app.services.order_status import (
     DELETABLE_STATUSES,
     UNAUDITABLE_STATUSES,
@@ -51,6 +54,131 @@ def _recompute(order: SalesOrder) -> None:
     )
 
 
+def _normalized_spec(spec: str | None) -> str:
+    return (spec or "").strip()
+
+
+def _validate_mode_lines(order: SalesOrder) -> None:
+    """校验两种销售模式的必填字段，避免订单流转后才暴露无效明细。"""
+    for line in order.items:
+        if order.sales_mode == "inventory":
+            if line.inventory_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"第 {line.line_no} 条销售明细未指定库存项",
+                )
+            continue
+        if line.item_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"第 {line.line_no} 条销售明细未指定物品",
+            )
+        if Decimal(line.quantity or 0) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"第 {line.line_no} 条销售明细数量必须大于 0",
+            )
+        if not (line.unit or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"第 {line.line_no} 条销售明细未指定单位",
+            )
+        line.spec = _normalized_spec(line.spec)
+        if not line.spec:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"第 {line.line_no} 条销售明细未指定规格",
+            )
+
+
+async def _ensure_auto_mode_items_exist(db: AsyncSession, order: SalesOrder) -> None:
+    if order.sales_mode != "item_spec":
+        return
+    item_ids = {line.item_id for line in order.items if line.item_id is not None}
+    existing_ids = set(await db.scalars(select(Item.id).where(Item.id.in_(item_ids))))
+    if missing_ids := item_ids - existing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"销售明细中的物品不存在：{', '.join(str(item_id) for item_id in sorted(missing_ids))}",
+        )
+    for line in order.items:
+        specification = await require_specification(db, line.spec)
+        line.spec = specification.code
+
+
+async def _hydrate_inventory_mode_lines(db: AsyncSession, order: SalesOrder) -> None:
+    """指定库存模式始终以库存主数据回填物品、规格和单位，防止客户端快照不一致。"""
+    if order.sales_mode != "inventory":
+        return
+    inventory_ids = {line.inventory_id for line in order.items if line.inventory_id is not None}
+    inventories = list(await db.scalars(select(Inventory).where(Inventory.id.in_(inventory_ids))))
+    by_id = {inventory.id: inventory for inventory in inventories}
+    if missing_ids := inventory_ids - by_id.keys():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"销售明细中的库存项不存在：{', '.join(str(inventory_id) for inventory_id in sorted(missing_ids))}",
+        )
+    for line in order.items:
+        inventory = by_id[int(line.inventory_id or 0)]
+        line.item_id = inventory.item_id
+        line.spec = inventory.spec
+        line.unit = inventory.unit
+
+
+async def _match_auto_mode_inventory(
+    db: AsyncSession, order: SalesOrder
+) -> dict[tuple[int, str, str], Inventory]:
+    """锁定并校验自动销售所需的本厂库存；全部满足后调用方才开始逐行扣减。"""
+    internal_party_id = await db.scalar(
+        select(Party.id).where(Party.is_internal.is_(True)).order_by(Party.id).limit(1)
+    )
+    if internal_party_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="系统未配置本厂单位，无法自动匹配销售库存",
+        )
+
+    required: dict[tuple[int, str, str], Decimal] = {}
+    first_line: dict[tuple[int, str, str], SalesOrderItem] = {}
+    for line in order.items:
+        key = (int(line.item_id or 0), _normalized_spec(line.spec), line.unit)
+        required[key] = required.get(key, Decimal("0")) + Decimal(line.quantity or 0)
+        first_line.setdefault(key, line)
+
+    matched: dict[tuple[int, str, str], Inventory] = {}
+    for key in sorted(required):
+        item_id, spec, unit = key
+        inventory = await db.scalar(
+            select(Inventory)
+            .where(
+                Inventory.owner_id == internal_party_id,
+                Inventory.item_id == item_id,
+                Inventory.spec == spec,
+                Inventory.unit == unit,
+            )
+            .with_for_update()
+        )
+        line = first_line[key]
+        item_name = line.item.name if line.item is not None else f"物品#{item_id}"
+        item_label = f"{item_name} / {spec} / {unit}"
+        if inventory is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"本厂库存没有“{item_label}”，销售单无法完成",
+            )
+        available = Decimal(inventory.current_quantity or 0)
+        if available < required[key]:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"本厂库存“{item_label}”不足：需要 {required[key]}，当前仅有 {available}，"
+                    "销售单无法完成"
+                ),
+            )
+        matched[key] = inventory
+    return matched
+
+
 async def _load(db: AsyncSession, order_id: int) -> SalesOrder:
     stmt = (
         select(SalesOrder)
@@ -71,10 +199,22 @@ async def list_orders(
     order_status: str | None = Query(default=None, alias="status"),
     ship_date_from: date | None = None,
     ship_date_to: date | None = None,
+    created_by: int | None = None,
+    created_by_name: str | None = None,
+    created_at_from: date | None = None,
+    created_at_to: date | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(SalesOrder).options(selectinload(SalesOrder.party)).order_by(SalesOrder.id.desc())
+    stmt = apply_creation_filters(
+        stmt,
+        SalesOrder,
+        created_by=created_by,
+        created_by_name=created_by_name,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
+    )
     if party_id:
         stmt = stmt.where(SalesOrder.party_id == party_id)
     if order_status:
@@ -101,9 +241,12 @@ async def list_orders(
         )
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size))
+    rows = list(await db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
     return PageResult(
-        items=[SalesOrderListItem.model_validate(r) for r in rows], total=total or 0, page=page, page_size=page_size
+        items=await serialize_with_creator_names(db, rows, SalesOrderListItem),
+        total=total or 0,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -123,6 +266,7 @@ async def create_order(
         order = SalesOrder(
             batch_no=batch_no,
             party_id=payload.party_id,
+            sales_mode=payload.sales_mode,
             tax_rate=payload.tax_rate,
             need_invoice=payload.need_invoice,
             notes=payload.notes,
@@ -130,7 +274,14 @@ async def create_order(
             created_by=current_user.id,
         )
         for line in payload.items:
-            order.items.append(SalesOrderItem(**line.model_dump(exclude={"amount"})))
+            line_data = line.model_dump(exclude={"amount"})
+            if payload.sales_mode == "item_spec":
+                line_data["inventory_id"] = None
+                line_data["spec"] = _normalized_spec(line.spec)
+            order.items.append(SalesOrderItem(**line_data))
+        _validate_mode_lines(order)
+        await _hydrate_inventory_mode_lines(db, order)
+        await _ensure_auto_mode_items_exist(db, order)
         _recompute(order)
         db.add(order)
 
@@ -147,12 +298,24 @@ async def update_order(
     async with db.begin():
         order = await _load(db, order_id)
         assert_editable(order.status)
+        target_mode = payload.sales_mode or order.sales_mode
         for key, value in payload.model_dump(exclude_unset=True, exclude={"items", "ship_date"}).items():
             setattr(order, key, value)
         if payload.items is not None:
             order.items.clear()
             for line in payload.items:
-                order.items.append(SalesOrderItem(**line.model_dump(exclude={"amount"})))
+                line_data = line.model_dump(exclude={"amount"})
+                if target_mode == "item_spec":
+                    line_data["inventory_id"] = None
+                    line_data["spec"] = _normalized_spec(line.spec)
+                order.items.append(SalesOrderItem(**line_data))
+        elif target_mode == "item_spec":
+            for line in order.items:
+                line.inventory_id = None
+                line.spec = _normalized_spec(line.spec)
+        _validate_mode_lines(order)
+        await _hydrate_inventory_mode_lines(db, order)
+        await _ensure_auto_mode_items_exist(db, order)
         _recompute(order)
     return await _load(db, order_id)
 
@@ -255,26 +418,42 @@ async def complete_order(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    """完成：按每条明细的 inventory_id 扣减库存。"""
+    """完成：指定库存模式精确扣库；按物品规格模式自动匹配本厂库存后扣库。"""
     async with db.begin():
         order = await _load(db, order_id)
         check_transition(order.status, "completed")
+        _validate_mode_lines(order)
+        auto_inventory = (
+            await _match_auto_mode_inventory(db, order)
+            if order.sales_mode == "item_spec"
+            else None
+        )
         for line in order.items:
-            if line.inventory_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"明细(line_no={line.line_no})未指定库存项，无法出库",
+            if auto_inventory is not None:
+                key = (int(line.item_id or 0), _normalized_spec(line.spec), line.unit)
+                inventory = auto_inventory[key]
+                line.inventory_id = inventory.id
+                await stock_out_inventory_obj(
+                    db,
+                    inventory=inventory,
+                    quantity=Decimal(line.quantity or 0),
+                    change_date=line.ship_date or order.ship_date or datetime.utcnow().date(),
+                    notes=f"批次号：{order.batch_no}；销售自动匹配出库",
+                    ref_type="sales_order",
+                    ref_id=order.id,
+                    created_by=order.created_by,
                 )
-            await stock_out(
-                db,
-                inventory_id=line.inventory_id,
-                quantity=Decimal(line.quantity or 0),
-                change_date=line.ship_date or order.ship_date or datetime.utcnow().date(),
-                notes=f"批次号：{order.batch_no}；销售出库",
-                ref_type="sales_order",
-                ref_id=order.id,
-                created_by=order.created_by,
-            )
+            else:
+                await stock_out(
+                    db,
+                    inventory_id=int(line.inventory_id or 0),
+                    quantity=Decimal(line.quantity or 0),
+                    change_date=line.ship_date or order.ship_date or datetime.utcnow().date(),
+                    notes=f"批次号：{order.batch_no}；销售出库",
+                    ref_type="sales_order",
+                    ref_id=order.id,
+                    created_by=order.created_by,
+                )
         order.status = "completed"
     return await _load(db, order_id)
 
@@ -293,6 +472,9 @@ async def unaudit_order(
         elif current_user.role != "admin":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可反审核该订单")
         await rollback_inventory_by_ref(db, ref_type="sales_order", ref_id=order.id)
+        if order.sales_mode == "item_spec":
+            for line in order.items:
+                line.inventory_id = None
         order.status = "draft"
         order.audited_by = None
         order.audited_at = None

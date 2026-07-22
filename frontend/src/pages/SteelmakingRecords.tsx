@@ -25,7 +25,7 @@ import { DetailModal } from '../components/DetailModal'
 import { LineTotals } from '../components/LineTotals'
 import { PartySelect } from '../components/QuickCreate'
 import { useAuth } from '../utils/AuthContext'
-import { ITEM_TYPE_LABELS, masterDataLabelMap, partyOptions, useMasterDataOptions, useParties } from '../utils/lookups'
+import { creatorOptions, ITEM_TYPE_LABELS, masterDataLabelMap, partyOptions, useCreatorOptions, useMasterDataOptions, useParties } from '../utils/lookups'
 import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
@@ -90,6 +90,8 @@ interface SteelmakingRecord {
   cost_per_ton?: string | null
   cost_complete: boolean
   status: 'draft' | 'confirmed'
+  created_by_name?: string | null
+  created_at: string
   remark?: string | null
   materials?: MaterialLine[]
   compositions?: CompositionLine[]
@@ -148,7 +150,12 @@ export function SteelmakingRecords() {
   const [furnaceNo, setFurnaceNo] = useState('')
   const [steelGrade, setSteelGrade] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [applied, setApplied] = useState({ dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '' })
+  const [creatorId, setCreatorId] = useState<number | undefined>()
+  const [createdAtRange, setCreatedAtRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [applied, setApplied] = useState({
+    dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '',
+    creatorId: undefined as number | undefined, createdAtFrom: '', createdAtTo: ''
+  })
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingBatchNo, setEditingBatchNo] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -157,6 +164,7 @@ export function SteelmakingRecords() {
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSelectedRowKeys, setMaterialSelectedRowKeys] = useState<number[]>([])
   const parties = useParties()
+  const creators = useCreatorOptions()
 
   const query = useQuery({
     queryKey: ['steelmaking-records', applied, page, pageSize],
@@ -170,7 +178,10 @@ export function SteelmakingRecords() {
           batch_no: applied.batchNo || undefined,
           furnace_no: applied.furnaceNo || undefined,
           steel_grade: applied.steelGrade || undefined,
-          status: applied.status || undefined
+          status: applied.status || undefined,
+          created_by: applied.creatorId || undefined,
+          created_at_from: applied.createdAtFrom || undefined,
+          created_at_to: applied.createdAtTo || undefined
         }
       })
     ).data
@@ -298,7 +309,11 @@ export function SteelmakingRecords() {
 
   const resetFilters = () => {
     setDateRange(null); setBatchNo(''); setFurnaceNo(''); setSteelGrade(''); setStatusFilter('')
-    setApplied({ dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '' })
+    setCreatorId(undefined); setCreatedAtRange(null)
+    setApplied({
+      dateFrom: '', dateTo: '', batchNo: '', furnaceNo: '', steelGrade: '', status: '',
+      creatorId: undefined, createdAtFrom: '', createdAtTo: ''
+    })
     setPage(1)
   }
 
@@ -315,11 +330,16 @@ export function SteelmakingRecords() {
         <div className="filter-item"><span>炉号：</span><Input value={furnaceNo} onChange={(e) => setFurnaceNo(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>钢种：</span><Input value={steelGrade} onChange={(e) => setSteelGrade(e.target.value)} style={{ width: 150 }} /></div>
         <div className="filter-item"><span>状态：</span><Select value={statusFilter} onChange={setStatusFilter} style={{ width: 120 }} options={[{ value: '', label: '全部' }, { value: 'draft', label: '草稿' }, { value: 'confirmed', label: '已确认' }]} /></div>
+        <div className="filter-item"><span>创建人：</span><Select allowClear showSearch value={creatorId} placeholder="全部创建人" style={{ width: 220 }} optionFilterProp="label" options={creatorOptions(creators.data)} onChange={setCreatorId} /></div>
+        <div className="filter-item"><span>创建时间：</span><DatePicker.RangePicker value={createdAtRange} onChange={(v) => setCreatedAtRange(v as [Dayjs, Dayjs] | null)} /></div>
         <div className="filter-actions">
           <Button type="primary" onClick={() => {
             setApplied({
               dateFrom: dateRange?.[0].format('YYYY-MM-DD') ?? '', dateTo: dateRange?.[1].format('YYYY-MM-DD') ?? '',
-              batchNo: batchNo.trim(), furnaceNo: furnaceNo.trim(), steelGrade: steelGrade.trim(), status: statusFilter
+              batchNo: batchNo.trim(), furnaceNo: furnaceNo.trim(), steelGrade: steelGrade.trim(), status: statusFilter,
+              creatorId,
+              createdAtFrom: createdAtRange?.[0].format('YYYY-MM-DD') ?? '',
+              createdAtTo: createdAtRange?.[1].format('YYYY-MM-DD') ?? ''
             }); setPage(1)
           }}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
@@ -328,6 +348,7 @@ export function SteelmakingRecords() {
 
       <BusinessTable<SteelmakingRecord>
         tableId="steelmaking-records"
+        defaultHiddenColumnIds={['created_by_name', 'created_at']}
         toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建炼钢记录</Button><BatchDeleteButton selectedKeys={selectedRecordIds} endpoint="/steelmaking-records/batch-delete" entityName="炼钢记录" confirmContent="炼钢记录及其材料、成分快照将被永久删除且无法恢复，同时释放相关物品引用。" onSuccess={() => { setSelectedRecordIds([]); invalidate() }} /></> : null}
         rowSelection={{ selectedRowKeys: selectedRecordIds, onChange: (keys) => setSelectedRecordIds(keys as number[]) }}
         rowKey="id"
@@ -348,6 +369,8 @@ export function SteelmakingRecords() {
           { title: '单吨成本', dataIndex: 'cost_per_ton', width: 130, align: 'right' },
           { title: '成本完整', dataIndex: 'cost_complete', width: 100, render: (v) => <Tag color={v ? 'green' : 'orange'}>{v ? '是' : '否'}</Tag> },
           { title: '状态', dataIndex: 'status', width: 100, render: (v) => <Tag color={v === 'confirmed' ? 'green' : 'default'}>{v === 'confirmed' ? '已确认' : '草稿'}</Tag> },
+          { title: '创建人', dataIndex: 'created_by_name', width: 120, render: (v) => v ?? '—' },
+          { title: '创建时间', dataIndex: 'created_at', width: 180, render: (v: string) => v ? v.slice(0, 19).replace('T', ' ') : '—' },
           {
             title: '操作', fixed: 'right', width: canManage ? 210 : 70,
             render: (_, row) => <Space size={0}>

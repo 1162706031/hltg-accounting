@@ -17,6 +17,13 @@ class UserRead(ORMModel):
     created_at: datetime
 
 
+class UserOption(ORMModel):
+    id: int
+    username: str
+    real_name: str | None
+    is_active: bool
+
+
 class UserCreate(BaseModel):
     username: str = Field(min_length=2, max_length=50)
     password: str = Field(min_length=6, max_length=128)

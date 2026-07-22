@@ -549,6 +549,8 @@ CREATE TABLE sales_order (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     batch_no        VARCHAR(30)   NOT NULL COMMENT '批次号 — S0001',
     party_id        BIGINT UNSIGNED NOT NULL COMMENT '客户',
+    sales_mode      ENUM('inventory','item_spec') NOT NULL DEFAULT 'inventory'
+                    COMMENT 'inventory=指定库存销售 item_spec=按物品规格下单、完成时自动扣库',
     ship_date       DATE          DEFAULT NULL COMMENT '发货日期',
 
     -- 费用汇总 (design §4.7)
@@ -583,8 +585,8 @@ CREATE TABLE sales_order_item (
     order_id        BIGINT UNSIGNED NOT NULL,
     line_no         TINYINT UNSIGNED DEFAULT 1,
     ship_date       DATE          DEFAULT NULL COMMENT '发货日期（行级，留空回退订单发货日期）',
-    inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '销售选择的库存记录，完成时按此扣库',
-    item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品 (成品/半成品 — 从仓库库存选)',
+    inventory_id    BIGINT UNSIGNED DEFAULT NULL COMMENT '指定库存模式所选库存；自动模式完成时写入实际扣减库存',
+    item_id         BIGINT UNSIGNED DEFAULT NULL COMMENT '物品；自动模式下与 spec、unit 一起用于匹配本厂库存',
     spec            VARCHAR(80)   DEFAULT NULL COMMENT '规格 — 630, 150圆钢 ...',
     quantity        DECIMAL(10,3) DEFAULT 0 COMMENT '发货数量 (单位见 unit)',
     unit            VARCHAR(10)   DEFAULT '吨' COMMENT '单位 (吨/千克/支)',

@@ -15,11 +15,13 @@ import { SpecificationSelect, useSpecificationCreator } from '../components/Spec
 import { useAuth } from '../utils/AuthContext'
 import {
   ITEM_TYPE_LABELS,
+  creatorOptions,
   masterDataLabelMap,
   masterDataSelectOptions,
   UNIT_OPTIONS,
   itemOptions,
   partyOptions,
+  useCreatorOptions,
   useItems,
   useMasterDataOptions,
   useParties
@@ -59,6 +61,8 @@ interface ProcurementOrder {
   total_amount?: string | null
   need_invoice: boolean
   status: OrderStatus
+  created_by_name?: string | null
+  created_at: string
   notes?: string | null
   party?: { name: string } | null
   item?: { id: number; name: string; item_type: string } | null
@@ -74,12 +78,17 @@ export function Procurement() {
   const [partyId, setPartyId] = useState<number | undefined>()
   const [search, setSearch] = useState('')
   const [purchaseDateRange, setPurchaseDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [creatorId, setCreatorId] = useState<number | undefined>()
+  const [createdAtRange, setCreatedAtRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [appliedFilters, setAppliedFilters] = useState({
     status: '',
     partyId: undefined as number | undefined,
     search: '',
     purchaseDateFrom: '',
-    purchaseDateTo: ''
+    purchaseDateTo: '',
+    creatorId: undefined as number | undefined,
+    createdAtFrom: '',
+    createdAtTo: ''
   })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -92,6 +101,7 @@ export function Procurement() {
   const watchedItems = Form.useWatch('items', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
   const parties = useParties()
+  const creators = useCreatorOptions()
   const items = useItems()
   const itemTypesQuery = useMasterDataOptions('item_type')
   const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
@@ -110,7 +120,10 @@ export function Procurement() {
             ...(appliedFilters.partyId ? { party_id: appliedFilters.partyId } : {}),
             ...(appliedFilters.search ? { q: appliedFilters.search } : {}),
             ...(appliedFilters.purchaseDateFrom ? { purchase_date_from: appliedFilters.purchaseDateFrom } : {}),
-            ...(appliedFilters.purchaseDateTo ? { purchase_date_to: appliedFilters.purchaseDateTo } : {})
+            ...(appliedFilters.purchaseDateTo ? { purchase_date_to: appliedFilters.purchaseDateTo } : {}),
+            ...(appliedFilters.creatorId ? { created_by: appliedFilters.creatorId } : {}),
+            ...(appliedFilters.createdAtFrom ? { created_at_from: appliedFilters.createdAtFrom } : {}),
+            ...(appliedFilters.createdAtTo ? { created_at_to: appliedFilters.createdAtTo } : {})
           }
         })
       ).data
@@ -183,7 +196,10 @@ export function Procurement() {
       partyId,
       search: search.trim(),
       purchaseDateFrom: purchaseDateRange?.[0].format('YYYY-MM-DD') ?? '',
-      purchaseDateTo: purchaseDateRange?.[1].format('YYYY-MM-DD') ?? ''
+      purchaseDateTo: purchaseDateRange?.[1].format('YYYY-MM-DD') ?? '',
+      creatorId,
+      createdAtFrom: createdAtRange?.[0].format('YYYY-MM-DD') ?? '',
+      createdAtTo: createdAtRange?.[1].format('YYYY-MM-DD') ?? ''
     })
     setPage(1)
   }
@@ -193,7 +209,9 @@ export function Procurement() {
     setPartyId(undefined)
     setSearch('')
     setPurchaseDateRange(null)
-    setAppliedFilters({ status: '', partyId: undefined, search: '', purchaseDateFrom: '', purchaseDateTo: '' })
+    setCreatorId(undefined)
+    setCreatedAtRange(null)
+    setAppliedFilters({ status: '', partyId: undefined, search: '', purchaseDateFrom: '', purchaseDateTo: '', creatorId: undefined, createdAtFrom: '', createdAtTo: '' })
     setPage(1)
   }
 
@@ -237,6 +255,14 @@ export function Procurement() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <div className="filter-item">
+          <span>创建人：</span>
+          <Select allowClear showSearch value={creatorId} placeholder="全部创建人" style={{ width: 220 }} optionFilterProp="label" options={creatorOptions(creators.data)} onChange={setCreatorId} />
+        </div>
+        <div className="filter-item">
+          <span>创建时间：</span>
+          <DatePicker.RangePicker value={createdAtRange} onChange={(dates) => setCreatedAtRange(dates as [Dayjs, Dayjs] | null)} />
+        </div>
         <div className="filter-actions">
           <Button type="primary" onClick={applyFilters}>查询</Button>
           <Button onClick={resetFilters}>重置</Button>
@@ -244,6 +270,7 @@ export function Procurement() {
       </ListFilters>
       <BusinessTable<ProcurementOrder>
         tableId="procurement"
+        defaultHiddenColumnIds={['created_by_name', 'created_at']}
         toolbarActions={canManage ? <><Button type="primary" onClick={openCreate}>+ 新建采购单</Button><BatchDeleteButton selectedKeys={selectedOrderIds} endpoint="/procurement-orders/batch-delete" entityName="采购单" onSuccess={() => { setSelectedOrderIds([]); invalidate() }} /></> : null}
         rowSelection={{ selectedRowKeys: selectedOrderIds, onChange: (keys) => setSelectedOrderIds(keys as number[]) }}
         rowKey="id"
@@ -271,6 +298,8 @@ export function Procurement() {
           { title: '数量', width: 150, align: 'right', render: (_, row) => row.items?.map((line) => `${line.quantity}${line.unit}`).join('、') || `${row.quantity}${row.unit}` },
           { title: '合计', dataIndex: 'total_amount', align: 'right', render: (v) => v ?? '—' },
           { title: '状态', dataIndex: 'status', render: (s: OrderStatus) => <OrderStatusTag status={s} /> },
+          { title: '创建人', dataIndex: 'created_by_name', width: 120, render: (v) => v ?? '—' },
+          { title: '创建时间', dataIndex: 'created_at', width: 180, render: (v: string) => v ? v.slice(0, 19).replace('T', ' ') : '—' },
           { title: '备注', dataIndex: 'notes', ellipsis: true, render: (v) => v ?? '—' },
           {
             title: '操作',

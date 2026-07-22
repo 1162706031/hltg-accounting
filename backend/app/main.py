@@ -93,6 +93,7 @@ async def health() -> dict[str, str]:
 
 
 app.include_router(auth.router, prefix=settings.api_prefix)
+app.include_router(users.options_router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(parties.router, prefix=settings.api_prefix)
 app.include_router(items.router, prefix=settings.api_prefix)

@@ -10,6 +10,7 @@ from app.schemas.item import ItemRead
 from app.schemas.party import PartyRead
 
 OrderStatus = Literal["draft", "pending_review", "approved", "in_progress", "completed", "rejected"]
+SalesMode = Literal["inventory", "item_spec"]
 
 
 class SalesItemBase(BaseModel):
@@ -37,6 +38,7 @@ class SalesItemRead(SalesItemBase, ORMModel):
 
 class SalesOrderBase(BaseModel):
     party_id: int
+    sales_mode: SalesMode = "inventory"
     ship_date: date_type | None = None
     tax_rate: Decimal | None = Field(default=Decimal("13.00"), ge=0, le=100)
     need_invoice: bool = False
@@ -49,6 +51,7 @@ class SalesOrderCreate(SalesOrderBase):
 
 class SalesOrderUpdate(BaseModel):
     party_id: int | None = None
+    sales_mode: SalesMode | None = None
     ship_date: date_type | None = None
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100)
     need_invoice: bool | None = None
@@ -60,10 +63,12 @@ class SalesOrderListItem(ORMModel):
     id: int
     batch_no: str
     party_id: int
+    sales_mode: SalesMode
     ship_date: date_type | None
     total_amount: Decimal | None
     status: OrderStatus
     notes: str | None
+    created_by_name: str | None = None
     created_at: datetime
     party: PartyRead | None = None
 

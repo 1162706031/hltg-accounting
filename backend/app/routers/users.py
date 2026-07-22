@@ -6,11 +6,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
-from app.schemas.user import ResetPasswordRequest, UserCreate, UserRead, UserUpdate
-from app.utils.deps import require_roles
+from app.schemas.user import ResetPasswordRequest, UserCreate, UserOption, UserRead, UserUpdate
+from app.utils.deps import get_current_user, require_roles
 from app.utils.security import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(require_roles("admin"))])
+options_router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(get_current_user)])
+
+
+@options_router.get("/options", response_model=list[UserOption])
+async def list_user_options(db: AsyncSession = Depends(get_db)):
+    """供业务筛选使用的精简用户选项，包含停用用户以支持历史订单。"""
+    stmt = select(User).order_by(
+        User.is_active.desc(),
+        func.coalesce(User.real_name, User.username),
+        User.id,
+    )
+    return list(await db.scalars(stmt))
 
 
 async def paginate(db: AsyncSession, stmt: Select[tuple[User]], page: int, page_size: int) -> PageResult[UserRead]:
