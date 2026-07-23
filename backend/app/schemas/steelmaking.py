@@ -17,7 +17,23 @@ class SteelmakingMaterialInput(BaseModel):
     input_weight: Decimal = Field(gt=0)
     input_weight_unit: WeightUnit = "kg"
     custom_price: Decimal | None = Field(default=None, ge=0)
+    chemical_composition: dict[str, Decimal] | None = None
     sort_order: int = Field(default=1, ge=1)
+
+    @field_validator("chemical_composition")
+    @classmethod
+    def validate_chemical_composition(cls, value):
+        if value is None:
+            return value
+        unknown = set(value) - set(CHEMICAL_ELEMENTS)
+        if unknown:
+            raise ValueError(f"不支持的元素：{', '.join(sorted(unknown))}")
+        amounts = [Decimal(amount) for amount in value.values()]
+        if any(not amount.is_finite() or amount < 0 or amount > 100 for amount in amounts):
+            raise ValueError("原料成分必须在 0 到 100 之间")
+        if sum(amounts, Decimal("0")) > 100:
+            raise ValueError("原料成分合计不能超过 100%")
+        return value
 
 
 class SteelmakingRecordCreate(BaseModel):

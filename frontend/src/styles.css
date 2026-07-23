@@ -1196,7 +1196,7 @@ body {
 
 .steelmaking-material-toolbar {
   display: flex;
-  min-width: 1040px;
+  min-width: 1160px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -1214,7 +1214,7 @@ body {
 
 .steelmaking-material-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1160px;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid #d9dfe6;
@@ -1225,8 +1225,8 @@ body {
 .steelmaking-material-row {
   display: grid;
   width: 100%;
-  grid-template-columns: 42px 48px minmax(440px, 1fr) 140px 90px 180px 64px;
-  min-width: 1040px;
+  grid-template-columns: 42px 48px minmax(380px, 1fr) 140px 90px 170px 120px 64px;
+  min-width: 1160px;
   box-sizing: border-box;
   align-items: stretch;
 }
@@ -1260,10 +1260,14 @@ body {
 .steelmaking-material-row {
   min-height: 54px;
   background: #fff;
+}
+
+.steelmaking-material-entry {
+  width: 100%;
   border-bottom: 1px solid #e4e8ed;
 }
 
-.steelmaking-material-row:last-child {
+.steelmaking-material-entry:last-child {
   border-bottom: 0;
 }
 
@@ -1273,6 +1277,36 @@ body {
 
 .steelmaking-material-row:hover {
   background: #f3f8ff;
+}
+
+.steelmaking-material-composition-editor {
+  padding: 14px 18px 2px;
+  background: #f8fbff;
+  border-top: 1px solid #e4e8ed;
+}
+
+.steelmaking-material-composition-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.steelmaking-material-composition-toolbar > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.steelmaking-material-composition-toolbar span {
+  color: #6b7783;
+  font-size: 12px;
+}
+
+.steelmaking-material-composition-action .ant-btn {
+  width: 100%;
 }
 
 .steelmaking-material-row .ant-form-item {
@@ -2260,6 +2294,27 @@ body {
     border: 1px solid #d9dfe6;
     border-radius: 8px;
     background: #fff;
+  }
+
+  .steelmaking-material-entry {
+    min-width: 0;
+    border-bottom: 0;
+  }
+
+  .steelmaking-material-composition-editor {
+    padding: 12px 10px 0;
+    margin-top: 8px;
+    border: 1px solid #d9e6f5;
+    border-radius: 8px;
+  }
+
+  .steelmaking-material-composition-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .steelmaking-material-composition-toolbar .ant-btn {
+    width: 100%;
   }
 
   .steelmaking-material-row > span,

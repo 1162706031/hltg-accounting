@@ -16,7 +16,7 @@ import {
   TimePicker
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
@@ -31,6 +31,8 @@ import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
 
 const ELEMENTS = ['C', 'Mn', 'Si', 'Cr', 'W', 'Mo', 'V', 'Co', 'Nb', 'Ni', 'P', 'S'] as const
+const compositionFormValues = (composition?: Record<string, string> | null) =>
+  Object.fromEntries(ELEMENTS.map((code) => [code, String(composition?.[code] ?? '0')])) as Record<string, string>
 const emptyActualComposition = () =>
   Object.fromEntries(ELEMENTS.map((code) => [code, '0'])) as Record<string, string>
 type WeightUnit = 'kg' | 'ton'
@@ -115,6 +117,7 @@ interface FormValues {
     input_weight: string
     input_weight_unit: WeightUnit
     custom_price?: string | null
+    chemical_composition?: Record<string, string | null>
   }>
   actual_composition?: Record<string, string | null>
 }
@@ -129,8 +132,19 @@ function compositionSummary(item: ChemicalItem, itemTypeLabels: Record<string, s
   return `#${item.id} ${item.name}，类别：${type}，${values.join('，') || '成分均为0'}，${price}`
 }
 
+function compositionSnapshotSummary(composition?: Record<string, string> | null) {
+  return ELEMENTS
+    .filter((code) => Number(composition?.[code] ?? 0) !== 0)
+    .map((code) => `${code}=${composition?.[code]}%`)
+    .join('，') || '成分均为0'
+}
+
 function timeValue(value?: string | null) {
   return value ? dayjs(`2000-01-01T${value}`) : null
+}
+
+function formatCalculatedWeight(value: number) {
+  return value.toFixed(6).replace(/\.?0+$/, '')
 }
 
 export function SteelmakingRecords() {
@@ -142,6 +156,7 @@ export function SteelmakingRecords() {
   const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const [form] = Form.useForm<FormValues>()
   const watchedMaterials = Form.useWatch('materials', form)
+  const watchedFurnaceWeightUnit = Form.useWatch('furnace_weight_unit', form)
   const editRequestSequence = useRef(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -163,8 +178,21 @@ export function SteelmakingRecords() {
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSelectedRowKeys, setMaterialSelectedRowKeys] = useState<number[]>([])
+  const [expandedMaterialKeys, setExpandedMaterialKeys] = useState<number[]>([])
+  const [furnaceWeightAuto, setFurnaceWeightAuto] = useState(true)
   const parties = useParties()
   const creators = useCreatorOptions()
+
+  useEffect(() => {
+    if (!open || !furnaceWeightAuto) return
+    const totalWeightKg = (watchedMaterials ?? []).reduce((total, line) => {
+      const weight = Number(line?.input_weight || 0)
+      if (!Number.isFinite(weight) || weight <= 0) return total
+      return total + weight * (line?.input_weight_unit === 'ton' ? 1000 : 1)
+    }, 0)
+    const furnaceWeight = watchedFurnaceWeightUnit === 'ton' ? totalWeightKg / 1000 : totalWeightKg
+    form.setFieldValue('furnace_weight', furnaceWeight > 0 ? formatCalculatedWeight(furnaceWeight) : undefined)
+  }, [form, furnaceWeightAuto, open, watchedFurnaceWeightUnit, watchedMaterials])
 
   const query = useQuery({
     queryKey: ['steelmaking-records', applied, page, pageSize],
@@ -213,7 +241,13 @@ export function SteelmakingRecords() {
         power_on_time: values.power_on_time?.format('HH:mm:ss') ?? null,
         tap_time: values.tap_time?.format('HH:mm:ss') ?? null,
         pouring_time: values.pouring_time?.format('HH:mm:ss') ?? null,
-        materials: (values.materials ?? []).map((line, index) => ({ ...line, sort_order: index + 1 })),
+        materials: (values.materials ?? []).map((line, index) => ({
+          ...line,
+          chemical_composition: line.chemical_composition
+            ? Object.fromEntries(ELEMENTS.map((code) => [code, line.chemical_composition?.[code] ?? '0']))
+            : undefined,
+          sort_order: index + 1
+        })),
         actual_composition: Object.fromEntries(
           ELEMENTS.flatMap((code) => {
             const value = values.actual_composition?.[code]
@@ -232,6 +266,7 @@ export function SteelmakingRecords() {
       setEditingId(null)
       setEditingBatchNo(null)
       setMaterialSelectedRowKeys([])
+      setExpandedMaterialKeys([])
       form.resetFields()
       invalidate()
     },
@@ -254,6 +289,8 @@ export function SteelmakingRecords() {
     setEditingId(null)
     setEditingBatchNo(null)
     setMaterialSelectedRowKeys([])
+    setExpandedMaterialKeys([])
+    setFurnaceWeightAuto(true)
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(),
@@ -280,6 +317,8 @@ export function SteelmakingRecords() {
     setEditingId(id)
     setEditingBatchNo(row.batch_no)
     setMaterialSelectedRowKeys([])
+    setExpandedMaterialKeys([])
+    setFurnaceWeightAuto(true)
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(row.record_date),
@@ -298,7 +337,8 @@ export function SteelmakingRecords() {
         item_id: line.item_id,
         input_weight: line.input_weight,
         input_weight_unit: line.input_weight_unit,
-        custom_price: line.custom_price
+        custom_price: line.custom_price,
+        chemical_composition: compositionFormValues(line.chemical_composition_snapshot)
       })),
       actual_composition: Object.fromEntries(
         (row.compositions ?? []).filter((line) => line.actual_percentage != null).map((line) => [line.element_code, line.actual_percentage!])
@@ -388,7 +428,7 @@ export function SteelmakingRecords() {
         title={editingId ? '编辑炼钢记录' : '新建炼钢记录'}
         open={open}
         width={1180}
-        onCancel={() => { editRequestSequence.current += 1; setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); form.resetFields() }}
+        onCancel={() => { editRequestSequence.current += 1; setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); setExpandedMaterialKeys([]); form.resetFields() }}
         onOk={() => form.validateFields().then((values) => save.mutate(values))}
         confirmLoading={save.isPending}
         okText="保存草稿"
@@ -401,7 +441,14 @@ export function SteelmakingRecords() {
             <Form.Item name="steel_grade" label="钢种" rules={[{ required: true }]}><Input /></Form.Item>
             <Form.Item name="owner_id" label="所属" rules={[{ required: true, message: '请选择所属单位' }]}><PartySelect options={partyOptions(parties.data)} placeholder="选择所属单位" /></Form.Item>
             <Form.Item name="ingot_type" label="锭型"><Input /></Form.Item>
-            <Form.Item name="furnace_weight" label="炉重" rules={[{ required: true }]}><InputNumber stringMode min="0.000001" precision={6} style={{ width: '100%' }} /></Form.Item>
+            <Form.Item
+              name="furnace_weight"
+              label="炉重"
+              rules={[{ required: true }]}
+              extra={<Checkbox checked={furnaceWeightAuto} onChange={(event) => setFurnaceWeightAuto(event.target.checked)}>自动等于投入总重</Checkbox>}
+            >
+              <InputNumber stringMode min="0.000001" precision={6} style={{ width: '100%' }} onChange={() => setFurnaceWeightAuto(false)} />
+            </Form.Item>
             <Form.Item name="furnace_weight_unit" label="炉重单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
             <Form.Item name="power_on_time" label="送电时间"><TimePicker style={{ width: '100%' }} /></Form.Item>
             <Form.Item name="tap_time" label="出钢时间"><TimePicker style={{ width: '100%' }} /></Form.Item>
@@ -427,6 +474,7 @@ export function SteelmakingRecords() {
                       okButtonProps: { danger: true },
                       onOk: () => {
                         removeLine(fields.filter((field) => materialSelectedRowKeys.includes(field.key)).map((field) => field.name))
+                        setExpandedMaterialKeys((keys) => keys.filter((key) => !materialSelectedRowKeys.includes(key)))
                         setMaterialSelectedRowKeys([])
                       }
                     })}
@@ -449,48 +497,102 @@ export function SteelmakingRecords() {
                   <span>投入重量</span>
                   <span>单位</span>
                   <span>本次单价（元/吨）</span>
+                  <span>本批成分</span>
                   <span>操作</span>
                 </div>
                 {fields.length === 0 && <div className="steelmaking-material-empty">暂无原料，请点击“添加原料”新增一行</div>}
-                {fields.map((field, index) => <div className="steelmaking-material-row" key={field.key}>
-                  <span className="steelmaking-material-select">
-                    <Checkbox
-                      checked={materialSelectedRowKeys.includes(field.key)}
-                      onChange={(event) => setMaterialSelectedRowKeys((keys) => event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
-                    />
-                  </span>
-                  <span className="steelmaking-material-index">{index + 1}</span>
-                  <Form.Item name={[field.name, 'item_id']} label="原料" rules={[{ required: true, message: '请选择原料' }]}>
-                    <Select
-                      className="steelmaking-material-select-box"
-                      showSearch
-                      filterOption={false}
-                      popupMatchSelectWidth={620}
-                      onSearch={(value) => setMaterialSearch(value.trim())}
-                      placeholder="搜索名称或物品编号"
-                      options={(chemicalItems.data ?? []).map((item) => {
-                        const summary = compositionSummary(item, itemTypeLabels)
-                        return { value: item.id, label: summary, title: summary }
-                      })}
-                    />
-                  </Form.Item>
-                  <Form.Item name={[field.name, 'input_weight']} label="投入重量" rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
-                  <Form.Item name={[field.name, 'input_weight_unit']} label="单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
-                  <Form.Item name={[field.name, 'custom_price']} label="本次单价（元/吨）"><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
-                  <span className="steelmaking-material-action">
-                    <MinusCircleOutlined
-                      onClick={() => modal.confirm({
-                        title: '确认删除这条原料明细？',
-                        content: '删除后需保存炼钢记录才会生效。',
-                        okButtonProps: { danger: true },
-                        onOk: () => {
-                          removeLine(field.name)
-                          setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
-                        }
-                      })}
-                    />
-                  </span>
-                </div>)}
+                {fields.map((field, index) => {
+                  const selectedItemId = watchedMaterials?.[field.name]?.item_id
+                  const selectedItem = chemicalItems.data?.find((item) => item.id === selectedItemId)
+                  const compositionOpen = expandedMaterialKeys.includes(field.key)
+                  return <div className="steelmaking-material-entry" key={field.key}>
+                    <div className="steelmaking-material-row">
+                      <span className="steelmaking-material-select">
+                        <Checkbox
+                          checked={materialSelectedRowKeys.includes(field.key)}
+                          onChange={(event) => setMaterialSelectedRowKeys((keys) => event.target.checked ? [...keys, field.key] : keys.filter((key) => key !== field.key))}
+                        />
+                      </span>
+                      <span className="steelmaking-material-index">{index + 1}</span>
+                      <Form.Item name={[field.name, 'item_id']} label="原料" rules={[{ required: true, message: '请选择原料' }]}>
+                        <Select
+                          className="steelmaking-material-select-box"
+                          showSearch
+                          filterOption={false}
+                          popupMatchSelectWidth={620}
+                          onSearch={(value) => setMaterialSearch(value.trim())}
+                          onChange={(itemId) => {
+                            const item = chemicalItems.data?.find((candidate) => candidate.id === itemId)
+                            form.setFieldValue(['materials', field.name, 'chemical_composition'], compositionFormValues(item?.chemical_composition))
+                          }}
+                          placeholder="搜索名称或物品编号"
+                          options={(chemicalItems.data ?? []).map((item) => {
+                            const summary = compositionSummary(item, itemTypeLabels)
+                            return { value: item.id, label: summary, title: summary }
+                          })}
+                        />
+                      </Form.Item>
+                      <Form.Item name={[field.name, 'input_weight']} label="投入重量" rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item name={[field.name, 'input_weight_unit']} label="单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
+                      <Form.Item name={[field.name, 'custom_price']} label="本次单价（元/吨）"><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
+                      <span className="steelmaking-material-composition-action">
+                        <Button
+                          size="small"
+                          disabled={!selectedItemId}
+                          onClick={() => setExpandedMaterialKeys((keys) => compositionOpen ? keys.filter((key) => key !== field.key) : [...keys, field.key])}
+                        >
+                          {compositionOpen ? '收起成分' : '调整成分'}
+                        </Button>
+                      </span>
+                      <span className="steelmaking-material-action">
+                        <MinusCircleOutlined
+                          onClick={() => modal.confirm({
+                            title: '确认删除这条原料明细？',
+                            content: '删除后需保存炼钢记录才会生效。',
+                            okButtonProps: { danger: true },
+                            onOk: () => {
+                              removeLine(field.name)
+                              setMaterialSelectedRowKeys((keys) => keys.filter((key) => key !== field.key))
+                              setExpandedMaterialKeys((keys) => keys.filter((key) => key !== field.key))
+                            }
+                          })}
+                        />
+                      </span>
+                    </div>
+                    {compositionOpen && <div className="steelmaking-material-composition-editor">
+                      <div className="steelmaking-material-composition-toolbar">
+                        <div>
+                          <strong>本批次原料成分（%）</strong>
+                          <span>只影响本条炼钢记录，不会修改物品档案。</span>
+                        </div>
+                        <Button
+                          size="small"
+                          disabled={!selectedItem}
+                          onClick={() => form.setFieldValue(['materials', field.name, 'chemical_composition'], compositionFormValues(selectedItem?.chemical_composition))}
+                        >
+                          恢复物品默认值
+                        </Button>
+                      </div>
+                      <div className="chemical-grid">
+                        {ELEMENTS.map((code) => <Form.Item
+                          key={code}
+                          name={[field.name, 'chemical_composition', code]}
+                          label={`${code} (%)`}
+                          rules={[
+                            { type: 'number', min: 0, max: 100, transform: (value) => Number(value), message: '请输入 0 到 100 之间的数值' },
+                            { validator: async () => {
+                              const composition = form.getFieldValue(['materials', field.name, 'chemical_composition']) ?? {}
+                              const total = ELEMENTS.reduce((sum, element) => sum + Number(composition[element] || 0), 0)
+                              if (total > 100) throw new Error('本批次原料成分合计不能超过 100%')
+                            } }
+                          ]}
+                        >
+                          <InputNumber stringMode min="0" max="100" precision={6} style={{ width: '100%' }} />
+                        </Form.Item>)}
+                      </div>
+                    </div>}
+                  </div>
+                })}
               </div>
               <LineTotals
                 lines={watchedMaterials}
@@ -544,6 +646,7 @@ export function SteelmakingRecords() {
             title: '原料及成本快照', rowKey: 'id', dataSource: detail.materials ?? [],
             columns: [
               { title: '原料', dataIndex: 'item_name_snapshot' }, { title: '编号', dataIndex: 'item_code_snapshot' },
+              { title: '本批成分', dataIndex: 'chemical_composition_snapshot', width: 280, render: (v: Record<string, string>) => compositionSnapshotSummary(v) },
               { title: '原始重量', render: (_: any, row: MaterialLine) => `${row.input_weight} ${row.input_weight_unit === 'ton' ? '吨' : 'kg'}` },
               { title: '标准重量kg', dataIndex: 'weight_kg' }, { title: '默认价', dataIndex: 'default_price_snapshot', render: (v: string) => v ?? '—' },
               { title: '自定义价', dataIndex: 'custom_price', render: (v: string) => v ?? '—' },

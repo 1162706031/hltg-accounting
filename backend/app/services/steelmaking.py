@@ -39,6 +39,15 @@ def normalize_composition_snapshot(composition: dict | None) -> dict[str, str]:
     }
 
 
+def resolve_composition_snapshot(
+    item_composition: dict | None,
+    batch_composition: dict | None,
+) -> dict[str, str]:
+    """批次有调整值时优先采用；否则保存物品档案的理论成分快照。"""
+    source = batch_composition if batch_composition is not None else item_composition
+    return normalize_composition_snapshot(source)
+
+
 def convert_weight_to_kg(weight: Decimal, unit: str) -> Decimal:
     value = Decimal(weight)
     if value <= 0:
@@ -132,7 +141,10 @@ async def replace_calculated_details(
     for index, line in enumerate(materials, start=1):
         item = by_id[line.item_id]
         ensure_steelmaking_material_allowed(item)
-        snapshot = normalize_composition_snapshot(item.chemical_composition)
+        snapshot = resolve_composition_snapshot(
+            item.chemical_composition,
+            line.chemical_composition,
+        )
         default_price = Decimal(item.default_price) if item.default_price is not None else None
         custom_price = Decimal(line.custom_price) if line.custom_price is not None else None
         final_price = choose_final_price(default_price, custom_price)

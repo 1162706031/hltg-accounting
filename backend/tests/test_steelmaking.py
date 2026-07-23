@@ -5,12 +5,14 @@ from fastapi import HTTPException
 
 from app.models.item import Item
 from app.schemas.item import ItemCreate
+from app.schemas.steelmaking import SteelmakingMaterialInput
 from app.services.steelmaking import (
     calculate_materials_and_composition,
     choose_final_price,
     convert_weight_to_kg,
     ensure_steelmaking_material_allowed,
     normalize_composition_snapshot,
+    resolve_composition_snapshot,
     resolve_furnace_no,
 )
 
@@ -59,6 +61,33 @@ class SteelmakingCalculationTests(unittest.TestCase):
         self.assertEqual(snapshot["C"], "0.050000")
         self.assertEqual(snapshot["Mo"], "60.123457")
         self.assertEqual(snapshot["Mn"], "0.000000")
+
+    def test_batch_composition_override_has_priority_over_item_default(self):
+        snapshot = resolve_composition_snapshot(
+            {"C": "0.05", "Mo": "60"},
+            {"C": "0.08", "Mo": "58.5"},
+        )
+        self.assertEqual(snapshot["C"], "0.080000")
+        self.assertEqual(snapshot["Mo"], "58.500000")
+
+    def test_missing_batch_composition_falls_back_to_item_default(self):
+        snapshot = resolve_composition_snapshot({"C": "0.05"}, None)
+        self.assertEqual(snapshot["C"], "0.050000")
+
+    def test_material_batch_composition_is_validated(self):
+        line = SteelmakingMaterialInput(
+            item_id=1,
+            input_weight=Decimal("100"),
+            chemical_composition={"C": Decimal("0.08"), "Mn": Decimal("1.2")},
+        )
+        self.assertEqual(line.chemical_composition["C"], Decimal("0.08"))
+
+        with self.assertRaisesRegex(ValueError, "原料成分合计不能超过 100%"):
+            SteelmakingMaterialInput(
+                item_id=1,
+                input_weight=Decimal("100"),
+                chemical_composition={"C": Decimal("60"), "Mn": Decimal("50")},
+            )
 
     def test_ton_to_kg_conversion(self):
         self.assertEqual(convert_weight_to_kg(Decimal("1.25"), "ton"), Decimal("1250.000000"))
