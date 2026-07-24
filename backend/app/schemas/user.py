@@ -40,3 +40,12 @@ class UserUpdate(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
+
+
+class ProfileUpdate(BaseModel):
+    real_name: str | None = Field(default=None, max_length=50)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)

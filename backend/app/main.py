@@ -18,6 +18,7 @@ from app.routers import (
     invoices,
     items,
     master_data,
+    media,
     operation_logs,
     outsource,
     parties,
@@ -33,6 +34,7 @@ from app.utils.operation_log import operation_log_middleware
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+media.ensure_upload_directories()
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
@@ -98,6 +100,7 @@ app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(parties.router, prefix=settings.api_prefix)
 app.include_router(items.router, prefix=settings.api_prefix)
 app.include_router(master_data.router, prefix=settings.api_prefix)
+app.include_router(media.router, prefix=settings.api_prefix)
 app.include_router(inventory.router, prefix=settings.api_prefix)
 app.include_router(operation_logs.router, prefix=settings.api_prefix)
 app.include_router(payments.router, prefix=settings.api_prefix)

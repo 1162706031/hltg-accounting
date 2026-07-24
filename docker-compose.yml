@@ -10,6 +10,7 @@ services:
       APP_DEBUG: ${APP_DEBUG:-false}
       BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER}
@@ -19,6 +20,8 @@ services:
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./uploads:/app/uploads
     networks:
       - app-network
 

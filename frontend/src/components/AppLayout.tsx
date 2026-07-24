@@ -1,21 +1,27 @@
 import {
   DashboardOutlined,
+  DownOutlined,
   InboxOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
   MenuOutlined,
+  MenuUnfoldOutlined,
   PayCircleOutlined,
   ProductOutlined,
   QuestionCircleOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
-  ToolOutlined
+  ToolOutlined,
+  UserOutlined
 } from '@ant-design/icons'
-import { Button, Drawer, Layout, Menu, Typography } from 'antd'
+import { Avatar, Button, Drawer, Dropdown, Layout, Menu, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { BrandMark } from './BrandMark'
 import { useAuth } from '../utils/AuthContext'
+import { useSystemSettings } from '../utils/SystemSettingsContext'
 
 const { Header, Sider, Content } = Layout
 
@@ -27,8 +33,15 @@ interface AppMenuItem {
   children?: AppMenuItem[]
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: '系统管理员',
+  accountant: '会计',
+  reviewer: '审核员',
+  viewer: '只读用户'
+}
+
 const menuItems: AppMenuItem[] = [
-  { key: '/', icon: <DashboardOutlined />, label: '工作台' },
+  { key: '/', icon: <DashboardOutlined />, label: '经营工作台' },
   {
     key: 'production',
     icon: <ToolOutlined />,
@@ -107,7 +120,8 @@ function routeItems(items: AppMenuItem[]): AppMenuItem[] {
 export function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout } = useAuth()
+  const { user, logout, avatarUrl } = useAuth()
+  const { settings, updateSettings } = useSystemSettings()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -116,35 +130,94 @@ export function AppLayout() {
 
   const visibleItems = filterMenuItems(menuItems, user?.role)
   const routes = routeItems(visibleItems)
-
   const selectedKey =
     routes
       .map((item) => item.key)
       .filter((key) => location.pathname === key || (key !== '/' && location.pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0] ?? '/'
-  const activeGroupKey = visibleItems.find((item) => item.children?.some((child) => child.key === selectedKey))?.key
+  const activeItem = routes.find((item) => item.key === selectedKey)
+  const activeGroup = visibleItems.find((item) => item.children?.some((child) => child.key === selectedKey))
+  const activeGroupKey = activeGroup?.key
+  const standaloneTitle = location.pathname === '/help'
+    ? '帮助中心'
+    : location.pathname === '/profile'
+      ? '个人中心'
+      : undefined
+  const pageTitle = standaloneTitle ?? activeItem?.label ?? '经营工作台'
+
+  const signOut = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const userMenu: MenuProps['items'] = [
+    {
+      key: 'identity',
+      disabled: true,
+      label: (
+        <div className="user-menu-identity">
+          <strong>{user?.real_name || user?.username}</strong>
+          <span>{ROLE_LABELS[user?.role ?? ''] ?? user?.role}</span>
+        </div>
+      )
+    },
+    { type: 'divider' },
+    { key: 'profile', icon: <UserOutlined />, label: '个人中心' },
+    ...(user?.role === 'admin' ? [{ key: 'settings', icon: <SettingOutlined />, label: '系统设置' }] : []),
+    { key: 'help', icon: <QuestionCircleOutlined />, label: '帮助中心' },
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true }
+  ]
+
+  const handleUserMenu: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'logout') signOut()
+    if (key === 'help') navigate('/help')
+    if (key === 'profile') navigate('/profile')
+    if (key === 'settings') navigate('/settings')
+  }
+
+  const navigation = (
+    <Menu
+      className="app-navigation"
+      theme="dark"
+      mode="inline"
+      inlineIndent={18}
+      selectedKeys={standaloneTitle ? [] : [selectedKey]}
+      defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
+      items={visibleItems as MenuProps['items']}
+      onClick={({ key }) => navigate(key)}
+    />
+  )
 
   return (
     <Layout className="app-shell" style={{ minHeight: '100vh' }}>
-      <Sider className="app-sider" width={168} theme="light">
-        <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 10px', gap: 6 }}>
-          <ToolOutlined />
-          <Typography.Text strong>旭峰新材料 ERP</Typography.Text>
-        </div>
-        <Menu
-          mode="inline"
-          inlineIndent={16}
-          selectedKeys={location.pathname === '/help' ? [] : [selectedKey]}
-          defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
-          items={visibleItems as MenuProps['items']}
-          onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: 0 }}
-        />
+      <Sider
+        className="app-sider"
+        width={232}
+        collapsedWidth={72}
+        theme="dark"
+        trigger={null}
+        collapsible
+        collapsed={settings.sidebarCollapsed}
+      >
+        <button className="app-brand" type="button" onClick={() => navigate('/')} aria-label="返回工作台">
+          <BrandMark />
+          {!settings.sidebarCollapsed && (
+            <span className="app-brand-copy">
+              <strong>{settings.companyName}</strong>
+              <small>{settings.systemName}</small>
+            </span>
+          )}
+        </button>
+        <div className="app-nav-label">{settings.sidebarCollapsed ? '' : '业务导航'}</div>
+        {navigation}
+        {!settings.sidebarCollapsed && (
+          <div className="app-sider-status"><i /> 系统服务正常</div>
+        )}
       </Sider>
+
       <Layout className="app-main">
-        <Header
-          className="app-header"
-        >
+        <Header className="app-header">
           <div className="app-header-leading">
             <Button
               className="mobile-menu-button"
@@ -153,58 +226,64 @@ export function AppLayout() {
               aria-label="打开导航菜单"
               onClick={() => setMobileMenuOpen(true)}
             />
-            <Typography.Text className="app-header-user" type="secondary">
-              当前用户：{user?.real_name || user?.username}
-            </Typography.Text>
+            <Tooltip title={settings.sidebarCollapsed ? '展开导航' : '收起导航'}>
+              <Button
+                className="desktop-collapse-button"
+                type="text"
+                icon={settings.sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                aria-label={settings.sidebarCollapsed ? '展开导航' : '收起导航'}
+                onClick={() => updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })}
+              />
+            </Tooltip>
+            <div className="app-page-context">
+              <Typography.Text type="secondary">{activeGroup?.label ?? settings.systemName}</Typography.Text>
+              <strong>{pageTitle}</strong>
+            </div>
           </div>
+
           <div className="app-header-actions">
-            <Button
-              className="app-header-help"
-              type={location.pathname === '/help' ? 'primary' : 'default'}
-              icon={<QuestionCircleOutlined />}
-              aria-label="打开帮助中心"
-              onClick={() => navigate('/help')}
-            >
-              帮助
-            </Button>
-            <Button
-              className="app-header-logout"
-              icon={<LogoutOutlined />}
-              aria-label="退出系统"
-              onClick={() => {
-                logout()
-                navigate('/login')
-              }}
-            >
-              退出
-            </Button>
+            <Tooltip title="帮助中心">
+              <Button
+                className="app-header-icon-button"
+                type="text"
+                icon={<QuestionCircleOutlined />}
+                aria-label="打开帮助中心"
+                onClick={() => navigate('/help')}
+              />
+            </Tooltip>
+            <span className="app-header-divider" />
+            <Dropdown menu={{ items: userMenu, onClick: handleUserMenu }} placement="bottomRight" trigger={['click']}>
+              <Button type="text" className="app-user-trigger">
+                <Avatar size={32} src={avatarUrl} icon={<UserOutlined />} />
+                <span className="app-user-copy">
+                  <strong>{user?.real_name || user?.username}</strong>
+                  <small>{ROLE_LABELS[user?.role ?? ''] ?? user?.role}</small>
+                </span>
+                <DownOutlined className="app-user-chevron" />
+              </Button>
+            </Dropdown>
           </div>
         </Header>
         <Content className="app-content">
-          <Outlet />
+          <div className="app-content-inner"><Outlet /></div>
         </Content>
       </Layout>
+
       <Drawer
         className="mobile-nav-drawer"
-        title="旭峰新材料 ERP"
+        title={
+          <div className="mobile-drawer-brand">
+            <BrandMark />
+            <span><strong>{settings.companyName}</strong><small>{settings.systemName}</small></span>
+          </div>
+        }
         placement="left"
-        width={240}
+        width={280}
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
-        styles={{ body: { padding: 0 } }}
+        styles={{ body: { padding: 0, background: '#0f1f36' }, header: { background: '#0f1f36', borderColor: 'rgba(255,255,255,.1)' } }}
       >
-        <Menu
-          mode="inline"
-          inlineIndent={16}
-          selectedKeys={location.pathname === '/help' ? [] : [selectedKey]}
-          defaultOpenKeys={activeGroupKey ? [activeGroupKey] : []}
-          items={visibleItems as MenuProps['items']}
-          onClick={({ key }) => {
-            navigate(key)
-            setMobileMenuOpen(false)
-          }}
-          style={{ borderInlineEnd: 0 }}
-        />
+        {navigation}
       </Drawer>
     </Layout>
   )

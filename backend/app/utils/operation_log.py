@@ -15,8 +15,10 @@ from app.utils.auth import get_subject
 SENSITIVE_KEYS = {"password", "access_token", "refresh_token", "token", "authorization"}
 
 TARGET_TYPE_MAP = {
+    "auth": "user",
     "items": "item",
     "master-data": "master_data",
+    "media": "file",
     "parties": "party",
     "users": "user",
     "inventory": "inventory",
@@ -54,7 +56,7 @@ ACTION_LABELS = {
 def mask_sensitive(value: Any) -> Any:
     if isinstance(value, dict):
         return {
-            key: "***" if key.lower() in SENSITIVE_KEYS else mask_sensitive(item)
+            key: "***" if key.lower() in SENSITIVE_KEYS or key.lower().endswith("_password") else mask_sensitive(item)
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -101,7 +103,7 @@ def operation_context(request: Request) -> tuple[str, str | None, int | None]:
 
     if tail in ACTION_MAP:
         action = ACTION_MAP[tail]
-    elif tail in {"start", "confirm", "status", "toggle-active", "reset-password", "adjust", "out"}:
+    elif tail in {"start", "confirm", "status", "toggle-active", "reset-password", "change-password", "adjust", "out"}:
         action = "UPDATE"
     elif tail in {"batch-delete"} or method == "DELETE":
         action = "DELETE"

@@ -1,0 +1,218 @@
+/* 个人中心 */
+.profile-page {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.profile-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-page-header .page-title {
+  margin-bottom: 4px;
+}
+
+.profile-hero-card {
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 82% 20%, rgb(72 142 239 / 28%), transparent 25%),
+    linear-gradient(130deg, #10223c, #174b83);
+  border: 0 !important;
+  box-shadow: 0 12px 30px rgb(24 64 108 / 16%) !important;
+}
+
+.profile-hero-card .ant-card-body {
+  display: flex;
+  min-height: 132px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px;
+}
+
+.profile-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
+}
+
+.profile-identity .ant-avatar {
+  color: #fff;
+  background: rgb(255 255 255 / 14%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  box-shadow: 0 8px 22px rgb(0 20 50 / 18%);
+}
+
+.profile-identity h2 {
+  margin: 0 0 7px;
+  color: #fff;
+  font-size: 23px;
+  font-weight: 650;
+}
+
+.profile-identity-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgb(255 255 255 / 62%);
+  font-size: 12px;
+}
+
+.profile-identity-meta .ant-tag {
+  margin: 0;
+  background: rgb(255 255 255 / 88%);
+  border: 0;
+}
+
+.profile-avatar-upload {
+  height: 27px;
+  margin-top: 11px;
+  color: rgb(255 255 255 / 82%);
+  background: rgb(255 255 255 / 9%);
+  border-color: rgb(255 255 255 / 18%);
+  font-size: 11px;
+}
+
+.profile-avatar-upload:hover,
+.profile-avatar-upload:focus {
+  color: #fff !important;
+  background: rgb(255 255 255 / 16%) !important;
+  border-color: rgb(255 255 255 / 30%) !important;
+}
+
+.profile-security-state {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  color: #76e0a6;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 9px;
+}
+
+.profile-security-state > .anticon {
+  font-size: 21px;
+}
+
+.profile-security-state > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-security-state strong {
+  color: #fff;
+  font-size: 12px;
+}
+
+.profile-security-state small {
+  margin-top: 2px;
+  color: rgb(255 255 255 / 50%);
+  font-size: 10px;
+}
+
+.profile-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-card .ant-card-head-title > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-card .ant-card-body {
+  padding: 24px;
+}
+
+.profile-card-intro {
+  min-height: 42px;
+  margin: -2px 0 20px !important;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.profile-card .ant-form-item-label > label {
+  color: #3d485b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-card .ant-input-affix-wrapper,
+.profile-card .ant-input {
+  min-height: 40px;
+}
+
+.profile-readonly-row {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  margin: -2px 0 24px;
+  background: #f7f9fb;
+  border: 1px solid #e8ecf1;
+  border-radius: 7px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.profile-readonly-row .ant-tag {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .profile-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-card-intro {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .profile-page-header,
+  .profile-hero-card .ant-card-body {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-hero-card .ant-card-body {
+    padding: 24px 20px;
+  }
+
+  .profile-identity .ant-avatar {
+    width: 56px !important;
+    height: 56px !important;
+    flex: 0 0 56px;
+    line-height: 56px !important;
+  }
+
+  .profile-identity h2 {
+    font-size: 19px;
+  }
+
+  .profile-security-state {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .profile-card .ant-card-body {
+    padding: 18px 16px;
+  }
+
+  .settings-logo-uploader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

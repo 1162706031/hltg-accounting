@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
-import { api } from '../api/client'
+import { API_BASE, api } from '../api/client'
 
 export interface CurrentUser {
   id: number
@@ -7,6 +7,7 @@ export interface CurrentUser {
   real_name?: string | null
   role: 'admin' | 'accountant' | 'reviewer' | 'viewer'
   is_active: boolean
+  created_at?: string
 }
 
 interface AuthContextValue {
@@ -14,6 +15,9 @@ interface AuthContextValue {
   loading: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
+  refreshUser: () => Promise<void>
+  avatarUrl?: string
+  refreshAvatar: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -21,6 +25,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [avatarVersion, setAvatarVersion] = useState(() => Date.now())
 
   useEffect(() => {
     const token = localStorage.getItem('hltg_access_token')
@@ -38,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
+      avatarUrl: user ? `${API_BASE}/media/avatars/${user.id}?v=${avatarVersion}` : undefined,
       async login(username, password) {
         const res = await api.post('/auth/login', { username, password })
         localStorage.setItem('hltg_access_token', res.data.access_token)
@@ -48,9 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('hltg_access_token')
         localStorage.removeItem('hltg_refresh_token')
         setUser(null)
+      },
+      async refreshUser() {
+        const res = await api.get<CurrentUser>('/auth/me')
+        setUser(res.data)
+      },
+      refreshAvatar() {
+        setAvatarVersion(Date.now())
       }
     }),
-    [user, loading]
+    [user, loading, avatarVersion]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,0 +1,336 @@
+/* 企业级应用框架 */
+:root {
+  --app-sider-width: 232px;
+  --app-navy: #0f1f36;
+  --app-navy-light: #152945;
+  --app-primary: #1767e8;
+  --app-surface: #ffffff;
+  --app-canvas: #f3f5f8;
+  --app-border: #e2e7ee;
+}
+
+body[data-density="compact"] {
+  --app-fluid-space: 12px;
+}
+
+body[data-density="compact"] .app-content .ant-card-body {
+  padding: 16px;
+}
+
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+.app-shell {
+  background: var(--app-canvas);
+}
+
+.app-sider {
+  position: sticky !important;
+  z-index: 20;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--app-navy) !important;
+  border-inline-end: 1px solid rgb(255 255 255 / 6%);
+  box-shadow: 4px 0 18px rgb(16 30 49 / 8%);
+}
+
+.app-sider > .ant-layout-sider-children {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.app-brand {
+  display: flex;
+  width: 100%;
+  height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 0 16px;
+  cursor: pointer;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  text-align: left;
+}
+
+.brand-symbol {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #2f80ed, #1457bf);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 9px;
+  box-shadow: 0 5px 14px rgb(1 70 168 / 26%);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .5px;
+}
+
+.brand-symbol:has(img) {
+  padding: 3px;
+  background: #fff;
+}
+
+.brand-symbol img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.app-brand-copy,
+.mobile-drawer-brand > span:last-child,
+.login-company-lockup > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.app-brand-copy strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 21px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-brand-copy small {
+  color: rgb(255 255 255 / 53%);
+  font-size: 11px;
+  letter-spacing: .8px;
+}
+
+.app-nav-label {
+  height: 38px;
+  padding: 18px 20px 0;
+  color: rgb(255 255 255 / 36%);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.2px;
+}
+
+.app-navigation.ant-menu-dark {
+  background: transparent;
+  border-inline-end: 0;
+}
+
+.app-sider .app-navigation {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 8px;
+  scrollbar-color: rgb(255 255 255 / 16%) transparent;
+  scrollbar-width: thin;
+}
+
+.app-navigation.ant-menu-dark .ant-menu-item,
+.app-navigation.ant-menu-dark .ant-menu-submenu-title {
+  width: auto;
+  height: 42px;
+  margin-block: 3px;
+  line-height: 42px;
+}
+
+.app-navigation.ant-menu-dark .ant-menu-sub {
+  background: rgb(5 17 34 / 36%);
+}
+
+.app-navigation.ant-menu-dark .ant-menu-item-selected {
+  background: #1b66d9;
+  box-shadow: 0 6px 15px rgb(0 51 129 / 24%);
+}
+
+.app-navigation.ant-menu-dark .ant-menu-item-selected::after {
+  display: none;
+}
+
+.app-sider-status {
+  position: static;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  margin: 12px 16px 16px;
+  color: rgb(255 255 255 / 58%);
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.app-sider-status i {
+  width: 7px;
+  height: 7px;
+  background: #38c976;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgb(56 201 118 / 12%);
+}
+
+.app-main {
+  background: var(--app-canvas);
+}
+
+.app-header {
+  position: sticky;
+  z-index: 15;
+  top: 0;
+  height: 64px;
+  padding: 0 clamp(16px, 1.8vw, 28px);
+  background: rgb(255 255 255 / 96%);
+  border-bottom: 1px solid var(--app-border);
+  box-shadow: 0 1px 2px rgb(17 31 51 / 3%);
+  backdrop-filter: blur(12px);
+}
+
+.desktop-collapse-button,
+.mobile-menu-button,
+.app-header-icon-button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  color: #536176;
+  border-radius: 7px;
+}
+
+.mobile-menu-button {
+  display: none;
+}
+
+.app-page-context {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding-left: 2px;
+}
+
+.app-page-context .ant-typography {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.app-page-context strong {
+  overflow: hidden;
+  color: #192235;
+  font-size: 16px;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: #e5e9ef;
+}
+
+.app-user-trigger {
+  display: flex;
+  height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px;
+}
+
+.app-user-trigger .ant-avatar {
+  color: #245d9c;
+  background: #e7f0fb;
+}
+
+.app-user-copy {
+  display: flex;
+  min-width: 72px;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 17px;
+}
+
+.app-user-copy strong {
+  max-width: 120px;
+  overflow: hidden;
+  color: #253047;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-user-copy small {
+  color: #8a94a6;
+  font-size: 11px;
+}
+
+.app-user-chevron {
+  color: #9aa4b3;
+  font-size: 10px;
+}
+
+.user-menu-identity {
+  display: flex;
+  min-width: 160px;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.user-menu-identity strong {
+  color: #1f2937;
+}
+
+.user-menu-identity span {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.app-content {
+  background: var(--app-canvas);
+}
+
+.app-content-inner {
+  width: 100%;
+  margin: 0 auto;
+}
+
+body[data-content-width="contained"] .app-content-inner {
+  max-width: 1440px;
+}
+
+.app-content .ant-card {
+  border-color: var(--app-border);
+  box-shadow: 0 1px 3px rgb(18 38 63 / 4%);
+}
+
+.mobile-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.mobile-drawer-brand strong {
+  font-size: 14px;
+}
+
+.mobile-drawer-brand small {
+  color: rgb(255 255 255 / 52%);
+  font-size: 11px;
+}
+
+.mobile-nav-drawer .ant-drawer-close {
+  color: rgb(255 255 255 / 70%);
+}
+

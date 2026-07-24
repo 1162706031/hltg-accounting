@@ -15,12 +15,13 @@ import { OperationLogs } from './pages/OperationLogs'
 import { Outsource } from './pages/Outsource'
 import { Parties } from './pages/Parties'
 import { Payments } from './pages/Payments'
-import { Placeholder } from './pages/Placeholder'
+import { Profile } from './pages/Profile'
 import { Procurement } from './pages/Procurement'
 import { Reconciliation } from './pages/Reconciliation'
 import { Sales } from './pages/Sales'
 import { Smelting } from './pages/Smelting'
 import { SteelmakingRecords } from './pages/SteelmakingRecords'
+import { Settings } from './pages/Settings'
 import { Users } from './pages/Users'
 import { AuthProvider } from './utils/AuthContext'
 
@@ -33,6 +34,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="profile" element={<Profile />} />
               <Route path="help" element={<Help />} />
               <Route path="parties" element={<Parties />} />
               <Route path="items" element={<Items />} />
@@ -82,7 +84,7 @@ export default function App() {
                 path="settings"
                 element={
                   <RequireRole roles={['admin']}>
-                    <Placeholder title="系统设置" />
+                    <Settings />
                   </RequireRole>
                 }
               />

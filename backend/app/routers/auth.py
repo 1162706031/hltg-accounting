@@ -6,11 +6,12 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, TokenPair
-from app.schemas.user import UserRead
+from app.schemas.common import MessageResponse
+from app.schemas.user import ChangePasswordRequest, ProfileUpdate, UserRead
 from app.utils.auth import create_token, get_subject
 from app.utils.deps import get_current_user
 from app.utils.operation_log import write_operation_log
-from app.utils.security import verify_password
+from app.utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -61,3 +62,38 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
 @router.get("/me", response_model=UserRead)
 async def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.put("/me", response_model=UserRead)
+async def update_profile(
+    payload: ProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    user = await db.get(User, current_user.id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在或已停用")
+
+    user.real_name = payload.real_name.strip() if payload.real_name and payload.real_name.strip() else None
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    user = await db.get(User, current_user.id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在或已停用")
+    if not verify_password(payload.current_password, user.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码不正确")
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同")
+
+    user.password = hash_password(payload.new_password)
+    await db.commit()
+    return MessageResponse(message="密码已修改")

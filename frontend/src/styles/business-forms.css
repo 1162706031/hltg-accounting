@@ -1,0 +1,711 @@
+.filter-item,
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.filter-item > span {
+  color: #595959;
+  white-space: nowrap;
+}
+
+.filter-item .ant-picker-range {
+  width: 250px;
+}
+
+.filter-actions {
+  margin-left: auto;
+}
+
+.chemical-editor {
+  padding: 14px;
+  margin-bottom: 16px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+
+.chemical-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  gap: 0 12px;
+}
+
+.steelmaking-basic-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 0 12px;
+}
+
+.section-heading {
+  margin-bottom: 10px;
+  font-weight: 650;
+}
+
+.steelmaking-material-editor {
+  overflow-x: auto;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+}
+
+.steelmaking-material-toolbar {
+  display: flex;
+  min-width: 1160px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.steelmaking-material-toolbar .section-heading {
+  margin-bottom: 2px;
+}
+
+.steelmaking-material-toolbar > div > span {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.steelmaking-material-table {
+  width: 100%;
+  min-width: 1160px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #d9dfe6;
+  border-radius: 6px;
+}
+
+.steelmaking-material-header,
+.steelmaking-material-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 42px 48px minmax(380px, 1fr) 140px 90px 170px 120px 64px;
+  min-width: 1160px;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.steelmaking-material-header {
+  min-height: 48px;
+  color: #394652;
+  font-weight: 600;
+  text-align: center;
+  background: #f5f7fa;
+  border-bottom: 1px solid #d9dfe6;
+}
+
+.steelmaking-material-header > span,
+.steelmaking-material-row > span,
+.steelmaking-material-row > .ant-form-item,
+.steelmaking-material-row > .ant-btn {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.steelmaking-material-header > span:last-child,
+.steelmaking-material-row > :last-child {
+  border-right: 0;
+}
+
+.steelmaking-material-row {
+  min-height: 54px;
+  background: #fff;
+}
+
+.steelmaking-material-entry {
+  width: 100%;
+  border-bottom: 1px solid #e4e8ed;
+}
+
+.steelmaking-material-entry:last-child {
+  border-bottom: 0;
+}
+
+.steelmaking-material-row:nth-child(odd) {
+  background: #fbfcfd;
+}
+
+.steelmaking-material-row:hover {
+  background: #f3f8ff;
+}
+
+.steelmaking-material-composition-editor {
+  padding: 14px 18px 2px;
+  background: #f8fbff;
+  border-top: 1px solid #e4e8ed;
+}
+
+.steelmaking-material-composition-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.steelmaking-material-composition-toolbar > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.steelmaking-material-composition-toolbar span {
+  color: #6b7783;
+  font-size: 12px;
+}
+
+.steelmaking-material-composition-action .ant-btn {
+  width: 100%;
+}
+
+.steelmaking-material-row .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.steelmaking-material-row .ant-form-item-label {
+  display: none;
+}
+
+.steelmaking-material-row .ant-form-item-row {
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.steelmaking-material-row .ant-form-item-control,
+.steelmaking-material-row .ant-form-item-control-input,
+.steelmaking-material-row .ant-form-item-control-input-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.steelmaking-material-row .ant-select,
+.steelmaking-material-row .ant-input-number {
+  width: 100%;
+}
+
+.steelmaking-material-select-box {
+  width: 100%;
+}
+
+.steelmaking-material-select-box .ant-select-selector {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding-block: 0 !important;
+}
+
+.steelmaking-material-select-box .ant-select-selection-item {
+  overflow: hidden;
+  line-height: 30px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+}
+
+.steelmaking-material-select-box .ant-select-selection-placeholder {
+  line-height: 30px !important;
+}
+
+.steelmaking-material-index {
+  color: #6b7783;
+  font-variant-numeric: tabular-nums;
+}
+
+.steelmaking-material-empty {
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  color: #8c8c8c;
+  background: #fff;
+}
+
+.compact-line-list {
+  overflow-x: auto;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+}
+
+.line-list-toolbar {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.line-list-table {
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #d9dfe6;
+  border-radius: 6px;
+}
+
+.line-list-header,
+.line-editor-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0 !important;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.line-list-header {
+  min-height: 48px;
+  padding: 0;
+  align-items: center;
+  color: #595959;
+  font-weight: 600;
+  background: #f5f7fa;
+  border-bottom: 1px solid #d9dfe6;
+}
+
+.line-list-header > span,
+.line-editor-row > .ant-space-item {
+  flex-shrink: 0;
+}
+
+.line-list-header > span {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  box-sizing: content-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.line-editor-row {
+  min-height: 50px;
+  padding: 0;
+  background: #fff;
+  border-bottom: 1px solid #e4e8ed;
+}
+
+.line-editor-row:last-child {
+  border-bottom: 0;
+}
+
+.line-editor-row:nth-child(odd) {
+  background: #fbfcfd;
+}
+
+.line-editor-row:hover {
+  background: #f3f8ff;
+}
+
+.line-editor-row > .ant-space-item {
+  display: flex;
+  min-height: 50px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: content-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.line-editor-row > .ant-space-item:last-child,
+.line-list-header > span:last-child {
+  border-right: 0;
+}
+
+.line-editor-row > .ant-space-item:has(.ant-form-item-hidden) {
+  display: none;
+}
+
+.compact-line-list .line-editor-row .ant-form-item-label {
+  display: none;
+}
+
+.compact-line-list .line-editor-row .ant-form-item {
+  margin-bottom: 0;
+}
+
+.compact-line-list .line-editor-row .ant-form-item-control,
+.compact-line-list .line-editor-row .ant-form-item-control-input,
+.compact-line-list .line-editor-row .ant-form-item-control-input-content {
+  width: 100%;
+}
+
+.line-list-empty {
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  color: #8c8c8c;
+  background: #fff;
+}
+
+.line-select-cell {
+  display: inline-flex;
+  flex: 0 0 28px;
+  width: 28px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+}
+
+.line-index-cell {
+  display: inline-flex;
+  flex: 0 0 42px;
+  width: 42px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  color: #6b7783;
+  font-variant-numeric: tabular-nums;
+}
+
+.line-action-cell {
+  display: inline-flex;
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.procurement-line-grid {
+  display: grid !important;
+  width: 100%;
+  min-width: 1250px;
+  grid-template-columns: 44px 48px 140px minmax(240px, 1fr) 200px 120px 90px 140px 180px 64px;
+  align-items: stretch;
+}
+
+.procurement-line-grid.line-list-header > span,
+.procurement-line-grid.line-editor-row > span,
+.procurement-line-grid.line-editor-row > .ant-form-item,
+.procurement-line-grid.line-editor-row > .ant-btn {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.procurement-line-grid.line-list-header > span {
+  min-height: 48px;
+}
+
+.procurement-line-grid.line-editor-row > :last-child,
+.procurement-line-grid.line-list-header > :last-child {
+  border-right: 0;
+}
+
+.procurement-line-grid .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.procurement-line-grid .ant-form-item-row,
+.procurement-line-grid .ant-form-item-control,
+.procurement-line-grid .ant-form-item-control-input,
+.procurement-line-grid .ant-form-item-control-input-content,
+.procurement-line-grid .ant-select,
+.procurement-line-grid .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}
+
+.procurement-line-grid .ant-form-item-label {
+  display: none;
+}
+
+.sales-spec-line-grid {
+  display: grid !important;
+  width: 100%;
+  min-width: 1080px;
+  grid-template-columns: 44px 48px 140px minmax(260px, 1fr) 200px 120px 90px 140px 64px;
+  align-items: stretch;
+}
+
+.sales-spec-line-grid.line-list-header > span,
+.sales-spec-line-grid.line-editor-row > span,
+.sales-spec-line-grid.line-editor-row > .ant-form-item {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.sales-spec-line-grid.line-list-header > span {
+  min-height: 48px;
+}
+
+.sales-spec-line-grid.line-editor-row > :last-child,
+.sales-spec-line-grid.line-list-header > :last-child {
+  border-right: 0;
+}
+
+.sales-spec-line-grid .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.sales-spec-line-grid .ant-form-item-row,
+.sales-spec-line-grid .ant-form-item-control,
+.sales-spec-line-grid .ant-form-item-control-input,
+.sales-spec-line-grid .ant-form-item-control-input-content,
+.sales-spec-line-grid .ant-picker,
+.sales-spec-line-grid .ant-select,
+.sales-spec-line-grid .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}
+
+.sales-spec-line-grid .ant-form-item-label {
+  display: none;
+}
+
+.line-totals {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  color: #45515d;
+  background: #f5f8fa;
+  border: 1px solid #d9dfe6;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.line-totals strong {
+  margin-right: auto;
+  color: #1f2d3d;
+}
+
+.line-totals span {
+  white-space: nowrap;
+}
+
+.inventory-in-lines .line-list-toolbar {
+  width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.inventory-in-warning {
+  margin-bottom: 10px;
+}
+
+.inventory-in-warning .ant-alert-message {
+  font-weight: 700;
+}
+
+.inventory-in-rules {
+  margin-bottom: 14px;
+}
+
+.inventory-in-rule-content ol {
+  margin: 8px 0 10px;
+  padding-left: 22px;
+  line-height: 1.75;
+}
+
+.inventory-in-rule-examples {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  line-height: 1.6;
+}
+
+.inventory-adjust-warning,
+.inventory-adjust-rules,
+.inventory-out-warning,
+.inventory-out-rules {
+  margin-bottom: 10px;
+}
+
+.inventory-adjust-warning .ant-alert-message,
+.inventory-out-warning .ant-alert-message {
+  font-weight: 700;
+}
+
+.inventory-adjust-rule-content ol,
+.inventory-out-rule-content ol {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  line-height: 1.7;
+}
+
+.inventory-in-lines .line-list-toolbar > div > .section-heading {
+  margin-bottom: 2px;
+}
+
+.inventory-in-lines .line-list-toolbar > div > span {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.inventory-in-line-grid {
+  display: grid !important;
+  width: 100%;
+  min-width: 1170px;
+  grid-template-columns: 44px 48px 130px minmax(180px, 1fr) 200px 110px 80px 170px minmax(150px, 1fr) 64px;
+  align-items: stretch;
+}
+
+.inventory-in-line-grid.line-list-header > span,
+.inventory-in-line-grid.line-editor-row > span,
+.inventory-in-line-grid.line-editor-row > .ant-form-item,
+.inventory-in-line-grid.line-editor-row > .ant-btn {
+  display: flex;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 8px;
+  border-right: 1px solid #e4e8ed;
+}
+
+.inventory-in-line-grid.line-list-header > span {
+  min-height: 48px;
+}
+
+.inventory-in-line-grid.line-editor-row > :last-child,
+.inventory-in-line-grid.line-list-header > :last-child {
+  border-right: 0;
+}
+
+.inventory-in-line-grid > .line-select-cell,
+.inventory-in-line-grid > .line-index-cell,
+.inventory-in-line-grid > .line-action-cell {
+  width: 100%;
+  flex: none;
+}
+
+.inventory-in-line-grid .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.inventory-in-line-grid .ant-form-item-row,
+.inventory-in-line-grid .ant-form-item-control,
+.inventory-in-line-grid .ant-form-item-control-input,
+.inventory-in-line-grid .ant-form-item-control-input-content,
+.inventory-in-line-grid .ant-picker,
+.inventory-in-line-grid .ant-select,
+.inventory-in-line-grid .ant-input,
+.inventory-in-line-grid .ant-input-number {
+  width: 100%;
+  min-width: 0;
+}
+
+.inventory-in-line-grid .ant-form-item-label {
+  display: none;
+}
+
+.inventory-in-footer {
+  margin-top: 16px;
+  text-align: right;
+}
+
+.modal-inline-footer {
+  margin-top: 12px;
+  text-align: right;
+}
+
+.recon-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.summary-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 12px 16px;
+}
+
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+.grid-span-2 {
+  grid-column: span 2;
+}
+
+.form-hint {
+  margin-top: 4px;
+  color: #8a8f99;
+  font-size: 13px;
+}
+
+.app-content .ant-table-wrapper {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.ant-table-content {
+  overflow-x: auto;
+}
+
+.ant-table-container table {
+  min-width: 100%;
+}
+
+.ant-table-thead > tr > th {
+  min-width: 88px;
+  white-space: nowrap;
+}
+
+.ant-table-thead > tr > th.ant-table-selection-column,
+.ant-table-thead > tr > th.ant-table-row-expand-icon-cell {
+  min-width: 48px;
+}
+
+.ant-table-thead > tr > th .ant-table-column-title {
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.ant-table-cell {
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.ant-modal-wrap {
+  overflow: auto;
+}
+
+.ant-modal {
+  max-width: none;
+}
+
