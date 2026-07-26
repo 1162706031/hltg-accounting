@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { api, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
+import { BusinessVoucherUpload, uploadBusinessVouchers } from '../components/BusinessVoucherUpload'
 import { ListFilters } from '../components/ListFilters'
 import { LineTotals } from '../components/LineTotals'
 import { OrderActions } from '../components/OrderActions'
@@ -97,6 +98,7 @@ export function Procurement() {
   const [detail, setDetail] = useState<ProcurementOrder | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([])
+  const [voucherFiles, setVoucherFiles] = useState<File[]>([])
   const [form] = Form.useForm()
   const watchedItems = Form.useWatch('items', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
@@ -148,9 +150,15 @@ export function Procurement() {
           : await api.post<ProcurementOrder>('/procurement-orders', body)
       ).data
     },
-    onSuccess: (updated: ProcurementOrder) => {
-      message.success('已保存')
+    onSuccess: async (updated: ProcurementOrder) => {
+      const uploadResult = await uploadBusinessVouchers('procurement_order', updated.id, voucherFiles)
+      if (uploadResult.failures.length) {
+        message.warning(`采购单已保存；${uploadResult.failures.join('；')}`)
+      } else {
+        message.success(uploadResult.uploaded ? `已保存并上传 ${uploadResult.uploaded} 张凭证` : '已保存')
+      }
       replaceCachedPageItem(queryClient, ['procurement'], updated)
+      setVoucherFiles([])
       setCreating(false)
       setEditing(null)
       setSelectedRowKeys([])
@@ -165,6 +173,7 @@ export function Procurement() {
     setEditing(null)
     form.resetFields()
     setSelectedRowKeys([])
+    setVoucherFiles([])
     form.setFieldsValue({ tax_rate: 13, need_invoice: false, items: [] })
   }
 
@@ -172,6 +181,7 @@ export function Procurement() {
     setEditing(row)
     setCreating(false)
     setSelectedRowKeys([])
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({
       party_id: row.party_id,
@@ -332,6 +342,7 @@ export function Procurement() {
           setCreating(false)
           setEditing(null)
           setSelectedRowKeys([])
+          setVoucherFiles([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -429,6 +440,15 @@ export function Procurement() {
           <Form.Item name="notes" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
+          <Form.Item label="上传凭证">
+            <BusinessVoucherUpload
+              entityType="procurement_order"
+              entityId={editing?.id}
+              pendingFiles={voucherFiles}
+              onPendingFilesChange={setVoucherFiles}
+              disabled={save.isPending}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -447,7 +467,12 @@ export function Procurement() {
                 { label: '是否开票', value: detail.need_invoice ? '是' : '否' },
                 { label: '合计', value: detail.total_amount },
                 { label: '状态', value: <OrderStatusTag status={detail.status} /> },
-                { label: '备注', value: detail.notes, span: 2 }
+                { label: '备注', value: detail.notes, span: 2 },
+                {
+                  label: '上传凭证',
+                  value: <BusinessVoucherUpload entityType="procurement_order" entityId={detail.id} readOnly />,
+                  span: 2
+                }
               ]
             : []
         }

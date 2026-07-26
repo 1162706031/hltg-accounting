@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
+import { BusinessVoucherUpload, uploadBusinessVouchers } from '../components/BusinessVoucherUpload'
 import { ListFilters } from '../components/ListFilters'
 import { LineTotals } from '../components/LineTotals'
 import { OrderActions } from '../components/OrderActions'
@@ -98,6 +99,7 @@ export function Smelting() {
   const [detailId, setDetailId] = useState<number | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [tapSelectedRowKeys, setTapSelectedRowKeys] = useState<number[]>([])
+  const [voucherFiles, setVoucherFiles] = useState<File[]>([])
   const [form] = Form.useForm()
   const watchedTapLines = Form.useWatch('tap_lines', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
@@ -186,9 +188,15 @@ export function Smelting() {
           : await api.post<SmeltingOrder>('/smelting-orders', body)
       ).data
     },
-    onSuccess: (updated: SmeltingOrder) => {
-      message.success('已保存')
+    onSuccess: async (updated: SmeltingOrder) => {
+      const uploadResult = await uploadBusinessVouchers('smelting_order', updated.id, voucherFiles)
+      if (uploadResult.failures.length) {
+        message.warning(`冶炼单已保存；${uploadResult.failures.join('；')}`)
+      } else {
+        message.success(uploadResult.uploaded ? `已保存并上传 ${uploadResult.uploaded} 张凭证` : '已保存')
+      }
       replaceCachedPageItem(queryClient, ['smelting'], updated)
+      setVoucherFiles([])
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
@@ -205,6 +213,7 @@ export function Smelting() {
     setEditingId(null)
     setEditingStatus(null)
     setTapSelectedRowKeys([])
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({ order_type: 'ext_smelting', tax_rate: 13, need_invoice: false, feed_lines: [], tap_lines: [], alloy_lines: [] })
   }
@@ -224,6 +233,7 @@ export function Smelting() {
     setEditingId(row.id)
     setEditingStatus(d.status)
     setTapSelectedRowKeys([])
+    setVoucherFiles([])
     setCreating(false)
     form.resetFields()
     const toTapLine = (it: any) => ({
@@ -540,6 +550,7 @@ export function Smelting() {
           setEditingId(null)
           setEditingStatus(null)
           setTapSelectedRowKeys([])
+          setVoucherFiles([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -636,6 +647,15 @@ export function Smelting() {
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />
           </Form.Item>
+          <Form.Item label="上传凭证">
+            <BusinessVoucherUpload
+              entityType="smelting_order"
+              entityId={editingId}
+              pendingFiles={voucherFiles}
+              onPendingFilesChange={setVoucherFiles}
+              disabled={save.isPending}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -665,7 +685,12 @@ export function Smelting() {
                 { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
                 { label: '合计', value: detailQuery.data.total_amount },
                 { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
-                { label: '备注', value: detailQuery.data.notes, span: 2 }
+                { label: '备注', value: detailQuery.data.notes, span: 2 },
+                {
+                  label: '上传凭证',
+                  value: <BusinessVoucherUpload entityType="smelting_order" entityId={detailQuery.data.id} readOnly />,
+                  span: 2
+                }
               ]
             : []
         }

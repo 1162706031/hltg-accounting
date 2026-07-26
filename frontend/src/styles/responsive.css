@@ -282,6 +282,40 @@
     padding: 12px 10px;
   }
 
+  .chemical-editor-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .chemical-editor-toolbar .ant-btn {
+    width: 100%;
+  }
+
+  .business-voucher-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .business-voucher-item > .ant-space {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .business-voucher-preview-modal .ant-modal-body {
+    padding: 12px;
+  }
+
+  .business-voucher-preview-stage {
+    min-height: 140px;
+    max-height: calc(100vh - 220px);
+    padding: 8px;
+  }
+
+  .business-voucher-preview-stage img {
+    max-height: calc(100vh - 238px);
+  }
+
   .chemical-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 8px;

@@ -1,3 +1,4 @@
+from app.models.attachment import BusinessAttachment
 from app.models.finance import Invoice, Payment
 from app.models.inventory import Inventory, InventoryLog
 from app.models.item import Item
@@ -14,6 +15,7 @@ from app.models.user import User
 
 __all__ = [
     "AlloyAddition",
+    "BusinessAttachment",
     "Invoice",
     "Inventory",
     "InventoryLog",

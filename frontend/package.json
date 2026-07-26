@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "generate:steel-compositions": "node scripts/generate-steel-compositions.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },

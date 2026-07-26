@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
+import { BusinessVoucherUpload, uploadBusinessVouchers } from '../components/BusinessVoucherUpload'
 import { ListFilters } from '../components/ListFilters'
 import { LineTotals } from '../components/LineTotals'
 import { InventoryLineList } from '../components/InventoryLines'
@@ -103,6 +104,7 @@ export function Outsource() {
   const [detailId, setDetailId] = useState<number | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
   const [inboundSelectedRowKeys, setInboundSelectedRowKeys] = useState<number[]>([])
+  const [voucherFiles, setVoucherFiles] = useState<File[]>([])
   const [form] = Form.useForm()
   const watchedInboundLines = Form.useWatch('inbound_lines', form)
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
@@ -177,9 +179,15 @@ export function Outsource() {
           : await api.post<OutsourceOrder>('/outsource-orders', body)
       ).data
     },
-    onSuccess: (updated: OutsourceOrder) => {
-      message.success('已保存')
+    onSuccess: async (updated: OutsourceOrder) => {
+      const uploadResult = await uploadBusinessVouchers('outsource_order', updated.id, voucherFiles)
+      if (uploadResult.failures.length) {
+        message.warning(`外协单已保存；${uploadResult.failures.join('；')}`)
+      } else {
+        message.success(uploadResult.uploaded ? `已保存并上传 ${uploadResult.uploaded} 张凭证` : '已保存')
+      }
       replaceCachedPageItem(queryClient, ['outsource'], updated)
+      setVoucherFiles([])
       setCreating(false)
       setEditingId(null)
       setEditingStatus(null)
@@ -196,6 +204,7 @@ export function Outsource() {
     setEditingId(null)
     setEditingStatus(null)
     setInboundSelectedRowKeys([])
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({ process_type: 'forging', tax_rate: 13, need_invoice: false, outbound_lines: [], inbound_lines: [] })
   }
@@ -215,6 +224,7 @@ export function Outsource() {
     setEditingId(row.id)
     setEditingStatus(d.status)
     setInboundSelectedRowKeys([])
+    setVoucherFiles([])
     setCreating(false)
     form.resetFields()
     form.setFieldsValue({
@@ -512,6 +522,7 @@ export function Outsource() {
           setEditingId(null)
           setEditingStatus(null)
           setInboundSelectedRowKeys([])
+          setVoucherFiles([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -592,6 +603,15 @@ export function Outsource() {
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />
           </Form.Item>
+          <Form.Item label="上传凭证">
+            <BusinessVoucherUpload
+              entityType="outsource_order"
+              entityId={editingId}
+              pendingFiles={voucherFiles}
+              onPendingFilesChange={setVoucherFiles}
+              disabled={save.isPending}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -624,7 +644,12 @@ export function Outsource() {
                 { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
                 { label: '合计', value: detailQuery.data.total_amount },
                 { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
-                { label: '备注', value: detailQuery.data.notes, span: 2 }
+                { label: '备注', value: detailQuery.data.notes, span: 2 },
+                {
+                  label: '上传凭证',
+                  value: <BusinessVoucherUpload entityType="outsource_order" entityId={detailQuery.data.id} readOnly />,
+                  span: 2
+                }
               ]
             : []
         }

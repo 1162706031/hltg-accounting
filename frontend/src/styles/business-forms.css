@@ -27,10 +27,140 @@
   border-radius: 6px;
 }
 
+.chemical-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.chemical-editor-toolbar .section-heading {
+  margin-bottom: 2px;
+}
+
+.chemical-editor-toolbar span {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.chemical-match-result {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  color: #31553a;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 6px;
+}
+
+.chemical-match-result > strong,
+.chemical-match-result > span,
+.chemical-match-result > small {
+  display: block;
+}
+
+.chemical-match-result > span,
+.chemical-match-result > small {
+  margin-top: 3px;
+  color: #58705d;
+  font-size: 12px;
+}
+
+.chemical-match-result > p {
+  margin: 8px 0 0;
+  color: #264d30;
+  line-height: 1.7;
+}
+
 .chemical-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(100px, 1fr));
   gap: 0 12px;
+}
+
+.business-voucher-upload {
+  width: 100%;
+}
+
+.business-voucher-upload .ant-upload-drag {
+  background: #fafcff;
+  border-color: #b8c8dc;
+}
+
+.business-voucher-upload .ant-upload-drag:hover {
+  border-color: #1677ff;
+}
+
+.business-voucher-upload .ant-upload-list {
+  margin-top: 10px;
+}
+
+.business-voucher-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.business-voucher-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.business-voucher-item > .anticon {
+  flex: 0 0 auto;
+  color: #1677ff;
+  font-size: 20px;
+}
+
+.business-voucher-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.business-voucher-meta strong,
+.business-voucher-meta span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-voucher-meta span {
+  margin-top: 2px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.business-voucher-preview-modal .ant-modal-body {
+  padding: 16px 24px;
+}
+
+.business-voucher-preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+  padding: 12px;
+  background: #f3f5f8;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.business-voucher-preview-stage img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 266px);
+  object-fit: contain;
 }
 
 .steelmaking-basic-grid {

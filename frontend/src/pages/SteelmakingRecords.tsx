@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
+import { BusinessVoucherUpload, uploadBusinessVouchers } from '../components/BusinessVoucherUpload'
 import { ListFilters } from '../components/ListFilters'
 import { DetailModal } from '../components/DetailModal'
 import { LineTotals } from '../components/LineTotals'
@@ -180,6 +181,7 @@ export function SteelmakingRecords() {
   const [materialSelectedRowKeys, setMaterialSelectedRowKeys] = useState<number[]>([])
   const [expandedMaterialKeys, setExpandedMaterialKeys] = useState<number[]>([])
   const [furnaceWeightAuto, setFurnaceWeightAuto] = useState(true)
+  const [voucherFiles, setVoucherFiles] = useState<File[]>([])
   const parties = useParties()
   const creators = useCreatorOptions()
 
@@ -259,9 +261,15 @@ export function SteelmakingRecords() {
         ? (await api.put<SteelmakingRecord>(`/steelmaking-records/${editingId}`, body)).data
         : (await api.post<SteelmakingRecord>('/steelmaking-records', body)).data
     },
-    onSuccess: (updated: SteelmakingRecord) => {
-      message.success('已保存草稿并完成后端计算')
+    onSuccess: async (updated: SteelmakingRecord) => {
+      const uploadResult = await uploadBusinessVouchers('steelmaking_record', updated.id, voucherFiles)
+      if (uploadResult.failures.length) {
+        message.warning(`炼钢记录已保存；${uploadResult.failures.join('；')}`)
+      } else {
+        message.success(uploadResult.uploaded ? `已保存并上传 ${uploadResult.uploaded} 张凭证` : '已保存草稿并完成后端计算')
+      }
       replaceCachedPageItem(qc, ['steelmaking-records'], updated)
+      setVoucherFiles([])
       setOpen(false)
       setEditingId(null)
       setEditingBatchNo(null)
@@ -291,6 +299,7 @@ export function SteelmakingRecords() {
     setMaterialSelectedRowKeys([])
     setExpandedMaterialKeys([])
     setFurnaceWeightAuto(true)
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(),
@@ -319,6 +328,7 @@ export function SteelmakingRecords() {
     setMaterialSelectedRowKeys([])
     setExpandedMaterialKeys([])
     setFurnaceWeightAuto(true)
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({
       record_date: dayjs(row.record_date),
@@ -428,7 +438,7 @@ export function SteelmakingRecords() {
         title={editingId ? '编辑炼钢记录' : '新建炼钢记录'}
         open={open}
         width={1180}
-        onCancel={() => { editRequestSequence.current += 1; setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); setExpandedMaterialKeys([]); form.resetFields() }}
+        onCancel={() => { editRequestSequence.current += 1; setOpen(false); setEditingId(null); setEditingBatchNo(null); setMaterialSelectedRowKeys([]); setExpandedMaterialKeys([]); setVoucherFiles([]); form.resetFields() }}
         onOk={() => form.validateFields().then((values) => save.mutate(values))}
         confirmLoading={save.isPending}
         okText="保存草稿"
@@ -619,6 +629,15 @@ export function SteelmakingRecords() {
             </Form.Item>)}
           </div>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item label="上传凭证">
+            <BusinessVoucherUpload
+              entityType="steelmaking_record"
+              entityId={editingId}
+              pendingFiles={voucherFiles}
+              onPendingFilesChange={setVoucherFiles}
+              disabled={save.isPending}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -639,7 +658,12 @@ export function SteelmakingRecords() {
           { label: '出钢温度', value: detail.tap_temperature }, { label: '浇注时间', value: detail.pouring_time },
           { label: '总成本', value: detail.total_cost }, { label: '单吨成本', value: detail.cost_per_ton },
           { label: '成本完整', value: detail.cost_complete ? '是' : '否（存在无价格原料）' },
-          { label: '备注', value: detail.remark, span: 2 }
+          { label: '备注', value: detail.remark, span: 2 },
+          {
+            label: '上传凭证',
+            value: <BusinessVoucherUpload entityType="steelmaking_record" entityId={detail.id} readOnly />,
+            span: 2
+          }
         ] : []}
         tables={detail ? [
           {

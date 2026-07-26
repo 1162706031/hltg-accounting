@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, getErrorMessage, PageResult } from '../api/client'
 import { BatchDeleteButton } from '../components/BatchDeleteButton'
 import { BusinessTable } from '../components/BusinessTable'
+import { BusinessVoucherUpload, uploadBusinessVouchers } from '../components/BusinessVoucherUpload'
 import { ListFilters } from '../components/ListFilters'
 import { OrderActions } from '../components/OrderActions'
 import { DetailModal } from '../components/DetailModal'
@@ -192,6 +193,7 @@ export function Sales() {
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([])
+  const [voucherFiles, setVoucherFiles] = useState<File[]>([])
   const [form] = Form.useForm()
   const salesMode = (Form.useWatch('sales_mode', form) as SalesMode | undefined) ?? 'inventory'
   const { openSpecificationCreator, specificationCreatorModal } = useSpecificationCreator(form)
@@ -252,9 +254,15 @@ export function Sales() {
           : await api.post<SalesOrder>('/sales-orders', body)
       ).data
     },
-    onSuccess: (updated: SalesOrder) => {
-      message.success('已保存')
+    onSuccess: async (updated: SalesOrder) => {
+      const uploadResult = await uploadBusinessVouchers('sales_order', updated.id, voucherFiles)
+      if (uploadResult.failures.length) {
+        message.warning(`销售单已保存；${uploadResult.failures.join('；')}`)
+      } else {
+        message.success(uploadResult.uploaded ? `已保存并上传 ${uploadResult.uploaded} 张凭证` : '已保存')
+      }
       replaceCachedPageItem(queryClient, ['sales'], updated)
+      setVoucherFiles([])
       setCreating(false)
       setEditingId(null)
       form.resetFields()
@@ -267,6 +275,7 @@ export function Sales() {
     editRequestSequence.current += 1
     setCreating(true)
     setEditingId(null)
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({ sales_mode: 'inventory', tax_rate: 13, need_invoice: false, items: [{ quantity: 0 }] })
   }
@@ -285,6 +294,7 @@ export function Sales() {
     if (requestSequence !== editRequestSequence.current) return
     setEditingId(row.id)
     setCreating(false)
+    setVoucherFiles([])
     form.resetFields()
     form.setFieldsValue({
       party_id: detail.party_id,
@@ -446,6 +456,7 @@ export function Sales() {
           editRequestSequence.current += 1
           setCreating(false)
           setEditingId(null)
+          setVoucherFiles([])
           form.resetFields()
         }}
         onOk={async () => save.mutate(await form.validateFields())}
@@ -520,6 +531,15 @@ export function Sales() {
           <Form.Item name="notes" label="备注" style={{ marginTop: 12 }}>
             <Input.TextArea rows={2} />
           </Form.Item>
+          <Form.Item label="上传凭证">
+            <BusinessVoucherUpload
+              entityType="sales_order"
+              entityId={editingId}
+              pendingFiles={voucherFiles}
+              onPendingFilesChange={setVoucherFiles}
+              disabled={save.isPending}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -539,7 +559,12 @@ export function Sales() {
                 { label: '是否开票', value: detailQuery.data.need_invoice ? '是' : '否' },
                 { label: '合计', value: detailQuery.data.total_amount },
                 { label: '状态', value: <OrderStatusTag status={detailQuery.data.status} /> },
-                { label: '备注', value: detailQuery.data.notes, span: 2 }
+                { label: '备注', value: detailQuery.data.notes, span: 2 },
+                {
+                  label: '上传凭证',
+                  value: <BusinessVoucherUpload entityType="sales_order" entityId={detailQuery.data.id} readOnly />,
+                  span: 2
+                }
               ]
             : []
         }

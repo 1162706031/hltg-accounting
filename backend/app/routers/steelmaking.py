@@ -18,6 +18,7 @@ from app.schemas.steelmaking import (
     SteelmakingRecordUpdate,
 )
 from app.services.batch import generate_batch_no
+from app.services.attachments import stage_business_attachment_deletion
 from app.services.creator import apply_creation_filters, serialize_with_creator_names
 from app.services.steelmaking import (
     convert_weight_to_kg,
@@ -165,9 +166,17 @@ async def delete_record(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    async with db.begin():
-        record = await load_record(db, record_id)
-        await hard_delete_records(db, [record.id])
+    staged = None
+    try:
+        async with db.begin():
+            record = await load_record(db, record_id)
+            staged = await stage_business_attachment_deletion(db, "steelmaking_record", [record.id])
+            await hard_delete_records(db, [record.id])
+    except Exception:
+        if staged is not None:
+            staged.restore()
+        raise
+    staged.finalize()
     return {"message": "炼钢记录已永久删除"}
 
 
@@ -177,14 +186,22 @@ async def batch_delete_records(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    async with db.begin():
-        record_ids = list(
-            await db.scalars(
-                select(SteelmakingRecord.id).where(
-                    SteelmakingRecord.id.in_(payload.ids),
-                    SteelmakingRecord.deleted.is_(False),
+    staged = None
+    try:
+        async with db.begin():
+            record_ids = list(
+                await db.scalars(
+                    select(SteelmakingRecord.id).where(
+                        SteelmakingRecord.id.in_(payload.ids),
+                        SteelmakingRecord.deleted.is_(False),
+                    )
                 )
             )
-        )
-        deleted_count = await hard_delete_records(db, record_ids)
+            staged = await stage_business_attachment_deletion(db, "steelmaking_record", record_ids)
+            deleted_count = await hard_delete_records(db, record_ids)
+    except Exception:
+        if staged is not None:
+            staged.restore()
+        raise
+    staged.finalize()
     return {"deleted_count": deleted_count, "skipped": []}

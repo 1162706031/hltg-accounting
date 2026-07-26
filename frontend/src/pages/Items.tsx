@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { SearchOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -23,6 +24,14 @@ import { DEFAULT_PAGE_SIZE, tablePagination } from '../utils/pagination'
 import { canManageData } from '../utils/permissions'
 import { replaceCachedPageItem } from '../utils/queryCache'
 import { itemTypeSelectOptions, masterDataLabelMap, useMasterDataOptions } from '../utils/lookups'
+import {
+  compositionFormValues,
+  compositionRangeSummary,
+  extractSteelGradeName,
+  lookupSteelComposition,
+  SteelCompositionMatch,
+  userItemToSteelCompositionRecord
+} from '../utils/steelCompositionLookup'
 
 type ItemType = string
 
@@ -68,6 +77,55 @@ const CHEMICAL_ELEMENTS = ['C', 'Mn', 'Si', 'Cr', 'W', 'Mo', 'V', 'Co', 'Nb', 'N
 const emptyChemicalComposition = () =>
   Object.fromEntries(CHEMICAL_ELEMENTS.map((code) => [code, '0'])) as Record<string, string>
 
+async function lookupCompositionIncludingSavedItems(itemName: string) {
+  const builtInResult = await lookupSteelComposition(itemName)
+  if (builtInResult.status !== 'not_found') return builtInResult
+
+  const grade = extractSteelGradeName(itemName)
+  if (!grade) return builtInResult
+
+  // 含描述后缀或空格的名称先用提取后的纯钢号重试内置成分表。
+  const normalizedResult = await lookupSteelComposition(grade)
+  if (normalizedResult.status !== 'not_found') return normalizedResult
+
+  // 静态 JSON 无法在浏览器中改写；已保存物品就是可跨用户共享的补充数据源。
+  const savedItems: Item[] = []
+  let currentPage = 1
+  let total = 0
+  do {
+    const response = await api.get<PageResult<Item>>('/items', {
+      params: { page: currentPage, page_size: 500, chemical_enabled: 1 }
+    })
+    savedItems.push(...response.data.items)
+    total = response.data.total
+    currentPage += 1
+  } while (savedItems.length < total)
+
+  const userRecords = savedItems.flatMap((item) => {
+    const record = userItemToSteelCompositionRecord(item)
+    return record ? [record] : []
+  })
+  return lookupSteelComposition(grade, userRecords)
+}
+
+async function detectSupplementalSteelGrade(item: Item): Promise<string | null> {
+  if (!item.chemical_enabled || !item.chemical_composition) return null
+  const hasComposition = Object.values(item.chemical_composition).some((value) => Number(value || 0) > 0)
+  if (!hasComposition) return null
+
+  try {
+    const directResult = await lookupSteelComposition(item.name)
+    if (directResult.status !== 'not_found') return null
+    const grade = extractSteelGradeName(item.name)
+    if (!grade) return null
+    const normalizedResult = await lookupSteelComposition(grade)
+    return normalizedResult.status === 'not_found' ? grade : null
+  } catch {
+    // 物品已经成功保存，成分表提示失败不应影响主保存流程。
+    return null
+  }
+}
+
 export function Items() {
   const qc = useQueryClient()
   const { message, modal } = AntApp.useApp()
@@ -88,6 +146,7 @@ export function Items() {
   const [editing, setEditing] = useState<Item | null>(null)
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<Item | null>(null)
+  const [compositionMatch, setCompositionMatch] = useState<SteelCompositionMatch | null>(null)
   const [form] = Form.useForm<FormValues>()
   const chemicalEnabled = Form.useWatch('chemical_enabled', form)
 
@@ -105,8 +164,9 @@ export function Items() {
 
   const createMut = useMutation({
     mutationFn: (payload: FormValues) => api.post('/items', payload).then((r) => r.data),
-    onSuccess: () => {
-      message.success('已创建')
+    onSuccess: async (created: Item) => {
+      const supplementalGrade = await detectSupplementalSteelGrade(created)
+      message.success(supplementalGrade ? `已创建，并将 ${supplementalGrade} 加入用户补充成分表` : '已创建')
       qc.invalidateQueries({ queryKey: ['items'] })
       setOpen(false)
       form.resetFields()
@@ -119,8 +179,9 @@ export function Items() {
   const updateMut = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: FormValues }) =>
       api.put(`/items/${id}`, payload).then((r) => r.data),
-    onSuccess: (updated: Item) => {
-      message.success('已保存')
+    onSuccess: async (updated: Item) => {
+      const supplementalGrade = await detectSupplementalSteelGrade(updated)
+      message.success(supplementalGrade ? `已保存，并将 ${supplementalGrade} 加入用户补充成分表` : '已保存')
       replaceCachedPageItem(qc, ['items'], updated)
       qc.invalidateQueries({ queryKey: ['items'] })
       setOpen(false)
@@ -180,13 +241,48 @@ export function Items() {
       message.error(err.response?.data?.detail ?? '删除失败')
     }
   })
+  const lookupCompositionMut = useMutation({
+    mutationFn: (steelGrade: string) => lookupCompositionIncludingSavedItems(steelGrade),
+    onSuccess: (result) => {
+      if (!form.getFieldValue('chemical_enabled')) return
+      if (result.status === 'not_found') {
+        setCompositionMatch(null)
+        message.warning('内置成分表和已保存物品中都没有找到匹配，请手动填写后保存')
+        return
+      }
+      if (result.status === 'ambiguous') {
+        setCompositionMatch(null)
+        modal.info({
+          title: '找到多个不同标准的成分版本',
+          content: (
+            <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
+              {result.candidates.map((candidate) => (
+                <li key={candidate.id}>
+                  <strong>{candidate.grade}</strong> · {candidate.source.title}
+                  <br />
+                  {compositionRangeSummary(candidate)}
+                </li>
+              ))}
+            </ul>
+          )
+        })
+        return
+      }
+      form.setFieldValue('chemical_composition', compositionFormValues(result.record))
+      setCompositionMatch(result)
+      message.success(`已从成分表匹配 ${result.record.grade}，请核对标准范围后保存`)
+    },
+    onError: (error) => message.error(error instanceof Error ? error.message : '钢种成分数据库加载失败')
+  })
 
   const openCreate = () => {
     setEditing(null)
+    setCompositionMatch(null)
     setOpen(true)
   }
   const openEdit = (row: Item) => {
     setEditing(row)
+    setCompositionMatch(null)
     form.resetFields()
     form.setFieldsValue({
       name: row.name,
@@ -198,6 +294,14 @@ export function Items() {
       notes: row.notes ?? ''
     })
     setOpen(true)
+  }
+  const handleLookupComposition = () => {
+    const steelGrade = String(form.getFieldValue('name') ?? '').trim()
+    if (!steelGrade) {
+      message.warning('请先选择或输入物品名称（钢种）')
+      return
+    }
+    lookupCompositionMut.mutate(steelGrade)
   }
   const handleSubmit = () => {
     form.validateFields().then((vals) => {
@@ -354,10 +458,11 @@ export function Items() {
         onCancel={() => {
           setOpen(false)
           setEditing(null)
+          setCompositionMatch(null)
           form.resetFields()
         }}
         onOk={handleSubmit}
-        confirmLoading={createMut.isPending || updateMut.isPending}
+        confirmLoading={createMut.isPending || updateMut.isPending || lookupCompositionMut.isPending}
         destroyOnClose
       >
         <Form
@@ -422,6 +527,32 @@ export function Items() {
           </Form.Item>
           {chemicalEnabled && (
             <div className="chemical-editor">
+              <div className="chemical-editor-toolbar">
+                <div>
+                  <div className="section-heading">化学成分</div>
+                  <span>按钢号、材料号、旧钢号或代号从本地成分表精确查询</span>
+                </div>
+                <Button
+                  htmlType="button"
+                  icon={<SearchOutlined />}
+                  loading={lookupCompositionMut.isPending}
+                  onClick={handleLookupComposition}
+                >
+                  从成分表查询
+                </Button>
+              </div>
+              {compositionMatch && (
+                <div className="chemical-match-result">
+                  <strong>
+                    已匹配：{compositionMatch.matchedTerm !== compositionMatch.record.grade
+                      ? `${compositionMatch.matchedTerm} → ${compositionMatch.record.grade}`
+                      : compositionMatch.record.grade}
+                  </strong>
+                  <span>{compositionMatch.record.source.title}</span>
+                  <p>{compositionRangeSummary(compositionMatch.record)}</p>
+                  <small>范围值按中值回填；“≤”项目按标准上限回填。</small>
+                </div>
+              )}
               <Form.Item
                 name="default_price"
                 label="基础默认单价（元/吨）"

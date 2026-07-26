@@ -19,6 +19,7 @@ from app.schemas.outsource import (
     RejectRequest,
 )
 from app.services.batch import generate_batch_no
+from app.services.attachments import stage_business_attachment_deletion
 from app.services.creator import apply_creation_filters, serialize_with_creator_names
 from app.services.master_data import require_master_option, require_specification
 from app.services.outsource import (
@@ -221,13 +222,21 @@ async def delete_order(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    order = await db.get(OutsourceOrder, order_id)
-    if order is None:
-        raise HTTPException(status_code=404, detail="外协订单不存在")
-    if order.status not in _DELETABLE_STATUSES:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅草稿/驳回状态的订单可删除")
-    await db.delete(order)
-    await db.commit()
+    staged = None
+    try:
+        async with db.begin():
+            order = await db.get(OutsourceOrder, order_id)
+            if order is None:
+                raise HTTPException(status_code=404, detail="外协订单不存在")
+            if order.status not in _DELETABLE_STATUSES:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="仅草稿/驳回状态的订单可删除")
+            staged = await stage_business_attachment_deletion(db, "outsource_order", [order.id])
+            await db.delete(order)
+    except Exception:
+        if staged is not None:
+            staged.restore()
+        raise
+    staged.finalize()
     return {"message": "外协订单已删除"}
 
 
@@ -240,13 +249,26 @@ async def batch_delete_orders(
     rows = list(await db.scalars(select(OutsourceOrder).where(OutsourceOrder.id.in_(payload.ids))))
     deleted = 0
     skipped: list[dict[str, object]] = []
+    deletable_orders = []
     for order in rows:
         if order.status not in _DELETABLE_STATUSES:
             skipped.append({"id": order.id, "reason": "仅草稿/驳回状态的订单可删除"})
             continue
-        await db.delete(order)
-        deleted += 1
-    await db.commit()
+        deletable_orders.append(order)
+    staged = None
+    try:
+        async with db.begin_nested():
+            staged = await stage_business_attachment_deletion(db, "outsource_order", [order.id for order in deletable_orders])
+            for order in deletable_orders:
+                await db.delete(order)
+                deleted += 1
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        if staged is not None:
+            staged.restore()
+        raise
+    staged.finalize()
     return {"deleted_count": deleted, "skipped": skipped}
 
 
