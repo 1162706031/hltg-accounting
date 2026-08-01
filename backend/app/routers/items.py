@@ -8,12 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.inventory import Inventory
 from app.models.item import Item
+from app.models.user import User
 from app.models.outsource import OutsourceOrder, ProcessingOutbound
 from app.models.sales import SalesOrder, SalesOrderItem
 from app.models.smelting import SmeltingInbound, SmeltingOrder
 from app.models.steelmaking import SteelmakingRecordMaterial
 from app.schemas.common import BatchDeleteRequest, PageResult
-from app.schemas.item import ItemCreate, ItemRead, ItemType, ItemUpdate
+from app.schemas.item import AiCompositionRequest, AiCompositionResponse, ItemCreate, ItemRead, ItemType, ItemUpdate
+from app.services.dify_composition import (
+    DifyCompositionError,
+    DifyCompositionNotConfiguredError,
+    generate_steel_composition,
+)
 from app.services.master_data import require_master_option
 from app.utils.deps import get_current_user, require_roles
 
@@ -128,6 +134,21 @@ async def list_items(
     if chemical_enabled is not None:
         stmt = stmt.where(Item.chemical_enabled == chemical_enabled)
     return await paginate(db, stmt, page, page_size)
+
+
+@router.post("/ai-composition", response_model=AiCompositionResponse)
+async def create_ai_composition(
+    payload: AiCompositionRequest,
+    current_user: User = Depends(require_roles("admin", "accountant")),
+):
+    steel_grade = payload.steel_grade.strip()
+    try:
+        composition = await generate_steel_composition(steel_grade, f"hltg-accounting-{current_user.id}")
+    except DifyCompositionNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except DifyCompositionError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return AiCompositionResponse(steel_grade=steel_grade, chemical_composition=composition)
 
 
 @router.post("", response_model=ItemRead, status_code=status.HTTP_201_CREATED)

@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy.dialects.mysql import BIGINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -73,6 +74,30 @@ class SmeltingInbound(Base):
     order = relationship("SmeltingOrder", back_populates="inbound_lines")
     item = relationship("Item")
     owner = relationship("Party")
+    steelmaking_records = relationship(
+        "SteelmakingRecord",
+        secondary="smelting_inbound_steelmaking_record",
+        order_by="SteelmakingRecord.id",
+    )
+
+    @property
+    def steelmaking_record_ids(self) -> list[int]:
+        return [record.id for record in self.steelmaking_records]
+
+
+class SmeltingInboundSteelmakingRecord(Base):
+    __tablename__ = "smelting_inbound_steelmaking_record"
+
+    smelting_inbound_id: Mapped[int] = mapped_column(
+        BIGINT(unsigned=True),
+        ForeignKey("smelting_inbound.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    steelmaking_record_id: Mapped[int] = mapped_column(
+        BIGINT(unsigned=True),
+        ForeignKey("steelmaking_record.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
 
 
 class AlloyAddition(Base):

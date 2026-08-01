@@ -14,6 +14,14 @@ OrderStatus = Literal["draft", "pending_review", "approved", "in_progress", "com
 Side = Literal["in", "out"]
 
 
+class LinkedSteelmakingRecordRead(ORMModel):
+    id: int
+    batch_no: str
+    record_date: date_type
+    furnace_no: str
+    steel_grade: str
+
+
 # ---- 子表：来料/出钢明细 ----
 class InboundLineBase(BaseModel):
     side: Side
@@ -25,6 +33,7 @@ class InboundLineBase(BaseModel):
     unit: str = Field(default="吨", max_length=10)
     spec: str | None = Field(default=None, max_length=80)
     furnace_no: str | None = Field(default=None, max_length=20)
+    steelmaking_record_ids: list[int] = Field(default_factory=list)
     owner_id: int | None = None
     unit_price: Decimal | None = Field(default=None, ge=0)
     amount: Decimal | None = None
@@ -35,6 +44,7 @@ class InboundLineRead(InboundLineBase, ORMModel):
     id: int
     item: ItemRead | None = None
     owner: PartyRead | None = None
+    steelmaking_records: list[LinkedSteelmakingRecordRead] = Field(default_factory=list)
 
 
 # ---- 子表：补加合金 ----
@@ -119,6 +129,8 @@ def _validate_line_dates(
             raise ValueError(f"{label}明细第 {line.line_no} 行必须选择所属单位")
         if line.side == "out" and not (line.spec or "").strip():
             raise ValueError(f"{label}明细第 {line.line_no} 行必须选择规格")
+        if line.side == "in" and line.steelmaking_record_ids:
+            raise ValueError(f"{label}明细第 {line.line_no} 行不能关联炼钢记录")
     for index, line in enumerate(alloy_lines or [], start=1):
         if line.date is None:
             raise ValueError(f"补加合金明细第 {index} 行必须填写日期")

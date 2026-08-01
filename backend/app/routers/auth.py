@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from app.schemas.common import MessageResponse
 from app.schemas.user import ChangePasswordRequest, ProfileUpdate, UserRead
 from app.utils.auth import create_token, get_subject
 from app.utils.deps import get_current_user
-from app.utils.operation_log import write_operation_log
+from app.utils.operation_log import get_client_ip, write_operation_log
 from app.utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -26,7 +26,7 @@ def build_token_pair(user: User) -> TokenPair:
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> LoginResponse:
+async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)) -> LoginResponse:
     result = await db.execute(select(User).where(User.username == payload.username))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(payload.password, user.password):
@@ -43,6 +43,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
         target_id=user.id,
         summary=f"登录 user #{user.id}",
         detail={"username": user.username},
+        ip_address=get_client_ip(request),
     )
     return LoginResponse(**tokens.model_dump(), user=UserRead.model_validate(user))
 

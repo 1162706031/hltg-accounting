@@ -164,6 +164,7 @@ async def load_order(db: AsyncSession, order_id: int) -> SmeltingOrder:
             selectinload(SmeltingOrder.party),
             selectinload(SmeltingOrder.inbound_lines).selectinload(SmeltingInbound.item),
             selectinload(SmeltingOrder.inbound_lines).selectinload(SmeltingInbound.owner),
+            selectinload(SmeltingOrder.inbound_lines).selectinload(SmeltingInbound.steelmaking_records),
             selectinload(SmeltingOrder.alloy_lines).selectinload(AlloyAddition.item),
         )
     )

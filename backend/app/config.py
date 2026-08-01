@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     ai_agent_provider: str = Field(default="AgentScope 智能体", validation_alias="AI_AGENT_PROVIDER")
     ai_agent_timeout_seconds: int = Field(default=120, validation_alias="AI_AGENT_TIMEOUT_SECONDS")
 
+    # Dify Workflow used to suggest steel chemical compositions. The API key
+    # stays on the backend and is never included in the frontend bundle.
+    dify_api_url: str = Field(default="https://api.dify.ai/v1", validation_alias="DIFY_API_URL")
+    dify_api_key: str | None = Field(default=None, validation_alias="DIFY_API_KEY")
+    dify_steel_input_variable: str = Field(default="input", validation_alias="DIFY_STEEL_INPUT_VARIABLE")
+    dify_timeout_seconds: int = Field(default=90, validation_alias="DIFY_TIMEOUT_SECONDS")
+
     model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore")
 
     @property

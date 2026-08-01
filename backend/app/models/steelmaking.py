@@ -77,6 +77,9 @@ class SteelmakingRecordMaterial(Base):
     chemical_composition_snapshot: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
     default_price_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     custom_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    custom_price_unit: Mapped[str] = mapped_column(
+        Enum("yuan_per_kg", "yuan_per_ton"), nullable=False, default="yuan_per_ton"
+    )
     final_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     input_weight: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     input_weight_unit: Mapped[str] = mapped_column(Enum("kg", "ton"), nullable=False)

@@ -60,6 +60,14 @@ interface SmeltingOrder {
   alloy_lines: any[]
 }
 
+interface SteelmakingRecordOption {
+  id: number
+  batch_no: string
+  record_date: string
+  furnace_no: string
+  steel_grade: string
+}
+
 const ORDER_TYPE_OPTIONS = [
   { value: 'ext_smelting', label: '外来冶炼' },
   { value: 'inhouse', label: '本厂冶炼' }
@@ -107,6 +115,12 @@ export function Smelting() {
   const parties = useParties()
   const creators = useCreatorOptions()
   const items = useItems()
+  const steelmakingRecords = useQuery({
+    queryKey: ['steelmaking-records', 'smelting-options'],
+    queryFn: async () => (
+      await api.get<PageResult<SteelmakingRecordOption>>('/steelmaking-records', { params: { page: 1, page_size: 500 } })
+    ).data.items
+  })
   const itemTypesQuery = useMasterDataOptions('item_type')
   const itemTypeLabels = { ...ITEM_TYPE_LABELS, ...masterDataLabelMap(itemTypesQuery.data) }
   const stock = useInventoryStock()
@@ -243,6 +257,7 @@ export function Smelting() {
       unit: it.unit ?? '吨',
       spec: it.spec,
       furnace_no: it.furnace_no,
+      steelmaking_record_ids: it.steelmaking_record_ids ?? [],
       owner_id: it.owner_id,
       unit_price: it.unit_price ? Number(it.unit_price) : null
     })
@@ -323,7 +338,7 @@ export function Smelting() {
               <span style={{ width: 200 }}>规格</span>
               <span style={{ width: 90 }}>数量</span>
               <span style={{ width: 80 }}>单位</span>
-              <span style={{ width: 90 }}>炉号</span>
+              <span style={{ width: 280 }}>关联炼钢炉号（可多选）</span>
               <span style={{ width: 150 }}>归属</span>
               <span className="line-action-cell">操作</span>
             </div>
@@ -365,8 +380,22 @@ export function Smelting() {
               <Form.Item {...field} name={[field.name, 'unit']} label="单位">
                 <Select style={{ width: 80 }} options={UNIT_OPTIONS} />
               </Form.Item>
-              <Form.Item {...field} name={[field.name, 'furnace_no']} label="炉号">
-                <Input style={{ width: 90 }} />
+              <Form.Item hidden {...field} name={[field.name, 'furnace_no']}><Input /></Form.Item>
+              <Form.Item {...field} name={[field.name, 'steelmaking_record_ids']} label="关联炼钢炉号">
+                <Select
+                  mode="multiple"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                  placeholder="选择一个或多个炼钢炉号"
+                  loading={steelmakingRecords.isLoading}
+                  style={{ width: 280 }}
+                  options={(steelmakingRecords.data ?? []).map((record) => ({
+                    value: record.id,
+                    label: `${record.furnace_no} · ${record.record_date} · ${record.steel_grade}`
+                  }))}
+                />
               </Form.Item>
               <Form.Item {...field} name={[field.name, 'owner_id']} label="归属" rules={[{ required: true, message: '请选择所属单位' }]}>
                 <PartySelect options={partyOptions(parties.data)} placeholder="归属单位" style={{ width: 150 }} />
@@ -742,7 +771,12 @@ const tapLineColumns = [
   { title: '规格', dataIndex: 'spec', render: (v: string) => v ?? '—' },
   { title: '数量', dataIndex: 'quantity', align: 'right' as const },
   { title: '单位', dataIndex: 'unit', render: (v: string) => v ?? '—' },
-  { title: '炉号', dataIndex: 'furnace_no', render: (v: string) => v ?? '—' },
+  {
+    title: '炉号',
+    render: (_: unknown, row: any) => row.steelmaking_records?.length
+      ? row.steelmaking_records.map((record: SteelmakingRecordOption) => record.furnace_no).join('、')
+      : row.furnace_no ?? '—'
+  },
   { title: '归属', render: (_: any, r: any) => r.owner?.name ?? (r.owner_id ? `#${r.owner_id}` : '—') },
   { title: '单价', dataIndex: 'unit_price', align: 'right' as const, render: (v: any) => v ?? '—' },
   { title: '金额', dataIndex: 'amount', align: 'right' as const, render: (v: any) => v ?? '—' },

@@ -66,3 +66,12 @@ class ItemRead(ItemBase, ORMModel):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class AiCompositionRequest(BaseModel):
+    steel_grade: str = Field(min_length=1, max_length=100)
+
+
+class AiCompositionResponse(BaseModel):
+    steel_grade: str
+    chemical_composition: dict[str, Decimal]

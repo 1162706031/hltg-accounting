@@ -9,6 +9,7 @@ from app.schemas.item import CHEMICAL_ELEMENTS
 from app.schemas.party import PartyRead
 
 WeightUnit = Literal["kg", "ton"]
+PriceUnit = Literal["yuan_per_kg", "yuan_per_ton"]
 RecordStatus = Literal["draft", "confirmed"]
 
 
@@ -17,6 +18,7 @@ class SteelmakingMaterialInput(BaseModel):
     input_weight: Decimal = Field(gt=0)
     input_weight_unit: WeightUnit = "kg"
     custom_price: Decimal | None = Field(default=None, ge=0)
+    custom_price_unit: PriceUnit = "yuan_per_ton"
     chemical_composition: dict[str, Decimal] | None = None
     sort_order: int = Field(default=1, ge=1)
 
@@ -78,6 +80,7 @@ class SteelmakingMaterialRead(ORMModel):
     chemical_composition_snapshot: dict[str, Decimal]
     default_price_snapshot: Decimal | None
     custom_price: Decimal | None
+    custom_price_unit: PriceUnit
     final_unit_price: Decimal | None
     input_weight: Decimal
     input_weight_unit: WeightUnit

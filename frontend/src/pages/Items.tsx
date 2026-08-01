@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { SearchOutlined } from '@ant-design/icons'
+import { RobotOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -14,7 +14,7 @@ import {
   Tag
 } from 'antd'
 import { useState } from 'react'
-import { api, PageResult } from '../api/client'
+import { api, getErrorMessage, PageResult } from '../api/client'
 import { BusinessTable } from '../components/BusinessTable'
 import { DetailModal } from '../components/DetailModal'
 import { ItemNameSelect } from '../components/ItemNameSelect'
@@ -108,6 +108,11 @@ async function lookupCompositionIncludingSavedItems(itemName: string) {
   return lookupSteelComposition(grade, userRecords)
 }
 
+interface AiCompositionResponse {
+  steel_grade: string
+  chemical_composition: Record<string, string>
+}
+
 async function detectSupplementalSteelGrade(item: Item): Promise<string | null> {
   if (!item.chemical_enabled || !item.chemical_composition) return null
   const hasComposition = Object.values(item.chemical_composition).some((value) => Number(value || 0) > 0)
@@ -147,6 +152,7 @@ export function Items() {
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<Item | null>(null)
   const [compositionMatch, setCompositionMatch] = useState<SteelCompositionMatch | null>(null)
+  const [aiCompositionGrade, setAiCompositionGrade] = useState<string | null>(null)
   const [form] = Form.useForm<FormValues>()
   const chemicalEnabled = Form.useWatch('chemical_enabled', form)
 
@@ -269,20 +275,40 @@ export function Items() {
         return
       }
       form.setFieldValue('chemical_composition', compositionFormValues(result.record))
+      setAiCompositionGrade(null)
       setCompositionMatch(result)
       message.success(`已从成分表匹配 ${result.record.grade}，请核对标准范围后保存`)
     },
     onError: (error) => message.error(error instanceof Error ? error.message : '钢种成分数据库加载失败')
   })
 
+  const aiCompositionMut = useMutation({
+    mutationFn: async (steelGrade: string) => (
+      await api.post<AiCompositionResponse>('/items/ai-composition', { steel_grade: steelGrade })
+    ).data,
+    onSuccess: (result) => {
+      if (!form.getFieldValue('chemical_enabled')) return
+      form.setFieldValue('chemical_composition', {
+        ...emptyChemicalComposition(),
+        ...result.chemical_composition
+      })
+      setCompositionMatch(null)
+      setAiCompositionGrade(result.steel_grade)
+      message.success('AI 已生成成分，请核对准确性后再保存')
+    },
+    onError: (error) => message.error(getErrorMessage(error, 'AI 生成成分失败'))
+  })
+
   const openCreate = () => {
     setEditing(null)
     setCompositionMatch(null)
+    setAiCompositionGrade(null)
     setOpen(true)
   }
   const openEdit = (row: Item) => {
     setEditing(row)
     setCompositionMatch(null)
+    setAiCompositionGrade(null)
     form.resetFields()
     form.setFieldsValue({
       name: row.name,
@@ -302,6 +328,14 @@ export function Items() {
       return
     }
     lookupCompositionMut.mutate(steelGrade)
+  }
+  const handleAiComposition = () => {
+    const steelGrade = String(form.getFieldValue('name') ?? '').trim()
+    if (!steelGrade) {
+      message.warning('请先选择或输入物品名称（钢种）')
+      return
+    }
+    aiCompositionMut.mutate(steelGrade)
   }
   const handleSubmit = () => {
     form.validateFields().then((vals) => {
@@ -459,10 +493,11 @@ export function Items() {
           setOpen(false)
           setEditing(null)
           setCompositionMatch(null)
+          setAiCompositionGrade(null)
           form.resetFields()
         }}
         onOk={handleSubmit}
-        confirmLoading={createMut.isPending || updateMut.isPending || lookupCompositionMut.isPending}
+        confirmLoading={createMut.isPending || updateMut.isPending || lookupCompositionMut.isPending || aiCompositionMut.isPending}
         destroyOnClose
       >
         <Form
@@ -530,16 +565,28 @@ export function Items() {
               <div className="chemical-editor-toolbar">
                 <div>
                   <div className="section-heading">化学成分</div>
-                  <span>按钢号、材料号、旧钢号或代号从本地成分表精确查询</span>
+                  <span>可从本地成分表精确查询，也可使用 Dify AI 自动生成</span>
                 </div>
-                <Button
-                  htmlType="button"
-                  icon={<SearchOutlined />}
-                  loading={lookupCompositionMut.isPending}
-                  onClick={handleLookupComposition}
-                >
-                  从成分表查询
-                </Button>
+                <Space className="chemical-editor-actions" wrap>
+                  <Button
+                    htmlType="button"
+                    icon={<SearchOutlined />}
+                    loading={lookupCompositionMut.isPending}
+                    disabled={aiCompositionMut.isPending}
+                    onClick={handleLookupComposition}
+                  >
+                    本地成分表查询
+                  </Button>
+                  <Button
+                    htmlType="button"
+                    icon={<RobotOutlined />}
+                    loading={aiCompositionMut.isPending}
+                    disabled={lookupCompositionMut.isPending}
+                    onClick={handleAiComposition}
+                  >
+                    AI 自动生成
+                  </Button>
+                </Space>
               </div>
               {compositionMatch && (
                 <div className="chemical-match-result">
@@ -551,6 +598,13 @@ export function Items() {
                   <span>{compositionMatch.record.source.title}</span>
                   <p>{compositionRangeSummary(compositionMatch.record)}</p>
                   <small>范围值按中值回填；“≤”项目按标准上限回填。</small>
+                </div>
+              )}
+              {aiCompositionGrade && (
+                <div className="chemical-match-result chemical-ai-result">
+                  <strong>AI 已生成：{aiCompositionGrade}</strong>
+                  <span>数据来源：Dify Workflow</span>
+                  <p>AI 结果可能存在误差，请根据材料标准核对各元素含量后再保存。</p>
                 </div>
               )}
               <Form.Item

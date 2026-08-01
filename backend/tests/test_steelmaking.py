@@ -94,6 +94,10 @@ class SteelmakingCalculationTests(unittest.TestCase):
 
     def test_custom_price_has_priority_and_missing_price_stays_null(self):
         self.assertEqual(choose_final_price(Decimal("15000"), Decimal("16000")), Decimal("16000"))
+        self.assertEqual(
+            choose_final_price(Decimal("15000"), Decimal("16"), "yuan_per_kg"),
+            Decimal("16000"),
+        )
         self.assertEqual(choose_final_price(Decimal("15000"), None), Decimal("15000"))
         self.assertIsNone(choose_final_price(None, None))
 

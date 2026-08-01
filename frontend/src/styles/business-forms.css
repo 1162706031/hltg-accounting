@@ -44,6 +44,10 @@
   font-size: 12px;
 }
 
+.chemical-editor-actions {
+  justify-content: flex-end;
+}
+
 .chemical-match-result {
   padding: 10px 12px;
   margin-bottom: 14px;
@@ -70,6 +74,17 @@
   margin: 8px 0 0;
   color: #264d30;
   line-height: 1.7;
+}
+
+.chemical-ai-result {
+  color: #614700;
+  background: #fffbe6;
+  border-color: #ffe58f;
+}
+
+.chemical-ai-result > span,
+.chemical-ai-result > p {
+  color: #7a5d00;
 }
 
 .chemical-grid {
@@ -142,9 +157,6 @@
 }
 
 .business-voucher-preview-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 180px;
   max-height: calc(100vh - 240px);
   overflow: auto;
@@ -154,6 +166,14 @@
   border-radius: 8px;
 }
 
+.business-voucher-preview-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  min-height: 156px;
+}
+
 .business-voucher-preview-stage img {
   display: block;
   width: auto;
@@ -161,6 +181,14 @@
   max-width: 100%;
   max-height: calc(100vh - 266px);
   object-fit: contain;
+}
+
+.business-voucher-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
 
 .steelmaking-basic-grid {

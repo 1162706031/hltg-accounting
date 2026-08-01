@@ -129,16 +129,7 @@ async def _hydrate_inventory_mode_lines(db: AsyncSession, order: SalesOrder) -> 
 async def _match_auto_mode_inventory(
     db: AsyncSession, order: SalesOrder
 ) -> dict[tuple[int, str, str], Inventory]:
-    """锁定并校验自动销售所需的本厂库存；全部满足后调用方才开始逐行扣减。"""
-    internal_party_id = await db.scalar(
-        select(Party.id).where(Party.is_internal.is_(True)).order_by(Party.id).limit(1)
-    )
-    if internal_party_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="系统未配置本厂单位，无法自动匹配销售库存",
-        )
-
+    """优先匹配本厂类型库存；无对应记录时回退到销售客户名下库存。"""
     required: dict[tuple[int, str, str], Decimal] = {}
     first_line: dict[tuple[int, str, str], SalesOrderItem] = {}
     for line in order.items:
@@ -151,28 +142,44 @@ async def _match_auto_mode_inventory(
         item_id, spec, unit = key
         inventory = await db.scalar(
             select(Inventory)
+            .join(Party, Party.id == Inventory.owner_id)
             .where(
-                Inventory.owner_id == internal_party_id,
+                Party.is_internal.is_(True),
                 Inventory.item_id == item_id,
                 Inventory.spec == spec,
                 Inventory.unit == unit,
             )
+            .order_by(Inventory.id)
             .with_for_update()
         )
+        owner_label = "本厂类型单位"
         line = first_line[key]
         item_name = line.item.name if line.item is not None else f"物品#{item_id}"
         item_label = f"{item_name} / {spec} / {unit}"
         if inventory is None:
+            owner_label = "当前客户名下"
+            inventory = await db.scalar(
+                select(Inventory)
+                .where(
+                    Inventory.owner_id == order.party_id,
+                    Inventory.item_id == item_id,
+                    Inventory.spec == spec,
+                    Inventory.unit == unit,
+                )
+                .order_by(Inventory.id)
+                .with_for_update()
+            )
+        if inventory is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"本厂库存没有“{item_label}”，销售单无法完成",
+                detail=f"本厂类型单位及当前客户名下均无“{item_label}”库存，销售单无法完成",
             )
         available = Decimal(inventory.current_quantity or 0)
         if available < required[key]:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    f"本厂库存“{item_label}”不足：需要 {required[key]}，当前仅有 {available}，"
+                    f"{owner_label}库存“{item_label}”不足：需要 {required[key]}，当前仅有 {available}，"
                     "销售单无法完成"
                 ),
             )
@@ -440,7 +447,7 @@ async def complete_order(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("admin", "accountant")),
 ):
-    """完成：指定库存模式精确扣库；按物品规格模式自动匹配本厂库存后扣库。"""
+    """完成：指定库存模式精确扣库；按规格模式优先匹配本厂、再匹配客户名下库存。"""
     async with db.begin():
         order = await _load(db, order_id)
         check_transition(order.status, "completed")

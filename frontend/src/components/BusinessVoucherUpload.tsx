@@ -1,4 +1,13 @@
-import { DeleteOutlined, DownloadOutlined, EyeOutlined, FileImageOutlined, InboxOutlined } from '@ant-design/icons'
+import {
+  CompressOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EyeOutlined,
+  FileImageOutlined,
+  InboxOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined
+} from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Empty, Modal, Space, Spin, Upload } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
@@ -37,6 +46,9 @@ interface BusinessVoucherUploadProps {
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_FILES = 20
+const MIN_PREVIEW_SCALE = 25
+const MAX_PREVIEW_SCALE = 300
+const PREVIEW_SCALE_STEP = 25
 const { Dragger } = Upload
 
 function formatBytes(bytes: number) {
@@ -77,6 +89,7 @@ export function BusinessVoucherUpload({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewTitle, setPreviewTitle] = useState('凭证预览')
   const [previewDownloadName, setPreviewDownloadName] = useState('凭证.webp')
+  const [previewScale, setPreviewScale] = useState(100)
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null)
 
   const query = useQuery({
@@ -114,6 +127,7 @@ export function BusinessVoucherUpload({
   const closePreview = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
+    setPreviewScale(100)
   }
 
   const getDownloadName = (title: string, contentType: string) => {
@@ -135,6 +149,7 @@ export function BusinessVoucherUpload({
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewTitle(title)
     setPreviewDownloadName(getDownloadName(title, file.type))
+    setPreviewScale(100)
     setPreviewUrl(URL.createObjectURL(file))
   }
 
@@ -257,17 +272,38 @@ export function BusinessVoucherUpload({
         open={Boolean(previewUrl)}
         title={previewTitle}
         footer={(
-          <Space>
-            <Button onClick={closePreview}>关闭</Button>
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              disabled={!previewUrl}
-              onClick={() => previewUrl && downloadBlobUrl(previewUrl, previewDownloadName)}
-            >
-              下载图片
-            </Button>
-          </Space>
+          <div className="business-voucher-preview-footer">
+            <Space.Compact>
+              <Button
+                icon={<ZoomOutOutlined />}
+                disabled={previewScale <= MIN_PREVIEW_SCALE}
+                onClick={() => setPreviewScale((scale) => Math.max(MIN_PREVIEW_SCALE, scale - PREVIEW_SCALE_STEP))}
+              >
+                缩小
+              </Button>
+              <Button icon={<CompressOutlined />} onClick={() => setPreviewScale(100)}>
+                适应窗口 {previewScale}%
+              </Button>
+              <Button
+                icon={<ZoomInOutlined />}
+                disabled={previewScale >= MAX_PREVIEW_SCALE}
+                onClick={() => setPreviewScale((scale) => Math.min(MAX_PREVIEW_SCALE, scale + PREVIEW_SCALE_STEP))}
+              >
+                放大
+              </Button>
+            </Space.Compact>
+            <Space>
+              <Button onClick={closePreview}>关闭</Button>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                disabled={!previewUrl}
+                onClick={() => previewUrl && downloadBlobUrl(previewUrl, previewDownloadName)}
+              >
+                下载图片
+              </Button>
+            </Space>
+          </div>
         )}
         onCancel={closePreview}
         width={900}
@@ -276,7 +312,20 @@ export function BusinessVoucherUpload({
       >
         {previewUrl && (
           <div className="business-voucher-preview-stage">
-            <img src={previewUrl} alt={previewTitle} />
+            <div
+              className={`business-voucher-preview-canvas${previewScale === 100 ? '' : ' is-scaled'}`}
+              style={{ width: `${Math.max(100, previewScale)}%` }}
+            >
+              <img
+                src={previewUrl}
+                alt={previewTitle}
+                style={previewScale === 100 ? undefined : {
+                  width: previewScale < 100 ? `${previewScale}%` : '100%',
+                  maxWidth: 'none',
+                  maxHeight: 'none'
+                }}
+              />
+            </div>
           </div>
         )}
       </Modal>

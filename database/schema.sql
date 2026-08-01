@@ -243,7 +243,8 @@ CREATE TABLE steelmaking_record_material (
     item_code_snapshot              VARCHAR(50) DEFAULT NULL COMMENT '当前系统以物品 ID 作为编号快照',
     chemical_composition_snapshot   JSON NOT NULL,
     default_price_snapshot          DECIMAL(18,4) DEFAULT NULL,
-    custom_price                    DECIMAL(18,4) DEFAULT NULL COMMENT '本次实际单价（元/吨）',
+    custom_price                    DECIMAL(18,4) DEFAULT NULL COMMENT '用户录入的本次实际单价',
+    custom_price_unit               ENUM('yuan_per_kg','yuan_per_ton') NOT NULL DEFAULT 'yuan_per_ton' COMMENT '本次单价录入单位',
     final_unit_price                DECIMAL(18,4) DEFAULT NULL COMMENT '最终采用单价（元/吨）',
     input_weight                    DECIMAL(18,6) NOT NULL COMMENT '用户原始重量',
     input_weight_unit               ENUM('kg','ton') NOT NULL,
@@ -347,6 +348,16 @@ CREATE TABLE smelting_inbound (
     CONSTRAINT fk_si_item  FOREIGN KEY (item_id)   REFERENCES item(id),
     CONSTRAINT fk_si_owner FOREIGN KEY (owner_id)  REFERENCES party(id)
 ) ENGINE=InnoDB COMMENT='冶炼来料/出料明细';
+
+-- 一条出钢明细可关联多条炼钢记录（炉号）
+CREATE TABLE smelting_inbound_steelmaking_record (
+    smelting_inbound_id   BIGINT UNSIGNED NOT NULL,
+    steelmaking_record_id BIGINT UNSIGNED NOT NULL,
+    PRIMARY KEY (smelting_inbound_id, steelmaking_record_id),
+    INDEX idx_sisr_steelmaking_record (steelmaking_record_id),
+    CONSTRAINT fk_sisr_smelting_inbound FOREIGN KEY (smelting_inbound_id) REFERENCES smelting_inbound(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sisr_steelmaking_record FOREIGN KEY (steelmaking_record_id) REFERENCES steelmaking_record(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='冶炼出钢明细与炼钢记录多对多关联';
 
 
 -- 补加合金

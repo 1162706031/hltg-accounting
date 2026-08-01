@@ -17,6 +17,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-hltg_accounting}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      DIFY_API_URL: ${DIFY_API_URL:-https://api.dify.ai/v1}
+      DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_STEEL_INPUT_VARIABLE: ${DIFY_STEEL_INPUT_VARIABLE:-input}
+      DIFY_TIMEOUT_SECONDS: ${DIFY_TIMEOUT_SECONDS:-90}
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"

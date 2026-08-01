@@ -37,6 +37,7 @@ const compositionFormValues = (composition?: Record<string, string> | null) =>
 const emptyActualComposition = () =>
   Object.fromEntries(ELEMENTS.map((code) => [code, '0'])) as Record<string, string>
 type WeightUnit = 'kg' | 'ton'
+type PriceUnit = 'yuan_per_kg' | 'yuan_per_ton'
 
 interface ChemicalItem {
   id: number
@@ -58,6 +59,7 @@ interface MaterialLine {
   weight_kg?: string
   default_price_snapshot?: string | null
   custom_price?: string | null
+  custom_price_unit: PriceUnit
   final_unit_price?: string | null
   material_cost?: string | null
   sort_order: number
@@ -118,6 +120,7 @@ interface FormValues {
     input_weight: string
     input_weight_unit: WeightUnit
     custom_price?: string | null
+    custom_price_unit: PriceUnit
     chemical_composition?: Record<string, string | null>
   }>
   actual_composition?: Record<string, string | null>
@@ -348,6 +351,7 @@ export function SteelmakingRecords() {
         input_weight: line.input_weight,
         input_weight_unit: line.input_weight_unit,
         custom_price: line.custom_price,
+        custom_price_unit: line.custom_price_unit ?? 'yuan_per_ton',
         chemical_composition: compositionFormValues(line.chemical_composition_snapshot)
       })),
       actual_composition: Object.fromEntries(
@@ -474,7 +478,7 @@ export function SteelmakingRecords() {
                   <span>显示所有已开启化学成分的物品（包含已停用物品）</span>
                 </div>
                 <Space>
-                  <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ input_weight_unit: 'kg' })}>添加原料</Button>
+                  <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => add({ input_weight_unit: 'kg', custom_price_unit: 'yuan_per_ton' })}>添加原料</Button>
                   <Button
                     danger
                     disabled={materialSelectedRowKeys.length === 0}
@@ -506,7 +510,7 @@ export function SteelmakingRecords() {
                   <span>原料名称 / 编号 / 成分 / 默认价</span>
                   <span>投入重量</span>
                   <span>单位</span>
-                  <span>本次单价（元/吨）</span>
+                  <span>本次单价 / 单位</span>
                   <span>本批成分</span>
                   <span>操作</span>
                 </div>
@@ -544,7 +548,14 @@ export function SteelmakingRecords() {
                       </Form.Item>
                       <Form.Item name={[field.name, 'input_weight']} label="投入重量" rules={[{ required: true, message: '请输入重量' }]}><InputNumber stringMode min="0.000001" precision={6} placeholder="请输入" style={{ width: '100%' }} /></Form.Item>
                       <Form.Item name={[field.name, 'input_weight_unit']} label="单位" rules={[{ required: true }]}><Select options={[{ value: 'kg', label: 'kg' }, { value: 'ton', label: '吨' }]} /></Form.Item>
-                      <Form.Item name={[field.name, 'custom_price']} label="本次单价（元/吨）"><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
+                      <Form.Item label="本次单价 / 单位">
+                        <Space.Compact block>
+                          <Form.Item noStyle name={[field.name, 'custom_price']}><InputNumber stringMode min="0" precision={4} placeholder="留空使用默认价" style={{ width: '100%' }} /></Form.Item>
+                          <Form.Item noStyle name={[field.name, 'custom_price_unit']}>
+                            <Select style={{ width: 96 }} options={[{ value: 'yuan_per_kg', label: '元/kg' }, { value: 'yuan_per_ton', label: '元/吨' }]} />
+                          </Form.Item>
+                        </Space.Compact>
+                      </Form.Item>
                       <span className="steelmaking-material-composition-action">
                         <Button
                           size="small"
@@ -615,7 +626,9 @@ export function SteelmakingRecords() {
                 })}
                 amountQuantity={(line) => Number(line?.input_weight || 0) * (line?.input_weight_unit === 'ton' ? 1 : 0.001)}
                 resolveUnitPrice={(line) => {
-                  if (line?.custom_price != null && line.custom_price !== '') return line.custom_price
+                  if (line?.custom_price != null && line.custom_price !== '') {
+                    return Number(line.custom_price) * (line.custom_price_unit === 'yuan_per_kg' ? 1000 : 1)
+                  }
                   return chemicalItems.data?.find((item) => item.id === line?.item_id)?.default_price
                 }}
               />
@@ -672,9 +685,9 @@ export function SteelmakingRecords() {
               { title: '原料', dataIndex: 'item_name_snapshot' }, { title: '编号', dataIndex: 'item_code_snapshot' },
               { title: '本批成分', dataIndex: 'chemical_composition_snapshot', width: 280, render: (v: Record<string, string>) => compositionSnapshotSummary(v) },
               { title: '原始重量', render: (_: any, row: MaterialLine) => `${row.input_weight} ${row.input_weight_unit === 'ton' ? '吨' : 'kg'}` },
-              { title: '标准重量kg', dataIndex: 'weight_kg' }, { title: '默认价', dataIndex: 'default_price_snapshot', render: (v: string) => v ?? '—' },
-              { title: '自定义价', dataIndex: 'custom_price', render: (v: string) => v ?? '—' },
-              { title: '采用价', dataIndex: 'final_unit_price', render: (v: string) => v ?? '不可计算' },
+              { title: '标准重量kg', dataIndex: 'weight_kg' }, { title: '默认价（元/吨）', dataIndex: 'default_price_snapshot', render: (v: string) => v ?? '—' },
+              { title: '本次单价', render: (_: unknown, row: MaterialLine) => row.custom_price == null ? '—' : `${row.custom_price} ${row.custom_price_unit === 'yuan_per_kg' ? '元/kg' : '元/吨'}` },
+              { title: '采用价（元/吨）', dataIndex: 'final_unit_price', render: (v: string) => v ?? '不可计算' },
               { title: '成本', dataIndex: 'material_cost', render: (v: string) => v ?? '不可计算' }
             ]
           },

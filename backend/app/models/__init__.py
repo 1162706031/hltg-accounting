@@ -9,7 +9,7 @@ from app.models.party import Party
 from app.models.procurement import ProcurementOrder, ProcurementOrderItem
 from app.models.reconciliation import PartyReconciliation
 from app.models.sales import SalesOrder, SalesOrderItem
-from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
+from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingInboundSteelmakingRecord, SmeltingOrder
 from app.models.steelmaking import SteelmakingRecord, SteelmakingRecordComposition, SteelmakingRecordMaterial
 from app.models.user import User
 
@@ -33,6 +33,7 @@ __all__ = [
     "SalesOrder",
     "SalesOrderItem",
     "SmeltingInbound",
+    "SmeltingInboundSteelmakingRecord",
     "SmeltingOrder",
     "SteelmakingRecord",
     "SteelmakingRecordComposition",

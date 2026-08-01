@@ -28,8 +28,10 @@ def sales_line(**overrides):
 class FakeScalarSession:
     def __init__(self, values):
         self.values = iter(values)
+        self.statements = []
 
-    async def scalar(self, _statement):
+    async def scalar(self, statement):
+        self.statements.append(statement)
         return next(self.values)
 
 
@@ -74,10 +76,34 @@ class SalesModeTests(unittest.IsolatedAsyncioTestCase):
             unit="吨",
             current_quantity=Decimal("3"),
         )
-        db = FakeScalarSession([1, inventory])
+        db = FakeScalarSession([inventory])
 
         with self.assertRaisesRegex(HTTPException, "需要 3.5，当前仅有 3"):
             await _match_auto_mode_inventory(db, order)  # type: ignore[arg-type]
+        self.assertIn("party.is_internal", str(db.statements[0]))
+        self.assertNotIn("party.name", str(db.statements[0]))
+
+    async def test_auto_mode_falls_back_to_selected_customer_inventory_when_internal_missing(self):
+        item = Item(id=7, name="H13", item_type="steel_grade")
+        order = SalesOrder(party_id=9, sales_mode="item_spec")
+        order.items = [sales_line(item=item, quantity=Decimal("2"))]
+        customer_inventory = Inventory(
+            id=12,
+            item_id=7,
+            owner_id=9,
+            spec="Φ150",
+            unit="吨",
+            current_quantity=Decimal("5"),
+        )
+        db = FakeScalarSession([None, customer_inventory])
+
+        matched = await _match_auto_mode_inventory(db, order)  # type: ignore[arg-type]
+
+        self.assertIs(matched[(7, "Φ150", "吨")], customer_inventory)
+        self.assertEqual(len(db.statements), 2)
+        self.assertIn("party.is_internal", str(db.statements[0]))
+        self.assertIn("inventory.owner_id", str(db.statements[1]))
+        self.assertNotIn("party.name", str(db.statements[1]))
 
 
 if __name__ == "__main__":

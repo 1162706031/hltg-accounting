@@ -292,6 +292,11 @@
     width: 100%;
   }
 
+  .chemical-editor-actions,
+  .chemical-editor-actions .ant-space-item {
+    width: 100%;
+  }
+
   .business-voucher-item {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -314,6 +319,17 @@
 
   .business-voucher-preview-stage img {
     max-height: calc(100vh - 238px);
+  }
+
+  .business-voucher-preview-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-voucher-preview-footer > .ant-space-compact,
+  .business-voucher-preview-footer > .ant-space {
+    justify-content: center;
+    width: 100%;
   }
 
   .chemical-grid {

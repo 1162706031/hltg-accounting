@@ -57,8 +57,20 @@ def convert_weight_to_kg(weight: Decimal, unit: str) -> Decimal:
     return (value * (Decimal("1000") if unit == "ton" else Decimal("1"))).quantize(WEIGHT_QUANT)
 
 
-def choose_final_price(default_price: Decimal | None, custom_price: Decimal | None) -> Decimal | None:
-    return Decimal(custom_price) if custom_price is not None else (Decimal(default_price) if default_price is not None else None)
+def choose_final_price(
+    default_price: Decimal | None,
+    custom_price: Decimal | None,
+    custom_price_unit: str = "yuan_per_ton",
+) -> Decimal | None:
+    """Return the adopted price normalized to yuan/ton."""
+    if custom_price is None:
+        return Decimal(default_price) if default_price is not None else None
+    price = Decimal(custom_price)
+    if custom_price_unit == "yuan_per_kg":
+        return price * Decimal("1000")
+    if custom_price_unit != "yuan_per_ton":
+        raise ValueError("单价单位只能是元/kg或元/吨")
+    return price
 
 
 def ensure_steelmaking_material_allowed(item: Item) -> None:
@@ -147,7 +159,7 @@ async def replace_calculated_details(
         )
         default_price = Decimal(item.default_price) if item.default_price is not None else None
         custom_price = Decimal(line.custom_price) if line.custom_price is not None else None
-        final_price = choose_final_price(default_price, custom_price)
+        final_price = choose_final_price(default_price, custom_price, line.custom_price_unit)
         material_rows.append(
             {
                 "item_id": item.id,
@@ -156,6 +168,7 @@ async def replace_calculated_details(
                 "chemical_composition_snapshot": snapshot,
                 "default_price_snapshot": default_price,
                 "custom_price": custom_price,
+                "custom_price_unit": line.custom_price_unit,
                 "final_unit_price": final_price,
                 "input_weight": Decimal(line.input_weight),
                 "input_weight_unit": line.input_weight_unit,

@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.item import Item
 from app.models.party import Party
 from app.models.smelting import AlloyAddition, SmeltingInbound, SmeltingOrder
+from app.models.steelmaking import SteelmakingRecord
 from app.models.user import User
 from app.schemas.common import BatchDeleteRequest, PageResult
 from app.schemas.smelting import (
@@ -40,6 +41,29 @@ router = APIRouter(prefix="/smelting-orders", tags=["smelting"], dependencies=[D
 
 # 仅 draft / rejected 可删除
 _DELETABLE_STATUSES = {"draft", "rejected"}
+
+
+async def build_inbound_line(db: AsyncSession, line) -> SmeltingInbound:
+    data = line.model_dump(exclude={"steelmaking_record_ids"})
+    model = SmeltingInbound(**data)
+    record_ids = list(dict.fromkeys(line.steelmaking_record_ids))
+    if not record_ids:
+        return model
+    records = list(
+        await db.scalars(
+            select(SteelmakingRecord).where(
+                SteelmakingRecord.id.in_(record_ids),
+                SteelmakingRecord.deleted.is_(False),
+            )
+        )
+    )
+    by_id = {record.id: record for record in records}
+    missing = [record_id for record_id in record_ids if record_id not in by_id]
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"炼钢记录不存在：{missing}")
+    model.steelmaking_records = [by_id[record_id] for record_id in record_ids]
+    model.furnace_no = None
+    return model
 
 
 @router.get("", response_model=PageResult[SmeltingOrderListItem])
@@ -94,6 +118,7 @@ async def list_orders(
                     or_(
                         SmeltingInbound.spec.like(like),
                         SmeltingInbound.furnace_no.like(like),
+                        SmeltingInbound.steelmaking_records.any(SteelmakingRecord.furnace_no.like(like)),
                         SmeltingInbound.notes.like(like),
                         SmeltingInbound.item.has(Item.name.like(like)),
                         SmeltingInbound.owner.has(or_(Party.name.like(like), Party.short_name.like(like))),
@@ -153,7 +178,7 @@ async def create_order(
             if line.side == "out":
                 specification = await require_specification(db, line.spec or "")
                 line_data["spec"] = specification.code
-            order.inbound_lines.append(SmeltingInbound(**line_data))
+            order.inbound_lines.append(await build_inbound_line(db, line.model_copy(update={"spec": line_data.get("spec")})))
         for alloy in payload.alloy_lines:
             order.alloy_lines.append(AlloyAddition(**alloy.model_dump()))
         excluded_item_ids = await get_yield_excluded_item_ids(
@@ -199,7 +224,7 @@ async def update_order(
                 if line.side == "out":
                     specification = await require_specification(db, line.spec or "")
                     line_data["spec"] = specification.code
-                order.inbound_lines.append(SmeltingInbound(**line_data))
+                order.inbound_lines.append(await build_inbound_line(db, line.model_copy(update={"spec": line_data.get("spec")})))
         if payload.alloy_lines is not None:
             if order.status not in STOCK_OUT_LOCKED_STATUSES:
                 order.alloy_lines.clear()

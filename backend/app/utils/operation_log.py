@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from ipaddress import ip_address
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -83,6 +84,30 @@ def get_user_id_from_request(request: Request) -> int | None:
         return None
     subject = get_subject(auth.split(" ", 1)[1])
     return int(subject) if subject and subject.isdigit() else None
+
+
+def _valid_ip(value: str) -> str | None:
+    candidate = value.strip().strip('"')
+    if not candidate or candidate.lower() == "unknown":
+        return None
+    if candidate.startswith("[") and "]" in candidate:
+        candidate = candidate[1:candidate.index("]")]
+    try:
+        return ip_address(candidate).compressed
+    except ValueError:
+        return None
+
+
+def get_client_ip(request: Request) -> str | None:
+    """Resolve the original client address forwarded by the frontend proxy."""
+    for candidate in request.headers.get("x-forwarded-for", "").split(","):
+        resolved = _valid_ip(candidate)
+        if resolved:
+            return resolved
+    resolved = _valid_ip(request.headers.get("x-real-ip", ""))
+    if resolved:
+        return resolved
+    return _valid_ip(request.client.host) if request.client else None
 
 
 def operation_context(request: Request) -> tuple[str, str | None, int | None]:
@@ -188,7 +213,7 @@ async def operation_log_middleware(request: Request, call_next: Callable[[Reques
             "query": str(request.url.query) or None,
             "request": body,
         },
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     token = set_audit_context(context)
     try:

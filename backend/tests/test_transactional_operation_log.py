@@ -1,5 +1,6 @@
 import unittest
 
+from starlette.requests import Request
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -7,9 +8,42 @@ from app.database import AuditedSession, Base, add_request_audit_log
 from app.models.operation_log import OperationLog
 from app.models.user import User
 from app.utils.audit_context import new_audit_context, reset_audit_context, set_audit_context
+from app.utils.operation_log import get_client_ip
 
 
 class TransactionalOperationLogTests(unittest.TestCase):
+    def test_forwarded_public_ip_takes_priority_over_proxy_container_ip(self):
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/items",
+                "headers": [
+                    (b"x-forwarded-for", b"203.0.113.25, 172.18.0.3"),
+                    (b"x-real-ip", b"172.18.0.3"),
+                ],
+                "client": ("172.18.0.2", 12345),
+            }
+        )
+
+        self.assertEqual(get_client_ip(request), "203.0.113.25")
+
+    def test_invalid_forwarded_values_fall_back_to_real_ip(self):
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/items",
+                "headers": [
+                    (b"x-forwarded-for", b"unknown, not-an-ip"),
+                    (b"x-real-ip", b"198.51.100.8"),
+                ],
+                "client": ("172.18.0.2", 12345),
+            }
+        )
+
+        self.assertEqual(get_client_ip(request), "198.51.100.8")
+
     def test_audit_row_is_added_once_to_the_business_session(self):
         context = new_audit_context(
             user_id=7,
